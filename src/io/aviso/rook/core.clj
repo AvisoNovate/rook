@@ -251,7 +251,7 @@
 (defn arg-resolver-middleware [handler & arg-resolvers]
   (fn [request]
     (handler (assoc request
-               (merge (or (:rook request) {})
+               :rook (merge (or (:rook request) {})
                       {:default-arg-resolvers (concat (:default-arg-resolvers (:rook request))  arg-resolvers)})))))
 
 (defn namespace-scanning-middleware [handler namespace]

@@ -15,8 +15,14 @@
 
 (defn
   ^{:path-spec [:post "/:id/activate"]}
-  activate [test1 id request test2]
-  (str "test1=" test1 ",id=" id ",test=2" test2, "request=" (count request)))
+  activate [test1 id request test2 test3 test4 request-method]
+  (str "test1=" test1
+       ",id=" id
+       ",test2=" test2,
+       ",test3=" test3,
+       ",test4=" test4,
+       ",request=" (count request)
+       ",meth=" request-method))
 
 (defn mkrequest [method path]
   ((-> identity
@@ -49,11 +55,22 @@
             (test-mw (mkrequest :get "/?limit=100"))))
     (is (= {:status 200 :body "id=123"}
             (test-mw (mkrequest :get "/123"))))
-    (is (= "test1=1test,id=123,test=2request=13"
+    (is (= "test1=1test,id=123,test2=,test3=,test4=,request=13,meth="
           (test-mw (mkrequest :post "/123/activate?test1=1test"))))
     (is (nil? (test-mw (assoc (mkrequest :get "/123/activate") :test-fun :rook))))
     (is (nil? (test-mw (assoc (mkrequest :put "/") :test-fun :rook))))
     (is (nil? (test-mw (assoc (mkrequest :put "/123") :test-fun :rook))))))
+
+
+(deftest complete-handler-test
+  (when-let [test-mw (is (namespace-scanning-middleware
+                           (arg-resolver-middleware rook-handler
+                                                    (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
+                                                    (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request))))
+                                                    #'request-arg-resolver)
+                           *ns*))]
+    (is (= "test1=TEST!,id=123,test2=TEST@,test3=TEST#,test4=test$/123/activate,request=13,meth=:1234"
+          (test-mw (mkrequest :post "/123/activate?test1=1test"))))))
 
 (deftest arg-resolver-test
   (let [map-resolver (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
