@@ -124,12 +124,23 @@
                                                                   rook-handler)
                                                                   'io.aviso.rook.core-test2))
                                            rook-handler)
-                                         *ns*)))]
+                                         *ns*)))
+        test-mw2 (is (rook-middleware "/merchant" *ns*
+                       (compojure/GET "/test" [] {:body "test!"})
+                       (rook-middleware "/:id/activate" 'io.aviso.rook.core-test2
+                         (rook-middleware "/:key" 'io.aviso.rook.core-test3))))
+        ]
     (is (nil? (test-mw (mkrequest :post "/456/activate"))))
     (is (= {:status 200 :body "limit="} (test-mw (mkrequest :get "/merchant/"))))
     (is (= {:status 200 :body "id=6789"} (test-mw (mkrequest :get "/merchant/6789"))))
     (is (= {:body "id=4567&offset=1234"} (test-mw (mkrequest :get "/merchant/4567/activate?offset=1234"))))
     (is (= {:body "test3,id=4567,key=test_key"} (test-mw (mkrequest :get "/merchant/4567/activate/test_key"))))
+    (is (nil? (test-mw2 (mkrequest :post "/456/activate"))))
+    (is (= {:status 200 :body "limit="} (test-mw2 (mkrequest :get "/merchant/"))))
+    (is (= {:status 200 :body "id=6789"} (test-mw2 (mkrequest :get "/merchant/6789"))))
+    (is (= {:body "id=4567&offset=1234"} (test-mw2 (mkrequest :get "/merchant/4567/activate?offset=1234"))))
+    (is (= {:body "test3,id=4567,key=test_key"} (test-mw2 (mkrequest :get "/merchant/4567/activate/test_key"))))
+    (is (= {:status 200 :headers {} :body "test!"} (test-mw2 (mkrequest :get "/merchant/test"))))
 
     )
   )
