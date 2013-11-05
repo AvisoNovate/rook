@@ -47,16 +47,16 @@
 (in-ns 'io.aviso.rook.core-test)
 
 (deftest namespace-middleware-test
-  (let [test-mw (is (namespace-middleware (fn [request] ((:test-fun request) request)) *ns*))
+  (let [test-mw (is (namespace-middleware (fn [request] ((:test-fun request) request)) 'io.aviso.rook.core-test))
              test-mw2 (is (namespace-middleware (fn [request] ((:test-fun request) request)) 'io.aviso.rook.core-test2))]
     (is (= {:arg-resolvers nil :metadata (meta #'io.aviso.rook.core-test/index) :function #'io.aviso.rook.core-test/index
-             :namespace *ns*}
+             :namespace 'io.aviso.rook.core-test}
             (test-mw (assoc (mkrequest :get "/?limit=100") :test-fun :rook))))
     (is (= {:arg-resolvers nil :metadata (meta #'io.aviso.rook.core-test/show) :function #'io.aviso.rook.core-test/show
-             :namespace *ns*}
+             :namespace 'io.aviso.rook.core-test}
             (test-mw (assoc (mkrequest :get "/123") :test-fun :rook))))
     (is (= {:arg-resolvers nil :metadata (meta #'io.aviso.rook.core-test/activate) :function #'io.aviso.rook.core-test/activate
-             :namespace *ns*}
+             :namespace 'io.aviso.rook.core-test}
             (test-mw (assoc (mkrequest :post "/123/activate") :test-fun :rook))))
     (is (nil? (test-mw (assoc (mkrequest :get "/123/activate") :test-fun :rook))))
     (is (nil? (test-mw (assoc (mkrequest :put "/") :test-fun :rook))))
@@ -68,7 +68,7 @@
            (test-mw2 (assoc (mkrequest :get "/?offset=100") :test-fun :rook))))))
 
 (deftest namespace-handler-test
-  (when-let [test-mw (is (namespace-middleware rook-handler *ns*))]
+  (when-let [test-mw (is (namespace-middleware rook-handler 'io.aviso.rook.core-test))]
     (is (= {:status 200 :body "limit=100"}
             (test-mw (mkrequest :get "/?limit=100"))))
     (is (= {:status 200 :body "id=123"}
@@ -86,7 +86,7 @@
                                                     (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
                                                     (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request))))
                                                     #'request-arg-resolver)
-                           *ns*))]
+                           'io.aviso.rook.core-test))]
     (is (= "test1=TEST!,id=123,test2=TEST@,test3=TEST#,test4=test$/123/activate,request=13,meth=:1234"
           (test-mw (mkrequest :post "/123/activate?test1=1test"))))))
 
@@ -126,8 +126,8 @@
                                                                   rook-handler)
                                                                   'io.aviso.rook.core-test2))
                                            rook-handler)
-                                         *ns*)))
-        test-mw2 (is (namespace-handler "/merchant" *ns*
+                                         'io.aviso.rook.core-test)))
+        test-mw2 (is (namespace-handler "/merchant" 'io.aviso.rook.core-test
                        (compojure/GET "/test" [] {:body "test!"})
                        (namespace-handler "/:id/activate" 'io.aviso.rook.core-test2
                          (namespace-handler "/:key" 'io.aviso.rook.core-test3))))
