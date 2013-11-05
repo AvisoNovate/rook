@@ -1,7 +1,8 @@
 (ns io.aviso.rook.core-test
   (:require [ring.mock.request :as mock]
             [ring.middleware.params]
-            [ring.middleware.keyword-params])
+            [ring.middleware.keyword-params]
+            [compojure.core :as compojure])
   (:use io.aviso.rook.core
         clojure.test))
 
@@ -33,8 +34,21 @@
 (defn u-show [id]
   (str "!" id "!"))
 
+(ns io.aviso.rook.core-test2)
+
+(defn index [offset id]
+  {:body (str "id=" id "&offset=" offset)})
+
+(ns io.aviso.rook.core-test3)
+
+(defn index [id key]
+  {:body (str "test3,id=" id ",key=" key)})
+
+(in-ns 'io.aviso.rook.core-test)
+
 (deftest namespace-scanning-middleware-test
-  (when-let [test-mw (is (namespace-scanning-middleware (fn [request] ((:test-fun request) request)) *ns*))]
+  (let [test-mw (is (namespace-scanning-middleware (fn [request] ((:test-fun request) request)) *ns*))
+             test-mw2 (is (namespace-scanning-middleware (fn [request] ((:test-fun request) request)) 'io.aviso.rook.core-test2))]
     (is (= {:arg-resolvers nil :metadata (meta #'io.aviso.rook.core-test/index) :function #'io.aviso.rook.core-test/index
              :namespace *ns*}
             (test-mw (assoc (mkrequest :get "/?limit=100") :test-fun :rook))))
@@ -47,7 +61,11 @@
     (is (nil? (test-mw (assoc (mkrequest :get "/123/activate") :test-fun :rook))))
     (is (nil? (test-mw (assoc (mkrequest :put "/") :test-fun :rook))))
     (is (nil? (test-mw (assoc (mkrequest :put "/123") :test-fun :rook))))
-    ))
+    (is (= {:arg-resolvers nil
+            :metadata (meta #'io.aviso.rook.core-test2/index)
+            :function #'io.aviso.rook.core-test2/index
+            :namespace 'io.aviso.rook.core-test2}
+           (test-mw2 (assoc (mkrequest :get "/?offset=100") :test-fun :rook))))))
 
 (deftest namespace-handler-test
   (when-let [test-mw (is (namespace-scanning-middleware rook-handler *ns*))]
@@ -92,5 +110,28 @@
     (is (= :post (extract-argument-value 'request-method test-request arg-resolvers2)))
     (is (= "test$/123/activate" (extract-argument-value 'test4 test-request arg-resolvers2)))
     ))
+
+(deftest nested-context-test
+  (let [test-mw (is (compojure/context "/merchant" []
+                                       (namespace-scanning-middleware
+                                         (compojure/routes
+                                           (compojure/context "/:id/activate" []
+                                                              (namespace-scanning-middleware
+                                                                (compojure/routes
+                                                                  (compojure/context "/:key" []
+                                                                    (namespace-scanning-middleware
+                                                                      rook-handler 'io.aviso.rook.core-test3))
+                                                                  rook-handler)
+                                                                  'io.aviso.rook.core-test2))
+                                           rook-handler)
+                                         *ns*)))]
+    (is (nil? (test-mw (mkrequest :post "/456/activate"))))
+    (is (= {:status 200 :body "limit="} (test-mw (mkrequest :get "/merchant/"))))
+    (is (= {:status 200 :body "id=6789"} (test-mw (mkrequest :get "/merchant/6789"))))
+    (is (= {:body "id=4567&offset=1234"} (test-mw (mkrequest :get "/merchant/4567/activate?offset=1234"))))
+    (is (= {:body "test3,id=4567,key=test_key"} (test-mw (mkrequest :get "/merchant/4567/activate/test_key"))))
+
+    )
+  )
 
 (run-tests)
