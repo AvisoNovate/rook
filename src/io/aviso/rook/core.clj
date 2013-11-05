@@ -2,6 +2,7 @@
   (:require
     [compojure.core :as compojure]
     [clout.core :as clout]
+    [clojure.core.memoize :as memo]
     [clojure.walk :as walk]
     [clojure.pprint :as pp]))
 
@@ -66,20 +67,20 @@
 ;        request)
 ;      (invoke-handler-function f (-> f meta :arglists first)  request))))
 
-(defn create-function-route-handler
-  "Create a handler for a route which invokes function <f> after parsing and validation of request data (if :validate? metadata is true)
-   The function is invoked with arguments as determined by extract-param-value.
-   The request is augmented with an :env entry containing a map of :mode, :service and :services."
-  [namespace f default-middlewares default-arg-resolvers]
-  (let [{:keys [middlewares arg-resolvers arglists] :as meta-data} (meta f)]
-    (fn [request]
-      (let [request (assoc request
-                      :rook {:namespace namespace
-                             :function f
-                             :metadata meta-data
-                             :arg-resolvers (concat default-arg-resolvers arg-resolvers)})
-            rook-wrapper (route-function-wrapper (concat default-middlewares middlewares))]
-        (rook-wrapper request)))))
+;(defn create-function-route-handler
+;  "Create a handler for a route which invokes function <f> after parsing and validation of request data (if :validate? metadata is true)
+;   The function is invoked with arguments as determined by extract-param-value.
+;   The request is augmented with an :env entry containing a map of :mode, :service and :services."
+;  [namespace f default-middlewares default-arg-resolvers]
+;  (let [{:keys [middlewares arg-resolvers arglists] :as meta-data} (meta f)]
+;    (fn [request]
+;      (let [request (assoc request
+;                      :rook {:namespace namespace
+;                             :function f
+;                             :metadata meta-data
+;                             :arg-resolvers (concat default-arg-resolvers arg-resolvers)})
+;            rook-wrapper (route-function-wrapper (concat default-middlewares middlewares))]
+;        (rook-wrapper request)))))
 
 ;    (fn [request]
 ;      (l/debugf "Request %s: %s" (:request-method request) (:uri request))
@@ -254,25 +255,34 @@
                :rook (merge (or (:rook request) {})
                       {:default-arg-resolvers (concat (:default-arg-resolvers (:rook request))  arg-resolvers)})))))
 
+(defn- get-compiled-paths-uncached [namespace]
+  (->> (ns-paths namespace)
+       (map (fn [[[request-method path] function-key]]
+              (when-let [fun (ns-function namespace function-key)]
+                [[request-method (clout/route-compile path)] fun])))
+       (remove nil?)))
+
+(def get-compiled-paths (memo/memo get-compiled-paths-uncached))
+
+(defn clear-namespace-cache!
+  "Clear namespace cache, forcing a re-scan of every namespace checked beforehand."
+  []
+  (memo/memo-clear! get-compiled-paths))
+
 (defn namespace-scanning-middleware [handler namespace]
-  (let [compiled-paths (->> (ns-paths namespace)
-                         (map (fn [[[request-method path] function-key]]
-                                (when-let [fun (ns-function namespace function-key)]
-                                  [[request-method (clout/route-compile path)] fun])))
-                         (remove nil?))]
-    (fn [request]
-      (let [rook-data (some (fn [[[request-method route] fun]]
-                                   (when-let [route-params (and (or (= :all (:request-method request))
-                                                                    (= (:request-method request) request-method))
-                                                                (clout/route-matches route request))]
-                                     {:route-params (merge (:route-params request) route-params)
-                                      :rook (merge (or (:rook request) {})
-                                              {:namespace namespace
-                                               :function fun
-                                               :metadata (meta fun)
-                                               :arg-resolvers (:arg-resolvers (meta fun))})}))
-                                 compiled-paths)]
-        (handler (merge request rook-data))))))
+  (fn [request]
+    (let [rook-data (some (fn [[[request-method route] fun]]
+                                 (when-let [route-params (and (or (= :all (:request-method request))
+                                                                  (= (:request-method request) request-method))
+                                                              (clout/route-matches route request))]
+                                   {:route-params (merge (:route-params request) route-params)
+                                    :rook (merge (or (:rook request) {})
+                                            {:namespace namespace
+                                             :function fun
+                                             :metadata (meta fun)
+                                             :arg-resolvers (:arg-resolvers (meta fun))})}))
+                          (get-compiled-paths namespace))]
+      (handler (merge request rook-data)))))
 
 (defn rook-handler [request]
   (let [rook-data (-> request :rook)
