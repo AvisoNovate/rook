@@ -269,7 +269,7 @@
   []
   (memo/memo-clear! get-compiled-paths))
 
-(defn namespace-scanning-middleware
+(defn namespace-middleware
   ([handler namespace]
   (fn [request]
     (let [rook-data (some (fn [[[request-method route] fun]]
@@ -295,9 +295,11 @@
     (when fun
       (apply fun argument-values))))
 
-(defn rook-middleware
+(defn namespace-handler
+  ([namespace]
+   (namespace-middleware rook-handler namespace))
   ([path namespace & handlers]
    (compojure/context path []
-     (namespace-scanning-middleware
+     (namespace-middleware
       (apply compojure/routes (concat handlers [rook-handler]))
       namespace))))

@@ -46,9 +46,9 @@
 
 (in-ns 'io.aviso.rook.core-test)
 
-(deftest namespace-scanning-middleware-test
-  (let [test-mw (is (namespace-scanning-middleware (fn [request] ((:test-fun request) request)) *ns*))
-             test-mw2 (is (namespace-scanning-middleware (fn [request] ((:test-fun request) request)) 'io.aviso.rook.core-test2))]
+(deftest namespace-middleware-test
+  (let [test-mw (is (namespace-middleware (fn [request] ((:test-fun request) request)) *ns*))
+             test-mw2 (is (namespace-middleware (fn [request] ((:test-fun request) request)) 'io.aviso.rook.core-test2))]
     (is (= {:arg-resolvers nil :metadata (meta #'io.aviso.rook.core-test/index) :function #'io.aviso.rook.core-test/index
              :namespace *ns*}
             (test-mw (assoc (mkrequest :get "/?limit=100") :test-fun :rook))))
@@ -68,7 +68,7 @@
            (test-mw2 (assoc (mkrequest :get "/?offset=100") :test-fun :rook))))))
 
 (deftest namespace-handler-test
-  (when-let [test-mw (is (namespace-scanning-middleware rook-handler *ns*))]
+  (when-let [test-mw (is (namespace-middleware rook-handler *ns*))]
     (is (= {:status 200 :body "limit=100"}
             (test-mw (mkrequest :get "/?limit=100"))))
     (is (= {:status 200 :body "id=123"}
@@ -81,7 +81,7 @@
 
 
 (deftest complete-handler-test
-  (when-let [test-mw (is (namespace-scanning-middleware
+  (when-let [test-mw (is (namespace-middleware
                            (arg-resolver-middleware rook-handler
                                                     (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
                                                     (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request))))
@@ -113,22 +113,22 @@
 
 (deftest nested-context-test
   (let [test-mw (is (compojure/context "/merchant" []
-                                       (namespace-scanning-middleware
+                                       (namespace-middleware
                                          (compojure/routes
                                            (compojure/context "/:id/activate" []
-                                                              (namespace-scanning-middleware
+                                                              (namespace-middleware
                                                                 (compojure/routes
                                                                   (compojure/context "/:key" []
-                                                                    (namespace-scanning-middleware
+                                                                    (namespace-middleware
                                                                       rook-handler 'io.aviso.rook.core-test3))
                                                                   rook-handler)
                                                                   'io.aviso.rook.core-test2))
                                            rook-handler)
                                          *ns*)))
-        test-mw2 (is (rook-middleware "/merchant" *ns*
+        test-mw2 (is (namespace-handler "/merchant" *ns*
                        (compojure/GET "/test" [] {:body "test!"})
-                       (rook-middleware "/:id/activate" 'io.aviso.rook.core-test2
-                         (rook-middleware "/:key" 'io.aviso.rook.core-test3))))
+                       (namespace-handler "/:id/activate" 'io.aviso.rook.core-test2
+                         (namespace-handler "/:key" 'io.aviso.rook.core-test3))))
         ]
     (is (nil? (test-mw (mkrequest :post "/456/activate"))))
     (is (= {:status 200 :body "limit="} (test-mw (mkrequest :get "/merchant/"))))
