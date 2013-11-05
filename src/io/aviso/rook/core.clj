@@ -33,15 +33,17 @@
   => parameters found in (:route-params request) are mapped then
   => then we use POST/GET parameters from (:params) (we assume that they are keywordized using appropriate middleware)"
   [argument request arg-resolvers]
-  (or
-    (loop [[arg-resolver & arg-resolvers] arg-resolvers]
-      (when arg-resolver
-        (or
-          (arg-resolver (keyword (name argument)) request)
-          (recur arg-resolvers))))
-    (when (= "request" (name argument)) request)
-    (get (:route-params request) (keyword (name argument)))
-    (get (:params request) (keyword (name argument)))))
+  (let [arg-kw (keyword (name argument))
+        api-kw (keyword (.replace (name argument) "-" "_"))]
+    (or
+      (loop [[arg-resolver & arg-resolvers] arg-resolvers]
+        (when arg-resolver
+          (or
+            (arg-resolver arg-kw request)
+            (recur arg-resolvers))))
+      (when (= :request arg-kw) request)
+      (get (:route-params request) api-kw)
+      (get (:params request) api-kw))))
 
 (defn- ns-function
   "Return the var for the given namespance and function keyword."

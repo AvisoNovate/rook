@@ -95,13 +95,15 @@
         fn-resolver  (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request))))
         arg-resolvers1 [map-resolver fn-resolver #'request-arg-resolver]
         arg-resolvers2 [#'request-arg-resolver map-resolver fn-resolver]
-        test-request (mkrequest :post "/123/activate")]
+        test-request (mkrequest :post "/123/activate?test_value=TT!")]
     (is (= "TEST!" (extract-argument-value 'test1 test-request [map-resolver])))
     (is (= "TEST@" (extract-argument-value 'test2 test-request [map-resolver])))
     (is (= "TEST#" (extract-argument-value 'test3 test-request [map-resolver])))
     (is (= "TEST!" (extract-argument-value 'test1 test-request arg-resolvers1)))
     (is (= "TEST@" (extract-argument-value 'test2 test-request arg-resolvers1)))
     (is (= "TEST#" (extract-argument-value 'test3 test-request arg-resolvers1)))
+    (is (= "TT!" (extract-argument-value 'test-value test-request arg-resolvers1)))
+    (is (= "TT!" (extract-argument-value 'test_value test-request arg-resolvers1)))
     (is (nil? (extract-argument-value 'test1 test-request [fn-resolver])))
     (is (nil? (extract-argument-value 'test2 test-request [fn-resolver])))
     (is (nil? (extract-argument-value 'test3 test-request [fn-resolver])))
