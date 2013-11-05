@@ -43,7 +43,10 @@
             (recur arg-resolvers))))
       (when (= :request arg-kw) request)
       (get (:route-params request) api-kw)
-      (get (:params request) api-kw))))
+      (get (:route-params request) arg-kw)
+      (get (:params request) api-kw)
+      (get (:params request) arg-kw)
+      )))
 
 (defn- ns-function
   "Return the var for the given namespance and function keyword."
@@ -268,24 +271,25 @@
 
 (defn clear-namespace-cache!
   "Clear namespace cache, forcing a re-scan of every namespace checked beforehand."
-  []
-  (memo/memo-clear! get-compiled-paths))
+  ([] (memo/memo-clear! get-compiled-paths))
+  ([namespace] (memo/memo-clear! get-compiled-paths [namespace])))
 
 (defn namespace-middleware
   ([handler namespace]
-  (fn [request]
-    (let [rook-data (some (fn [[[request-method route] fun]]
-                                 (when-let [route-params (and (or (= :all (:request-method request))
-                                                                  (= (:request-method request) request-method))
-                                                              (clout/route-matches route request))]
-                                   {:route-params (merge (:route-params request) route-params)
-                                    :rook (merge (or (:rook request) {})
-                                            {:namespace namespace
-                                             :function fun
-                                             :metadata (meta fun)
-                                             :arg-resolvers (:arg-resolvers (meta fun))})}))
-                          (get-compiled-paths namespace))]
-      (handler (merge request rook-data))))))
+    (clear-namespace-cache! namespace)
+    (fn [request]
+      (let [rook-data (some (fn [[[request-method route] fun]]
+                                   (when-let [route-params (and (or (= :all (:request-method request))
+                                                                    (= (:request-method request) request-method))
+                                                                (clout/route-matches route request))]
+                                     {:route-params (merge (:route-params request) route-params)
+                                      :rook (merge (or (:rook request) {})
+                                              {:namespace namespace
+                                               :function fun
+                                               :metadata (meta fun)
+                                               :arg-resolvers (:arg-resolvers (meta fun))})}))
+                            (get-compiled-paths namespace))]
+        (handler (merge request rook-data))))))
 
 (defn rook-handler [request]
   (let [rook-data (-> request :rook)
