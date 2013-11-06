@@ -148,6 +148,8 @@
      path-spec is a tuple of [method path]
      function-key is a a keyword with the same name as a function in <namespace>"
   [namespace]
+  (when-not (find-ns namespace)
+    (require namespace))
   (concat
     (remove nil?
             (map function-entry
