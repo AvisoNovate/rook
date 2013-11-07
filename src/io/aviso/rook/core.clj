@@ -262,11 +262,17 @@
                :rook (merge (or (:rook request) {})
                       {:default-arg-resolvers (concat (:default-arg-resolvers (:rook request))  arg-resolvers)})))))
 
-(defn- get-compiled-paths-uncached [namespace]
+(defn get-available-paths [namespace]
   (->> (ns-paths namespace)
        (map (fn [[[request-method path] function-key]]
               (when-let [fun (ns-function namespace function-key)]
-                [[request-method (clout/route-compile path)] fun])))
+                [[request-method path] fun])))
+       (remove nil?)))
+
+(defn- get-compiled-paths-uncached [namespace]
+  (->> (get-available-paths namespace)
+       (map (fn [[[request-method path] fun]]
+              [[request-method (clout/route-compile path)] fun]))
        (remove nil?)))
 
 (def get-compiled-paths (memo/memo get-compiled-paths-uncached))
