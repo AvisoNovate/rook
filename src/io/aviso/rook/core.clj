@@ -125,7 +125,8 @@
        (map (fn [[[request-method path] function-key]]
               (when-let [fun (ns-function namespace function-key)]
                 [[request-method path] fun])))
-       (remove nil?)))
+       (remove nil?)
+       (sort-by #(or (-> % second meta :line) 0))))    ;sadly, the namespace stores interned values
 
 (defn- get-compiled-paths-uncached [namespace]
   (->> (get-available-paths namespace)
