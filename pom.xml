@@ -13,17 +13,11 @@
       <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
     </license>
   </licenses>
- <distributionManagement>
-  <repository>
-    <id>annadale-nexus</id>
-    <name>Annadale Tech Nexus Repository</name>
-    <url>https://mvn.annadaletech.com/nexus/content/repositories/releases/</url>
-  </repository>
-</distributionManagement>
   <scm>
-    <connection>scm:git:ssh://git@stash-ssh.annadaletech.com:7999/evat/rook.git</connection>
-    <developerConnection>scm:git:ssh://git@stash-ssh.annadaletech.com:7999/evat/rook.git</developerConnection>
-    <tag>HEAD</tag>
+    <connection>scm:git:git://github.com//.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com//.git</developerConnection>
+    <tag>e2b3bc9e3fecdcbf0f1d9c79207a9fcb625f2403</tag>
+    <url>https://github.com//</url>
   </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
@@ -43,13 +37,6 @@
     </testResources>
     <directory>target/</directory>
     <outputDirectory>target/classes</outputDirectory>
-    <extensions>
-        <extension>
-            <groupId>org.apache.maven.wagon</groupId>
-            <artifactId>wagon-ssh</artifactId>
-            <version>2.5</version>
-        </extension>
-    </extensions>
   </build>
   <repositories>
     <repository>
