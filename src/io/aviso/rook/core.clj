@@ -145,10 +145,12 @@
   ([handler namespace]
     (clear-namespace-cache! namespace)
     (fn [request]
+      (println "GCP:" (select-keys request [:path-info :uri]) (get-compiled-paths namespace))
       (let [rook-data (some (fn [[[request-method route] fun]]
                                    (when-let [route-params (and (or (= :all (:request-method request))
                                                                     (= (:request-method request) request-method))
                                                                 (clout/route-matches route request))]
+                                     (println "GCP:" route-params fun)
                                      {:route-params (merge (:route-params request) route-params)
                                       :rook (merge (or (:rook request) {})
                                               {:namespace namespace

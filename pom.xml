@@ -3,7 +3,7 @@
   <groupId>io.aviso</groupId>
   <artifactId>rook</artifactId>
   <packaging>jar</packaging>
-  <version>0.1.1</version>
+  <version>0.1.2-SNAPSHOT</version>
   <name>rook</name>
   <description>Ruby on Rails-style resource mapping for Clojure/Compojure web apps</description>
   <url>https://github.com/AvisoNovate/rook</url>
@@ -16,7 +16,7 @@
   <scm>
     <connection>scm:git:git://github.com//.git</connection>
     <developerConnection>scm:git:ssh://git@github.com//.git</developerConnection>
-    <tag>cbe433384d833445cdafc4cc2eda2139f22b2a38</tag>
+    <tag>260091a349052192c4a7ba9b6546afabb5282a10</tag>
     <url>https://github.com//</url>
   </scm>
   <build>
