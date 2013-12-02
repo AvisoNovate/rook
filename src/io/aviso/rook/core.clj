@@ -26,7 +26,7 @@
       deref
       ifn?))
 
-(defn- extract-argument-value
+(defn extract-argument-value
   "Return parameter values for handler function based on request data. The order of parameter resolution is following:
   => request parameter gets mapped to the request
   => data parameter gets mapped to the parsed and validated request data (if available)
