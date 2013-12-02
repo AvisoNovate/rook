@@ -14,7 +14,7 @@
    [[:put "/:id"] :update]
    [[:patch "/:id"] :update]
    [[:get "/:id/edit"] :edit]
-   [[:delete "/:id"] :delete]
+   [[:delete "/:id"] :destroy]
    [[:get "/"] :index]
    [[:post "/"] :create]])
 
