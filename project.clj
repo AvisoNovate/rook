@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.1.2"
+(defproject io.aviso/rook "0.1.3-SNAPSHOT"
   :description "Ruby on Rails-style resource mapping for Clojure/Compojure web apps"
   :url "https://github.com/AvisoNovate/rook"
   :license {:name "Apache Sofware Licencse 2.0"
