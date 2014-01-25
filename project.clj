@@ -8,7 +8,6 @@
                                    :global-vars {*warn-on-reflection* true}}}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/tools.logging "0.2.6"]
-                 [compojure "1.1.6"]
-                 [org.clojure/core.memoize "0.5.6"]]
+                 [compojure "1.1.6"]]
   :profiles {:dev {:dependencies [[ring-mock "0.1.5"]]}}
   :plugins [[test2junit "1.0.1"]])

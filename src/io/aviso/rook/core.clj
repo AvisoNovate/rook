@@ -3,7 +3,6 @@
     [clojure.tools.logging :as l]
     [compojure.core :as compojure]
     [clout.core :as clout]
-    [clojure.core.memoize :as memo]
     [clojure.walk :as walk]
     [clojure.pprint :as pp]))
 
@@ -145,42 +144,44 @@ But then, unless your name is Rich, you're in trouble already... "
        (remove nil?)
        (sort-by #(or (-> % second meta :line) 0))))    ;sadly, the namespace stores interned values
 
-(defn- get-compiled-paths-uncached [namespace]
+(defn- get-compiled-paths
+  [namespace]
+  (l/debugf "Scanning %s for mappable functions" namespace)
   (->> (get-available-paths namespace)
        (map (fn [[[request-method path] fun]]
               (l/debugf "Mapping %s `%s' to %s" request-method path fun)
               [[request-method (clout/route-compile path)] fun]))
        (remove nil?)))
 
-(def get-compiled-paths (memo/memo get-compiled-paths-uncached))
-
-(defn clear-namespace-cache!
-  "Clear namespace cache, forcing a re-scan of every namespace checked beforehand."
-  ([]
-   (memo/memo-clear! get-compiled-paths)
-   (l/debug "Cleared compiled path cache."))
-  ([namespace]
-   (memo/memo-clear! get-compiled-paths [namespace])
-   (l/debugf "Cleared compiled path cache for namespace %s." namespace)))
+(defn- identify-rook-data
+  "Uses the compiled paths to identify the matching function to be invoked and returns
+  the rook data to be added to the request. Returns nil on no match, or a map
+  containing :rook and :route-params if there is a match."
+  [request namespace compiled-paths]
+  (some (fn [[[request-method route] fun]]
+          (when-let [route-params (and (or (= :all (:request-method request))
+                                           (= (:request-method request) request-method))
+                                       (clout/route-matches route request))]
+            {:route-params (merge (:route-params request) route-params)
+             :rook (merge (:rook request)
+                          {:namespace namespace
+                           :function fun
+                           :metadata (meta fun)
+                           :arg-resolvers (:arg-resolvers (meta fun))})}))
+        compiled-paths))
 
 (defn namespace-middleware
 "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
-either by metadata or by default mappings from function name - sets this functions metadata in request map."
+either by metadata or by default mappings from function name - sets this functions metadata in request map.
+
+This does not invoke the function; that is the responsibility of the rook-handler function. Several additional
+middleware filters will typically sit between identifying the function and actually invoking it."
   ([handler namespace]
-    (clear-namespace-cache! namespace)
-    (fn [request]
-      (let [rook-data (some (fn [[[request-method route] fun]]
-                                   (when-let [route-params (and (or (= :all (:request-method request))
-                                                                    (= (:request-method request) request-method))
-                                                                (clout/route-matches route request))]
-                                     {:route-params (merge (:route-params request) route-params)
-                                      :rook (merge (or (:rook request) {})
-                                              {:namespace namespace
-                                               :function fun
-                                               :metadata (meta fun)
-                                               :arg-resolvers (:arg-resolvers (meta fun))})}))
-                            (get-compiled-paths namespace))]
-        (handler (merge request rook-data))))))
+   (let [compiled-paths (get-compiled-paths namespace)]
+     (fn namespace-service-identifier [request]
+       (if-let [rook-data (identify-rook-data request namespace compiled-paths)]
+         (handler (merge request rook-data))
+         (handler request))))))
 
 (defn rook-handler
 "Handler that uses information from :rook entry in request map to invoke proper function
