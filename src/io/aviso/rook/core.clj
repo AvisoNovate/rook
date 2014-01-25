@@ -45,8 +45,7 @@
       (get (:route-params request) api-kw)
       (get (:route-params request) arg-kw)
       (get (:params request) api-kw)
-      (get (:params request) arg-kw)
-      )))
+      (get (:params request) arg-kw))))
 
 (defn- ns-function
   "Return the var for the given namespance and function keyword."
@@ -97,8 +96,10 @@
 (defn- scan-namespace-for-doc
   "Build a map of functions in namespace <-> url prefixes."
   [namespace]
-  (remove nil?
-          (map #(get-function-meta namespace %) (ns-paths namespace))))
+  (->> namespace
+       ns-paths
+       (map #(get-function-meta namespace %))
+       (remove nil?)))
 
 (defn build-map-arg-resolver
   "Build an argument resolver which takes a list of keys and constant values and when required argument
@@ -123,26 +124,26 @@ a corresponding key in the built from keys and functions mentioned before - the 
   (get request arg))
 
 (defn arg-resolver-middleware
-"Middleware which adds provided argument resolvers to [:rook :default-arg-resolvers] collection."
+  "Middleware which adds provided argument resolvers to [:rook :default-arg-resolvers] collection."
   [handler & arg-resolvers]
   (fn [request]
     (handler (assoc request
-               :rook (merge (or (:rook request) {})
-                      {:default-arg-resolvers (concat (:default-arg-resolvers (:rook request))  arg-resolvers)})))))
+               :rook (merge (:rook request)
+                            {:default-arg-resolvers (concat (:default-arg-resolvers (:rook request)) arg-resolvers)})))))
 
 (defn get-available-paths
-"Scan namespace for available routes - only those that have available function are returned.
+  "Scan namespace for available routes - only those that have available function are returned.
 
-Routes are sorted by the line number from metadata - which can be troubling if you have the same namespace in many files.
+  Routes are sorted by the line number from metadata - which can be troubling if you have the same namespace in many files.
 
-But then, unless your name is Rich, you're in trouble already... "
+  But then, unless your name is Rich, you're in trouble already... "
   [namespace]
   (->> (ns-paths namespace)
        (map (fn [[[request-method path] function-key]]
               (when-let [fun (ns-function namespace function-key)]
                 [[request-method path] fun])))
        (remove nil?)
-       (sort-by #(or (-> % second meta :line) 0))))    ;sadly, the namespace stores interned values
+       (sort-by #(or (-> % second meta :line) 0)))) ;sadly, the namespace stores interned values
 
 (defn- get-compiled-paths
   [namespace]
@@ -151,7 +152,8 @@ But then, unless your name is Rich, you're in trouble already... "
        (map (fn [[[request-method path] fun]]
               (l/debugf "Mapping %s `%s' to %s" request-method path fun)
               [[request-method (clout/route-compile path)] fun]))
-       (remove nil?)))
+       (remove nil?)
+       doall))
 
 (defn- identify-rook-data
   "Uses the compiled paths to identify the matching function to be invoked and returns
@@ -163,19 +165,19 @@ But then, unless your name is Rich, you're in trouble already... "
                                            (= (:request-method request) request-method))
                                        (clout/route-matches route request))]
             {:route-params (merge (:route-params request) route-params)
-             :rook (merge (:rook request)
-                          {:namespace namespace
-                           :function fun
-                           :metadata (meta fun)
-                           :arg-resolvers (:arg-resolvers (meta fun))})}))
+             :rook         (merge (:rook request)
+                                  {:namespace     namespace
+                                   :function      fun
+                                   :metadata      (meta fun)
+                                   :arg-resolvers (:arg-resolvers (meta fun))})}))
         compiled-paths))
 
 (defn namespace-middleware
-"Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
-either by metadata or by default mappings from function name - sets this functions metadata in request map.
+  "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
+  either by metadata or by default mappings from function name - sets this functions metadata in request map.
 
-This does not invoke the function; that is the responsibility of the rook-handler function. Several additional
-middleware filters will typically sit between identifying the function and actually invoking it."
+  This does not invoke the function; that is the responsibility of the rook-handler function. Several additional
+  middleware filters will typically sit between identifying the function and actually invoking it."
   ([handler namespace]
    (let [compiled-paths (get-compiled-paths namespace)]
      (fn namespace-service-identifier [request]
@@ -184,27 +186,27 @@ middleware filters will typically sit between identifying the function and actua
          (handler request))))))
 
 (defn rook-handler
-"Handler that uses information from :rook entry in request map to invoke proper function
-and resolve arguments with arg-resolvers."
+  "Handler that uses information from :rook entry in request map to invoke proper function
+  and resolve arguments with arg-resolvers."
   [request]
   (let [rook-data (-> request :rook)
         arg-resolvers (concat (-> rook-data :default-arg-resolvers)
                               (-> rook-data :arg-resolvers))
-        fun  (-> rook-data :function)
+        fun (-> rook-data :function)
         args (-> rook-data :metadata :arglists first)
         argument-values (map #(extract-argument-value % request arg-resolvers) args)]
     (when fun
       (apply fun argument-values))))
 
 (defn namespace-handler
-"Helper handler, which wraps rook-handler in namespace middleware.
+  "Helper handler, which wraps rook-handler in namespace middleware.
 
-The advanced version also takes a path for compojure.core/context and a list of sub-handlers that
-will be invoked BEFORE rook-handler."
+  The advanced version also takes a path for compojure.core/context and a list of sub-handlers that
+  will be invoked BEFORE rook-handler."
   ([namespace]
    (namespace-middleware rook-handler namespace))
   ([path namespace & handlers]
    (compojure/context path []
-     (namespace-middleware
-      (apply compojure/routes (concat handlers [rook-handler]))
-      namespace))))
+                      (namespace-middleware
+                        (apply compojure/routes (concat handlers [rook-handler]))
+                        namespace))))
