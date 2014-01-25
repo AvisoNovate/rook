@@ -1,5 +1,6 @@
 (ns io.aviso.rook.core
   (:require
+    [clojure.tools.logging :as l]
     [compojure.core :as compojure]
     [clout.core :as clout]
     [clojure.core.memoize :as memo]
@@ -147,6 +148,7 @@ But then, unless your name is Rich, you're in trouble already... "
 (defn- get-compiled-paths-uncached [namespace]
   (->> (get-available-paths namespace)
        (map (fn [[[request-method path] fun]]
+              (l/debugf "Mapping %s `%s' to %s" request-method path fun)
               [[request-method (clout/route-compile path)] fun]))
        (remove nil?)))
 
@@ -154,8 +156,12 @@ But then, unless your name is Rich, you're in trouble already... "
 
 (defn clear-namespace-cache!
   "Clear namespace cache, forcing a re-scan of every namespace checked beforehand."
-  ([] (memo/memo-clear! get-compiled-paths))
-  ([namespace] (memo/memo-clear! get-compiled-paths [namespace])))
+  ([]
+   (memo/memo-clear! get-compiled-paths)
+   (l/debug "Cleared compiled path cache."))
+  ([namespace]
+   (memo/memo-clear! get-compiled-paths [namespace])
+   (l/debugf "Cleared compiled path cache for namespace %s." namespace)))
 
 (defn namespace-middleware
 "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
