@@ -196,6 +196,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
         args (-> rook-data :metadata :arglists first)
         argument-values (map #(extract-argument-value % request arg-resolvers) args)]
     (when fun
+      (l/debug "Invoking handler function" fun)
       (apply fun argument-values))))
 
 (defn namespace-handler
