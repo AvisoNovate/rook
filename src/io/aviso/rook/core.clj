@@ -178,12 +178,12 @@ a corresponding key in the built from keys and functions mentioned before - the 
 
   This does not invoke the function; that is the responsibility of the rook-handler function. Several additional
   middleware filters will typically sit between identifying the function and actually invoking it."
-  ([handler namespace]
-   (let [compiled-paths (get-compiled-paths namespace)]
-     (fn namespace-service-identifier [request]
-       (if-let [rook-data (identify-rook-data request namespace compiled-paths)]
-         (handler (merge request rook-data))
-         (handler request))))))
+  [handler namespace]
+  (let [compiled-paths (get-compiled-paths namespace)]
+    (fn namespace-service-identifier [request]
+      (if-let [rook-data (identify-rook-data request namespace compiled-paths)]
+        (handler (merge request rook-data))
+        (handler request)))))
 
 (defn rook-handler
   "Handler that uses information from :rook entry in request map to invoke proper function
