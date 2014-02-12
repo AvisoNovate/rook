@@ -54,7 +54,6 @@
     (when (symbol-for-function? f) ;it has to be a function all right
       f)))
 
-
 (defn- success?
   [{:keys [status]}]
   (<= 200 status 399))
@@ -150,7 +149,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
   (l/debugf "Scanning %s for mappable functions" namespace)
   (->> (get-available-paths namespace)
        (map (fn [[[request-method path] fun]]
-              (l/debugf "Mapping %s `%s' to %s" request-method path fun)
+              (l/debugf "Mapping %s `%s' to %s" (-> request-method name .toUpperCase) path fun)
               [[request-method (clout/route-compile path)] fun]))
        (remove nil?)
        doall))
@@ -202,12 +201,14 @@ a corresponding key in the built from keys and functions mentioned before - the 
 (defn namespace-handler
   "Helper handler, which wraps rook-handler in namespace middleware.
 
-  The advanced version also takes a path for compojure.core/context and a list of sub-handlers that
+  The advanced version also takes a path for compojure.core/context and an optional list of sub-handlers that
   will be invoked BEFORE rook-handler."
   ([namespace]
    (namespace-middleware rook-handler namespace))
   ([path namespace & handlers]
    (compojure/context path []
                       (namespace-middleware
-                        (apply compojure/routes (concat handlers [rook-handler]))
+                        (if (empty? handlers)
+                          rook-handler
+                          (apply compojure/routes (concat handlers [rook-handler])))
                         namespace))))
