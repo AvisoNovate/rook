@@ -9,7 +9,10 @@
 
 (def
   DEFAULT-MAPPINGS
-  "Default mappings for route specs to functions. We use keyword for function name for increased readability."
+  "Default mappings for route specs to functions. We use keyword for function name for increased readability.
+  If a public method whose name matches a default mapping exists, then it will be added using the
+  default mapping; for example, a method named \"index\" will automatically be matched against \"GET /\".
+  This can be overriden by providing meta-data on the functions."
   [[[:get "/new"] :new]
    [[:get "/:id"] :show]
    [[:put "/:id"] :update]
@@ -56,6 +59,7 @@
       f)))
 
 (defn- success?
+  "Passed a resonse map, determines if the status indicates success."
   [{:keys [status]}]
   (<= 200 status 399))
 
@@ -186,8 +190,8 @@ a corresponding key in the built from keys and functions mentioned before - the 
         (handler request)))))
 
 (defn rook-handler
-  "Handler that uses information from :rook entry in request map to invoke proper function
-  and resolve arguments with arg-resolvers."
+  "Handler that uses information from :rook entry in the request map to invoke the previously
+  identified functionm, after resolving the function's arguments."
   [request]
   (let [rook-data (-> request :rook)
         arg-resolvers (concat (-> rook-data :default-arg-resolvers)
