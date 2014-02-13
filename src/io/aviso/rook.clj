@@ -191,7 +191,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
 
 (defn rook-handler
   "Handler that uses information from :rook entry in the request map to invoke the previously
-  identified functionm, after resolving the function's arguments."
+  identified function, after resolving the function's arguments."
   [request]
   (let [rook-data (-> request :rook)
         arg-resolvers (concat (-> rook-data :default-arg-resolvers)
