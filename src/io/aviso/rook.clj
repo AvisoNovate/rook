@@ -1,4 +1,4 @@
-(ns io.aviso.rook.core
+(ns io.aviso.rook
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
     [clojure.tools.logging :as l]

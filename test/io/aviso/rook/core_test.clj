@@ -3,7 +3,7 @@
             [ring.middleware.params]
             [ring.middleware.keyword-params]
             [compojure.core :as compojure])
-  (:use io.aviso.rook.core
+  (:use io.aviso.rook
         clojure.test))
 
 (defn index [limit]
