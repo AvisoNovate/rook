@@ -13,11 +13,11 @@
   If a public method whose name matches a default mapping exists, then it will be added using the
   default mapping; for example, a method named \"index\" will automatically be matched against \"GET /\".
   This can be overriden by providing meta-data on the functions."
-  [[[:get "/new"] :new]
+  [[[:get "/new"] :new] ; :new is used to present an HTML form to a user, to create the entity, not needed in a pure web service
    [[:get "/:id"] :show]
    [[:put "/:id"] :update]
    [[:patch "/:id"] :update]
-   [[:get "/:id/edit"] :edit]
+   [[:get "/:id/edit"] :edit] ; :edit parallels :new, a user-centric HTML form, not needed in a pure web service
    [[:delete "/:id"] :destroy]
    [[:get "/"] :index]
    [[:post "/"] :create]])
