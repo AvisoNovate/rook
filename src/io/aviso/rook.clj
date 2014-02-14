@@ -80,7 +80,7 @@
   "Returns paths for <namespace> using DEFAULT_MAPPINGS and by scanning for functions :path-spec metadata.
    Each path returned is a tuple of [path-spec function-key] where:
      path-spec is a tuple of [method path]
-     function-key is a a keyword with the same name as a function in <namespace>"
+     function-key is a keyword derived from the simple name of the function with the namespace"
   [namespace]
   (when-not (find-ns namespace)
     (require namespace))
@@ -154,6 +154,8 @@ a corresponding key in the built from keys and functions mentioned before - the 
   (l/debugf "Scanning %s for mappable functions" namespace)
   (->> (get-available-paths namespace)
        (map (fn [[[request-method path] fun]]
+              ;; It would be nice if there was a way to qualify the path for when we are nested
+              ;; inside a Compojure context, but we'd need the request to do that.
               (l/debugf "Mapping %s `%s' to %s" (-> request-method name .toUpperCase) path fun)
               [[request-method (clout/route-compile path)] fun]))
        (remove nil?)
@@ -184,7 +186,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
   middleware filters will typically sit between identifying the function and actually invoking it."
   [handler namespace]
   (let [compiled-paths (get-compiled-paths namespace)]
-    (fn namespace-service-identifier [request]
+    (fn [request]
       (if-let [rook-data (identify-rook-data request namespace compiled-paths)]
         (handler (merge request rook-data))
         (handler request)))))
