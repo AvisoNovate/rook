@@ -1,0 +1,113 @@
+= Rook
+
+Rook is a set of middleware and handlers to enable metadata-based routing for Ring web applications.
+
+The intention is to expose a Clojure _namespace_ as a web service _resource_; there's a default mapping of HTTP verbs
+and paths to function names; these can be extended or overridden by meta-data on the functions in the namespace.
+
+The end result is that a proper web service resource can be created in very little code.
+
+== Handler Functions
+
+Rook analyzes the public functions of a namespace to determine which functions are invoked and under which circumstances.
+The circumstances are an HTTP verb (GET, POST, etc.) plus a https://github.com/weavejester/clout[Clout] route. The
+route may include keywords. This is called the +path specification+.
+
+Rook applies a naming convention to functions, so simply naming a function with a particular name implies a certain
+path specification.
+
+== Routing
+
+The difference from standard Compojure-based approach is that instead of linking handlers together through
+explicit invocations/mappings, we use namespace scanning middleware, which does just one thing - scans provided namespace and if any of the functions
+defined there matches the route spec - either by metadata or by default mappings from function name - sets this functions metadata in request map.
+
+This information set is utilized by rook handler, which then invokes function provided in metadata.
+
+Rook also provides additional functionality of argument resolution helpers - when having a reference to a function,
+we can check the names of arguments and automatically provide them - default from request +:params+ and +:route-params+, but
+it is possible to provide custom resolvers.
+
+=== Namespace-aware middleware
+
+So, if we wrap our handlers in +io.aviso.rook/namespace-middleware+:
+
+[source,clojure]
+----
+(-> (io.aviso.rook/rook-handler)
+ (io.aviso.rook/namespace-middleware 'some.namespace))
+----
+
+and we have functions:
+
+ * +index+ (resolved by name to +GET "/"+ route spec)
+ * and +energize+ (with metadata set) defined in +some.namespace+
+
+[source,clojure]
+----
+(in-ns 'some.namespace)
+
+(defn index [request]
+ {:body "Hello!"})
+
+(defn energize
+ {:path-spec [:get "/energize"]}
+ [request]
+ {:body "Hellllooo!"})
+----
+
+Any requests going through this middleware and matching a metadata/name of a function from +some.namespace+ would have a two
+keys in request set:
+
+ * +:rook+ with map containing:
+
+   * +:namespace+ - reference to functions namespace symbol
+   * +:function+ - reference to function itself
+   * +:metadata+ - function metadata
+   * +:arg-resolvers+ - list of argument resolvers from function metadata
+
+* +:route-params+ merged with data returned by +clout/route-matches+ - or created if the key is not present in request map. These
+represent the colon-delimited ids embedded in the request path.
+
+Please note, that when using +namespace-middleware+ in conjunction with +compojure.core/context+, the context has to wrap
+middleware to make the route path resolution work properly. Example:
+
+[source,clojure]
+----
+
+(compojure.core/context "/merchants" []
+  (->
+   (io.aviso.rook/rook-handler)
+   (io.aviso.rook/namespace-middleware 'some.namespace)))
+----
+
+=== Rook-aware handler
+
+The +io.aviso.rook/rook-handler+ is a special Ring handler, that checks if a function is referred in +:rook+ request map
+entry - and then invokes this function using argument resolution mechanism.
+
+== Providing custom argument resolvers
+
+An argument resolver is a function, that takes an argument name and a request map and returns the arguments value. A rook-aware
+handler will look for +:arg-resolvers+, which set by rook middleware per invoked function and +:default-arg-resolvers+, which
+is set using +io.aviso.rook/arg-resolver-middleware+.
+
+There are also helper functions to make custom argument resolvers if needed:
+
+* +io.aviso.rook/build-map-arg-resolver+ - which takes a list of keys and constant values and when required argument
+has a corresponding key in the map built from keys and constant values - the value for such key is returned
+* +io.aviso.rook/build-fn-arg-resolver+ - which takes a list of keys and functions and when required argument has
+a corresponding key in the built from keys and functions mentioned before - the function is invoked with request as argument
+
+Example:
+
+[source,clojure]
+----
+(-> routes
+ (io.aviso.rook/namespace-middleware 'some.namespace))
+ (io.aviso.rook/arg-resolver-middleware
+  (io.aviso.rook/build-map-arg-resolver :key1 "value1" :key2 "value2")
+  (io.aviso.rook/core/build-fn-arg-resolver :ip (fn [req] (:remote-addr req)))))
+---
+
+You can of course use arg resolver building functions multiple times and provide your own too!
