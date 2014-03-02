@@ -1,20 +1,94 @@
 = Rook
 
-Rook is a set of middleware and handlers to enable metadata-based routing for Ring web applications.
+Rook is a set of middleware and handlers to enable metadata-based routing for https://github.com/ring-clojure/ring[Ring] web applications.
 
 The intention is to expose a Clojure _namespace_ as a web service _resource_; there's a default mapping of HTTP verbs
 and paths to function names; these can be extended or overridden by meta-data on the functions in the namespace.
 
 The end result is that a proper web service resource can be created in very little code.
 
-== Handler Functions
+== Resource Handler Functions
 
 Rook analyzes the public functions of a namespace to determine which functions are invoked and under which circumstances.
-The circumstances are an HTTP verb (GET, POST, etc.) plus a https://github.com/weavejester/clout[Clout] route. The
-route may include keywords. This is called the +path specification+.
+The circumstances are a combination of an HTTP verb (GET, POST, etc.) and a https://github.com/weavejester/clout[Clout] route. The
+route may include keywords. This is called the _path specification_.
 
 Rook applies a naming convention to functions, so simply naming a function with a particular name implies a certain
 path specification.
+
+.Default Handler Functions
+[options="header"]
+|===
+|Function Name|Verb|Path|Notes
+
+|create
+|POST
+|/
+|Create a new resource
+
+|destroy
+|DELETE
+|/:id
+|Delete existing resource
+
+|edit
+|GET
+|/:id/edit
+|Present HTML form to user to edit existing resource
+
+|index
+|GET
+|/
+|List all existing/matching resources
+
+|new
+|GET
+|/new
+|Present HTML form to user to create new resource
+
+|show
+|GET
+|/:id
+|Retrieve single resource by unique id
+
+|update
+|PUT or PATCH
+|/:id
+|Modify existing resource
+
+|===
+
+Rook's job is to help with routing to your functions; it also assists with passing information from the request path or query parameters
+into your function ... the implementation of the function is entirely yours.
+
+You are free to name your functions as you like; in which case, specify the `:path-spec` meta data on your functions to inform
+Rook:
+
+----
+(defn active-users
+  "List just users who are currently active."
+  {:path-spec [:get "/active"]}
+  [request]
+  ...)
+----
+
+The `+:path-spec` contains two values: the keyword for the verb (this may also be the value `:all`) and the path to match.
+
+== Middleware
+
+Ring is divided into two main pieces: a _middleware_ and a _handler_.
+
+The middleware analyzes the namespace and the incoming request; it will identify the matching resource handler function, storing
+the information about it under the `:rook` request key.
+
+The _handler_ checks for that information; if present it invokes the identified resource handler function.
+
+Applications will often add additional middleware in front of the handler; this allows for other concerns to be addressed,
+such as authentication, logging, error handling, etc.
+
+== Argument Resolution
+
+Ring will ...
 
 == Routing
 
@@ -32,7 +106,6 @@ it is possible to provide custom resolvers.
 
 So, if we wrap our handlers in +io.aviso.rook/namespace-middleware+:
 
-[source,clojure]
 ----
 (-> (io.aviso.rook/rook-handler)
  (io.aviso.rook/namespace-middleware 'some.namespace))
@@ -43,7 +116,6 @@ and we have functions:
  * +index+ (resolved by name to +GET "/"+ route spec)
  * and +energize+ (with metadata set) defined in +some.namespace+
 
-[source,clojure]
 ----
 (in-ns 'some.namespace)
 
@@ -72,9 +144,7 @@ represent the colon-delimited ids embedded in the request path.
 Please note, that when using +namespace-middleware+ in conjunction with +compojure.core/context+, the context has to wrap
 middleware to make the route path resolution work properly. Example:
 
-[source,clojure]
 ----
-
 (compojure.core/context "/merchants" []
   (->
    (io.aviso.rook/rook-handler)
@@ -101,13 +171,12 @@ a corresponding key in the built from keys and functions mentioned before - the 
 
 Example:
 
-[source,clojure]
 ----
 (-> routes
  (io.aviso.rook/namespace-middleware 'some.namespace))
  (io.aviso.rook/arg-resolver-middleware
   (io.aviso.rook/build-map-arg-resolver :key1 "value1" :key2 "value2")
   (io.aviso.rook/core/build-fn-arg-resolver :ip (fn [req] (:remote-addr req)))))
----
+----
 
 You can of course use arg resolver building functions multiple times and provide your own too!
