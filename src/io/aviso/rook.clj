@@ -3,9 +3,7 @@
   (:require
     [clojure.tools.logging :as l]
     [compojure.core :as compojure]
-    [clout.core :as clout]
-    [clojure.walk :as walk]
-    [clojure.pprint :as pp]))
+    [clout.core :as clout]))
 
 (def
   DEFAULT-MAPPINGS
@@ -210,6 +208,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
 
   The advanced version also takes a path for compojure.core/context and an optional list of sub-handlers that
   will be invoked BEFORE rook-handler."
+  ;; I'm thinking that handlers is wrong; the handlers should actually be middleware.
   ([namespace]
    (namespace-middleware rook-handler namespace))
   ([path namespace & handlers]
