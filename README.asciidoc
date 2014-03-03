@@ -7,6 +7,10 @@ and paths to function names; these can be extended or overridden by meta-data on
 
 The end result is that a proper web service resource can be created in very little code.
 
+Rook makes use of https://github.com/weavejester/compojure[Compojure] to handle request routing.
+
+Rook is available under the terms of the Apache Software License 2.0.
+
 == Resource Handler Functions
 
 Rook analyzes the public functions of a namespace to determine which functions are invoked and under which circumstances.
@@ -58,10 +62,11 @@ path specification.
 
 |===
 
-Rook's job is to help with routing to your functions; it also assists with passing information from the request path or query parameters
+Rook's job is to help with routing the incoming request to your functions;
+it also assists with passing information from the request path or query parameters
 into your function ... the implementation of the function is entirely yours.
 
-You are free to name your functions as you like; in which case, specify the `:path-spec` meta data on your functions to inform
+You are free to name your functions as you like; in which case, specify the +:path-spec+ meta data on your functions to inform
 Rook:
 
 ----
@@ -72,14 +77,14 @@ Rook:
   ...)
 ----
 
-The `+:path-spec` contains two values: the keyword for the verb (this may also be the value `:all`) and the path to match.
+The +:path-spec+ contains two values: the keyword for the verb (this may also be the value +:all+) and the path to match.
 
 == Middleware
 
 Ring is divided into two main pieces: a _middleware_ and a _handler_.
 
 The middleware analyzes the namespace and the incoming request; it will identify the matching resource handler function, storing
-the information about it under the `:rook` request key.
+the information about it under the +:rook+ request key.
 
 The _handler_ checks for that information; if present it invokes the identified resource handler function.
 
@@ -88,95 +93,119 @@ such as authentication, logging, error handling, etc.
 
 == Argument Resolution
 
-Ring will ...
+Ring assists with extracting information from the request and provides it as arguments to the invoked resource handler function.
 
-== Routing
+Ring uses the name of the argument to identify the value to provide.
 
-The difference from standard Compojure-based approach is that instead of linking handlers together through
-explicit invocations/mappings, we use namespace scanning middleware, which does just one thing - scans provided namespace and if any of the functions
-defined there matches the route spec - either by metadata or by default mappings from function name - sets this functions metadata in request map.
+An argument named +request+ is passed the Ring request map.
 
-This information set is utilized by rook handler, which then invokes function provided in metadata.
+Otherwise, the argument name is converted to a pair of Clojure keywords.  The first keyword is the direct translation of the symbol
+to a keyword (e.g., +user-id+ to +:user-id+), this is the *argument keyword*.
+The second keyword converts embedded dashes to underscores (e.g., +user-id+ to +:user_id+).footnote:[
+The second keyword exists to pragmatically support clients sending JSON, rather than EDN, data; in JavaScript, underscores are
+easier to wrangle than dashes.] This is the *API keyword*.
 
-Rook also provides additional functionality of argument resolution helpers - when having a reference to a function,
-we can check the names of arguments and automatically provide them - default from request +:params+ and +:route-params+, but
-it is possible to provide custom resolvers.
+It is assumed that standard http://ring-clojure.github.io/ring/ring.middleware.keyword-params.html[Ring middleware] is in place to
+convert the +:params+ map from string keys to keyword keys.
 
-=== Namespace-aware middleware
+The order of search:
 
-So, if we wrap our handlers in +io.aviso.rook/namespace-middleware+:
+* Invoke any argument resolver functions (see next section), passing the argument keyword.
 
-----
-(-> (io.aviso.rook/rook-handler)
- (io.aviso.rook/namespace-middleware 'some.namespace))
-----
+* A parameter name +request+ is resolved to the Ring request map.
 
-and we have functions:
+* Check the the request's +:route-params+, first for the argument keyword, then the API keyword; these represent keywords in the path specification.
 
- * +index+ (resolved by name to +GET "/"+ route spec)
- * and +energize+ (with metadata set) defined in +some.namespace+
+* Check the request's +:params+, first for the argument keyword, then the API keyword; these are parameters provided via the request's query string, or form
+submission.
 
-----
-(in-ns 'some.namespace)
+* Finally, unmatched arguments simply default to +nil+.
 
-(defn index [request]
- {:body "Hello!"})
+Argument resolution is performed by the +rook-handler+ function, just before invoking the resource handler function.
 
-(defn energize
- {:path-spec [:get "/energize"]}
- [request]
- {:body "Hellllooo!"})
-----
+== Extending Argument Resolution
 
-Any requests going through this middleware and matching a metadata/name of a function from +some.namespace+ would have a two
-keys in request set:
+Argument resolution can be extended by providing argument resolver functions.  An argument resolver function
+is passed the argument keyword, and the Ring request map
+and returns the resolved value for the argument.
 
- * +:rook+ with map containing:
+Argument resolvers can fulfill many purposes:
 
-   * +:namespace+ - reference to functions namespace symbol
-   * +:function+ - reference to function itself
-   * +:metadata+ - function metadata
-   * +:arg-resolvers+ - list of argument resolvers from function metadata
+* They can validate inputs from the client.
 
-* +:route-params+ merged with data returned by +clout/route-matches+ - or created if the key is not present in request map. These
-represent the colon-delimited ids embedded in the request path.
+* They can convert inputs from strings to other types, such as numbers or dates.
 
-Please note, that when using +namespace-middleware+ in conjunction with +compojure.core/context+, the context has to wrap
-middleware to make the route path resolution work properly. Example:
+* They can provide access to other resources, such as database connection pools.
 
-----
-(compojure.core/context "/merchants" []
-  (->
-   (io.aviso.rook/rook-handler)
-   (io.aviso.rook/namespace-middleware 'some.namespace)))
-----
+Argument resolver functions can be specified as meta-data directly on the resource handler function;
+the +:argument-resolvers+ meta-data key is a sequence of resolvers.
 
-=== Rook-aware handler
+Argument resolver functions take precedence over the default argument resolvers.
 
-The +io.aviso.rook/rook-handler+ is a special Ring handler, that checks if a function is referred in +:rook+ request map
-entry - and then invokes this function using argument resolution mechanism.
+In addition, middleware may provide resolvers as the key +:default-arg-resolvers+ under the +:rook+ request key;
+this is a list of argument resolver functions that apply to any resource handler function.
 
-== Providing custom argument resolvers
+WARNING: Currently, default argument resolvers are invoked _first_, before function-specific resolvers; this seems backwards
+and is likely to change.
 
-An argument resolver is a function, that takes an argument name and a request map and returns the arguments value. A rook-aware
-handler will look for +:arg-resolvers+, which set by rook middleware per invoked function and +:default-arg-resolvers+, which
-is set using +io.aviso.rook/arg-resolver-middleware+.
+Function +arg-resolver-middleware+ is used to specify additional functions for +:default-arg-resolvers+.
 
-There are also helper functions to make custom argument resolvers if needed:
+Function +build-map-arg-resolver+ constructs an argument resolver function from a map; It simply returns values from
+the map.
 
-* +io.aviso.rook/build-map-arg-resolver+ - which takes a list of keys and constant values and when required argument
-has a corresponding key in the map built from keys and constant values - the value for such key is returned
-* +io.aviso.rook/build-fn-arg-resolver+ - which takes a list of keys and functions and when required argument has
-a corresponding key in the built from keys and functions mentioned before - the function is invoked with request as argument
+Function +build-fn-arg-resolver+ constructs an argument resolver function from  a map of _functions_; The functions
+are selected by the argument keyword, and passed the request.
 
-Example:
+Function +request-arg-resolver+ is an argument resolver that resolvers the argument keyword against the Ring request map itself.
+
+These can be composed:
 
 ----
-(-> routes
- (io.aviso.rook/namespace-middleware 'some.namespace))
- (io.aviso.rook/arg-resolver-middleware
-  (io.aviso.rook/build-map-arg-resolver :key1 "value1" :key2 "value2")
-  (io.aviso.rook/core/build-fn-arg-resolver :ip (fn [req] (:remote-addr req)))))
+(defn add-standard-resolvers
+  [handler conn-pool]
+  (arg-resolver-middleware handler
+                           (build-map-arg-resolver {:conn-pool conn-pool})
+                           request-arg-resolver))
 ----
 
-You can of course use arg resolver building functions multiple times and provide your own too!
+== Mapping Namespaces
+
+A typical web service will expose some number of resources; under Ring this means mapping a number of namespaces.
+
+The +namespace-handler+ function is the easy way to do this mapping. It combines +compojure.core/context+ with Rook's
++namespace-middleware+ (which identifies the function to be invoked within the namespace) and +rook-handler+ (which resolves
+arguments and invokes the identified function).
+
+----
+(defroutes api-routes
+  (namespace-handler "/users" 'org.example.resources.users)
+  (namespace-handler "/orders" 'org.example.resources.orders))
+----
+
+WARNING: You must be sure to +require+ the resource namespaces.
+
+Remember that the way +context+ works is to match and strip off the prefix, so an incoming GET request for +/users/232+
+will be matched as context +/users/+; the Rook will identify function +show+ with path +/:id+; ultimately invoking it
+with the _string_ value +232+ for the +id+ parameter.
+
+== Writing Rook Middleware
+
+Rook uses the +:rook+ key of the request to store information needed to process requests.
+With the exception of +:default-arg-resolvers+, the values are supplied by the the +namespace-middleware+ function.
+
++:default-arg-resolvers+::
+List of argument resolvers that apply to any invoked resource handler function.
++:namespace+::
+The symbol identifying the namespace containing the matched function.
++:function+::
+The matched function, which will be invoked by +rook-handler+.
++:metadata+::
+The meta-data for the matched function.
++:arg-resolvers+::
+List of argument resolvers from the matched function's meta-data.
+
+Rook middleware that fits between +namespace-middleware+ and +rook-handler+ should check for nested request key +[:rook :function]+ to
+see if a function has been identified.
+
+WARNING: It is likely that a future change will make the handler provided by +namespace-middleware+ not delegate
+to its handler unless a function is identified.
