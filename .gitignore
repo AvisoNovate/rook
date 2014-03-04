@@ -4,3 +4,6 @@ pom.xml
 .lein*
 target
 .nrepl-port
+# These are related to test2junit plugin:
+build.xml
+test2junit
