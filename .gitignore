@@ -7,3 +7,4 @@ target
 # These are related to test2junit plugin:
 build.xml
 test2junit
+doc
