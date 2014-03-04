@@ -61,12 +61,12 @@
   [{:keys [status]}]
   (<= 200 status 399))
 
-(defn function-entry
+(defn- function-entry
   "Create function entry if it has :path-spec defined in its metadata, for example:
 
-  (defn
-   ^{:path-spec [:post \"/:id/activate\"]}
-   activate [id]
+  (defn activate
+   {:path-spec [:post \"/:id/activate\"]}
+  [id]
    ...
    )"
   [sym]
@@ -74,7 +74,7 @@
     (when-let [path-spec (:path-spec symbol-meta)]
       [path-spec (keyword (:name symbol-meta))])))
 
-(defn ns-paths
+(defn- ns-paths
   "Returns paths for <namespace> using DEFAULT_MAPPINGS and by scanning for functions :path-spec metadata.
    Each path returned is a tuple of [path-spec function-key] where:
      path-spec is a tuple of [method path]
@@ -88,7 +88,7 @@
                  (filter symbol-for-function? (map second (ns-publics namespace)))))
     DEFAULT-MAPPINGS))
 
-(defn get-function-meta
+(defn- get-function-meta
   "Get meta for route-mapping and namespace."
   [namespace [path-spec function-key]]
   (when-let [f (ns-function namespace function-key)]
@@ -133,7 +133,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
                :rook (merge (:rook request)
                             {:default-arg-resolvers (concat (:default-arg-resolvers (:rook request)) arg-resolvers)})))))
 
-(defn get-available-paths
+(defn- get-available-paths
   "Scan namespace for available routes - only those that have available function are returned.
 
   Routes are sorted by the line number from metadata - which can be troubling if you have the same namespace in many files.
