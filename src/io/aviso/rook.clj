@@ -129,9 +129,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
   "Middleware which adds provided argument resolvers to [:rook :default-arg-resolvers] collection."
   [handler & arg-resolvers]
   (fn [request]
-    (handler (assoc request
-               :rook (merge (:rook request)
-                            {:default-arg-resolvers (concat (:default-arg-resolvers (:rook request)) arg-resolvers)})))))
+    (handler (update-in request [:rook :default-arg-resolvers] concat arg-resolvers))))
 
 (defn- get-available-paths
   "Scan namespace for available routes - only those that have available function are returned.
