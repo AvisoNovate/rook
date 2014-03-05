@@ -1,10 +1,14 @@
 (ns io.aviso.rook-test
-  (:use io.aviso.rook
-        clojure.test)
-  (:require [ring.mock.request :as mock]
-            [ring.middleware.params]
-            [ring.middleware.keyword-params]
-            [compojure.core :as compojure]))
+  (:use
+    io.aviso.rook
+    clojure.test)
+  (:require
+    [io.aviso.rook-test2]
+    [io.aviso.rook-test3]
+    [ring.mock.request :as mock]
+    [ring.middleware.params]
+    [ring.middleware.keyword-params]
+    [compojure.core :as compojure]))
 
 (defn index [limit]
   {:status 200
@@ -39,18 +43,6 @@
 
 (defn u-show [id]
   (str "!" id "!"))
-
-(ns io.aviso.rook-test2)
-
-(defn index [offset id]
-  {:body (str "id=" id "&offset=" offset)})
-
-(ns io.aviso.rook-test3)
-
-(defn index [id key]
-  {:body (str "test3,id=" id ",key=" key)})
-
-(in-ns 'io.aviso.rook-test)
 
 (deftest namespace-middleware-test
 
