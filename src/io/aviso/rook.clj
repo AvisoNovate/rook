@@ -2,11 +2,11 @@
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
     [clojure.tools.logging :as l]
+    [clojure.string :as str]
     [compojure.core :as compojure]
     [clout.core :as clout]))
 
-(def
-  DEFAULT-MAPPINGS
+(def ^:private default-mappings
   "Default mappings for route specs to functions. We use keyword for function name for increased readability.
   If a public method whose name matches a default mapping exists, then it will be added using the
   default mapping; for example, a method named \"index\" will automatically be matched against \"GET /\".
@@ -19,6 +19,8 @@
    [[:delete "/:id"] :destroy]
    [[:get "/"] :index]
    [[:post "/"] :create]])
+
+(def ^:private supported-methods #{:get :put :patch :post :delete :head :all})
 
 (defn- symbol-for-function?
   "Checks if a symbol is actually a function. The same function exists in clojure.test, but we don't want the dependency
@@ -86,7 +88,7 @@
     (remove nil?
             (map function-entry
                  (filter symbol-for-function? (map second (ns-publics namespace)))))
-    DEFAULT-MAPPINGS))
+    default-mappings))
 
 (defn- get-function-meta
   "Get meta for route-mapping and namespace."
@@ -151,6 +153,11 @@ a corresponding key in the built from keys and functions mentioned before - the 
   (l/debugf "Scanning %s for mappable functions" namespace)
   (->> (get-available-paths namespace)
        (map (fn [[route-method route-path fun]]
+              (assert (supported-methods route-method)
+                      (format "Method %s (from :path-spec of function %s) must be one of %s."
+                              route-method
+                              fun
+                              (str/join ", " supported-methods)))
               ;; It would be nice if there was a way to qualify the path for when we are nested
               ;; inside a Compojure context, but we'd need the request to do that.
               (l/debugf "Mapping %s `%s' to %s" (-> route-method name .toUpperCase) route-path fun)
@@ -164,7 +171,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
       (= route-method (:request-method request))))
 
 (defn- match-request-to-compiled-path
-  [request [route-method route-path fun]]
+  [request namespace [route-method route-path fun]]
   (when-let [route-params (and (method-matches? request route-method)
                                (clout/route-matches route-path request))]
     (-> request
@@ -180,8 +187,8 @@ a corresponding key in the built from keys and functions mentioned before - the 
   "Uses the compiled paths to identify the matching function to be invoked and returns
   the rook data to be added to the request. Returns nil on no match, or a modified request map
   when a match is found."
-  [request namespace compiled-paths]
-  (some (partial match-request-to-compiled-path request) compiled-paths))
+  [request namepsace compiled-paths]
+  (some (partial match-request-to-compiled-path request namespace) compiled-paths))
 
 (defn namespace-middleware
   "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
@@ -191,7 +198,6 @@ a corresponding key in the built from keys and functions mentioned before - the 
   middleware filters will typically sit between identifying the function and actually invoking it."
   [handler namespace]
   (let [compiled-paths (get-compiled-paths namespace)]
-    #_ (println (clojure.pprint/write compiled-paths))
     (fn [request]
       (if-let [request' (match-against-compiled-paths request namespace compiled-paths)]
         (handler request')
