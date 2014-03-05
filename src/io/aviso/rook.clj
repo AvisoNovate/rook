@@ -139,40 +139,49 @@ a corresponding key in the built from keys and functions mentioned before - the 
   But then, unless your name is Rich, you're in trouble already... "
   [namespace]
   (->> (ns-paths namespace)
-       (map (fn [[[request-method path] function-key]]
+       (map (fn [[[route-method route-path] function-key]]
               (when-let [fun (ns-function namespace function-key)]
-                [[request-method path] fun])))
+                [route-method route-path fun])))
        (remove nil?)
-       (sort-by #(or (-> % second meta :line) 0)))) ;sadly, the namespace stores interned values
+       ;; sadly, the namespace stores interned values
+       (sort-by #(-> % second meta :line (or 0)))))
 
 (defn- get-compiled-paths
   [namespace]
   (l/debugf "Scanning %s for mappable functions" namespace)
   (->> (get-available-paths namespace)
-       (map (fn [[[request-method path] fun]]
+       (map (fn [[route-method route-path fun]]
               ;; It would be nice if there was a way to qualify the path for when we are nested
               ;; inside a Compojure context, but we'd need the request to do that.
-              (l/debugf "Mapping %s `%s' to %s" (-> request-method name .toUpperCase) path fun)
-              [[request-method (clout/route-compile path)] fun]))
+              (l/debugf "Mapping %s `%s' to %s" (-> route-method name .toUpperCase) route-path fun)
+              [route-method (clout/route-compile route-path) fun]))
        (remove nil?)
        doall))
 
-(defn- identify-rook-data
+(defn- method-matches?
+  [request route-method]
+  (or (= :all route-method)
+      (= route-method (:request-method request))))
+
+(defn- match-request-to-compiled-path
+  [request [route-method route-path fun]]
+  (when-let [route-params (and (method-matches? request route-method)
+                               (clout/route-matches route-path request))]
+    (-> request
+        ;; Merge params previously identified by Clout/Compojure with those identified
+        ;; by this particular mathc.
+        (update-in [:route-params] merge route-params)
+        (update-in [:rook] merge {:namespace     namespace
+                                  :function      fun
+                                  :metadata      (meta fun)
+                                  :arg-resolvers (:arg-resolvers (meta fun))}))))
+
+(defn- match-against-compiled-paths
   "Uses the compiled paths to identify the matching function to be invoked and returns
-  the rook data to be added to the request. Returns nil on no match, or a map
-  containing :rook and :route-params if there is a match."
+  the rook data to be added to the request. Returns nil on no match, or a modified request map
+  when a match is found."
   [request namespace compiled-paths]
-  (some (fn [[[request-method route] fun]]
-          (when-let [route-params (and (or (= :all (:request-method request))
-                                           (= (:request-method request) request-method))
-                                       (clout/route-matches route request))]
-            {:route-params (merge (:route-params request) route-params)
-             :rook         (merge (:rook request)
-                                  {:namespace     namespace
-                                   :function      fun
-                                   :metadata      (meta fun)
-                                   :arg-resolvers (:arg-resolvers (meta fun))})}))
-        compiled-paths))
+  (some (partial match-request-to-compiled-path request) compiled-paths))
 
 (defn namespace-middleware
   "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
@@ -182,9 +191,12 @@ a corresponding key in the built from keys and functions mentioned before - the 
   middleware filters will typically sit between identifying the function and actually invoking it."
   [handler namespace]
   (let [compiled-paths (get-compiled-paths namespace)]
+    #_ (println (clojure.pprint/write compiled-paths))
     (fn [request]
-      (if-let [rook-data (identify-rook-data request namespace compiled-paths)]
-        (handler (merge request rook-data))
+      (if-let [request' (match-against-compiled-paths request namespace compiled-paths)]
+        (handler request')
+        ;; TODO: If there's no match, does it make sense to continue into the handler, towards the rook-handler
+        ;; that will do nothing?
         (handler request)))))
 
 (defn rook-handler
