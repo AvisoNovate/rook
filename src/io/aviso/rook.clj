@@ -228,9 +228,8 @@ a corresponding key in the built from keys and functions mentioned before - the 
   ([namespace]
    (namespace-middleware rook-handler namespace))
   ([path namespace & handlers]
-   (compojure/context path []
-                      (namespace-middleware
-                        (if (empty? handlers)
-                          rook-handler
-                          (apply compojure/routes (concat handlers [rook-handler])))
-                        namespace))))
+   (let [handler (if (empty? handlers)
+                   rook-handler
+                   (apply compojure/routes (concat handlers [rook-handler])))
+         handler' (namespace-middleware handler namespace)]
+     (compojure/context path [] handler'))))
