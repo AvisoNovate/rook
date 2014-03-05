@@ -5,6 +5,7 @@
   (:require
     [io.aviso.rook-test2]
     [io.aviso.rook-test3]
+    [io.aviso.rook-test4]
     [ring.mock.request :as mock]
     [ring.middleware.params]
     [ring.middleware.keyword-params]
@@ -18,8 +19,7 @@
   {:status 200
    :body   (str "id=" id)})
 
-(defn
-  activate
+(defn activate
   {:path-spec [:post "/:id/activate"]}
   [test1 id request test2 test3 test4 request-method]
   (str "test1=" test1
@@ -143,7 +143,9 @@
                                         (compojure/GET "/test" [] {:body "test!"})
                                         (namespace-handler "/:id/activate" 'io.aviso.rook-test2
                                                            (namespace-handler "/:key" 'io.aviso.rook-test3)))
-                     param-handling)]
+                     param-handling)
+        test-mw4 (-> (namespace-handler "/test4" 'io.aviso.rook-test4)
+                     (arg-resolver-middleware request-arg-resolver))]
     (are [handler method path expected-result]
       (= expected-result
          (handler (mock/request method path)))
@@ -168,4 +170,10 @@
 
       test-mw2 :get "/merchant/4567/activate/test_key" {:body "test3,id=4567,key=test_key"}
 
-      test-mw2 :get "/merchant/test" {:status 200 :headers {} :body "test!"})))
+      test-mw2 :get "/merchant/test" {:status 200 :headers {} :body "test!"}
+
+      test-mw4 :get "/test4/proxy" "method=GET"
+
+      test-mw4 :put "/test4/proxy" "method=PUT"
+      ))
+  )
