@@ -84,11 +84,13 @@
   [namespace]
   (when-not (find-ns namespace)
     (require namespace))
-  (concat
-    (remove nil?
-            (map function-entry
-                 (filter symbol-for-function? (map second (ns-publics namespace)))))
-    default-mappings))
+  (->> namespace 
+   ns-publics
+   (map second)
+   (filter symbol-for-function?)
+   (map function-entry)
+   (remove nil?)
+   (concat default-mappings)))
 
 (defn- get-function-meta
   "Get meta for route-mapping and namespace."
@@ -235,3 +237,13 @@ a corresponding key in the built from keys and functions mentioned before - the 
                    (apply compojure/routes (concat handlers [rook-handler])))
          handler' (namespace-middleware handler namespace-name)]
      (compojure/context path [] handler'))))
+
+  ([namespace]
+   (namespace-middleware rook-handler namespace))
+  ([path namespace & handlers]
+   (let [handler (if (empty? handlers) 
+                   rook-handler
+                   (apply compojure/routes (concat handlers [rook-handler])))
+         handler' (namespace-middleware handler namespace)]
+     (compojure/context path [] handler'))))
+
