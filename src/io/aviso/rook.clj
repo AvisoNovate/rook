@@ -238,12 +238,12 @@ a corresponding key in the built from keys and functions mentioned before - the 
          handler' (namespace-middleware handler namespace-name)]
      (compojure/context path [] handler'))))
 
-  ([namespace]
-   (namespace-middleware rook-handler namespace))
-  ([path namespace & handlers]
+  ([namespace-name]
+   (namespace-middleware rook-handler namespace-name))
+  ([path namespace-name & handlers]
    (let [handler (if (empty? handlers) 
                    rook-handler
                    (apply compojure/routes (concat handlers [rook-handler])))
-         handler' (namespace-middleware handler namespace)]
+         handler' (namespace-middleware handler namespace-name)]
      (compojure/context path [] handler'))))
 
