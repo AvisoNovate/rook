@@ -46,24 +46,27 @@
 
 (deftest namespace-middleware-test
 
-  (are [method path namespace expected-function]
-    (= expected-function
-       (-> (mkrequest method path namespace)
-           (get-in [:rook :function])))
+  (are [method path namespace-name rook-key expected-value]
+    (= expected-value
+       (-> (mkrequest method path namespace-name)
+           (get-in [:rook rook-key])))
 
-    :get "/?limit=100" 'io.aviso.rook-test #'index
+    :get "/?limit=100" 'io.aviso.rook-test :function #'index
 
-    :get "/123" 'io.aviso.rook-test #'show
+    :get "/" 'io.aviso.rook-test :namespace 'io.aviso.rook-test
 
-    :post "/123/activate" 'io.aviso.rook-test #'activate
+    :get "/123" 'io.aviso.rook-test :function #'show
 
-    :get "/123/activate" 'io.aviso.rook-test nil
+    :post "/123/activate" 'io.aviso.rook-test :function #'activate
 
-    :put "/" 'io.aviso.rook-test nil
+    :get "/123/activate" 'io.aviso.rook-test :function nil
 
-    :put "/123" 'io.aviso.rook-test nil
+    :put "/" 'io.aviso.rook-test :function nil
 
-    :get "/?offset-100" 'io.aviso.rook-test2 #'io.aviso.rook-test2/index))
+    :put "/123" 'io.aviso.rook-test :function nil
+
+    :get "/?offset-100" 'io.aviso.rook-test2 :function #'io.aviso.rook-test2/index)
+  )
 
 (deftest namespace-handler-test
 

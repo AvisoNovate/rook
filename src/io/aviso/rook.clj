@@ -149,9 +149,9 @@ a corresponding key in the built from keys and functions mentioned before - the 
        (sort-by #(-> % second meta :line (or 0)))))
 
 (defn- get-compiled-paths
-  [namespace]
-  (l/debugf "Scanning %s for mappable functions" namespace)
-  (->> (get-available-paths namespace)
+  [namespace-name]
+  (l/debugf "Scanning %s for mappable functions" namespace-name)
+  (->> (get-available-paths namespace-name)
        (map (fn [[route-method route-path fun]]
               (assert (supported-methods route-method)
                       (format "Method %s (from :path-spec of function %s) must be one of %s."
@@ -171,14 +171,14 @@ a corresponding key in the built from keys and functions mentioned before - the 
       (= route-method (:request-method request))))
 
 (defn- match-request-to-compiled-path
-  [request namespace [route-method route-path fun]]
+  [request namespace-name [route-method route-path fun]]
   (when-let [route-params (and (method-matches? request route-method)
                                (clout/route-matches route-path request))]
     (-> request
         ;; Merge params previously identified by Clout/Compojure with those identified
         ;; by this particular mathc.
         (update-in [:route-params] merge route-params)
-        (update-in [:rook] merge {:namespace     namespace
+        (update-in [:rook] merge {:namespace     namespace-name
                                   :function      fun
                                   :metadata      (meta fun)
                                   :arg-resolvers (:arg-resolvers (meta fun))}))))
@@ -187,8 +187,8 @@ a corresponding key in the built from keys and functions mentioned before - the 
   "Uses the compiled paths to identify the matching function to be invoked and returns
   the rook data to be added to the request. Returns nil on no match, or a modified request map
   when a match is found."
-  [request namepsace compiled-paths]
-  (some (partial match-request-to-compiled-path request namespace) compiled-paths))
+  [request namespace-name compiled-paths]
+  (some (partial match-request-to-compiled-path request namespace-name) compiled-paths))
 
 (defn namespace-middleware
   "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
@@ -196,10 +196,10 @@ a corresponding key in the built from keys and functions mentioned before - the 
 
   This does not invoke the function; that is the responsibility of the rook-handler function. Several additional
   middleware filters will typically sit between identifying the function and actually invoking it."
-  [handler namespace]
-  (let [compiled-paths (get-compiled-paths namespace)]
+  [handler namespace-name]
+  (let [compiled-paths (get-compiled-paths namespace-name)]
     (fn [request]
-      (if-let [request' (match-against-compiled-paths request namespace compiled-paths)]
+      (if-let [request' (match-against-compiled-paths request namespace-name compiled-paths)]
         (handler request')
         ;; TODO: If there's no match, does it make sense to continue into the handler, towards the rook-handler
         ;; that will do nothing?
@@ -222,14 +222,16 @@ a corresponding key in the built from keys and functions mentioned before - the 
 (defn namespace-handler
   "Helper handler, which wraps rook-handler in namespace middleware.
 
+  namespace-name - the symbol identifying the namespace to scan, e.g., 'org.example.resources.users
+
   The advanced version also takes a path for compojure.core/context and an optional list of sub-handlers that
   will be invoked BEFORE rook-handler."
   ;; I'm thinking that handlers is wrong; the handlers should actually be middleware.
-  ([namespace]
-   (namespace-middleware rook-handler namespace))
-  ([path namespace & handlers]
+  ([namespace-name]
+   (namespace-middleware rook-handler namespace-name))
+  ([path namespace-name & handlers]
    (let [handler (if (empty? handlers)
                    rook-handler
                    (apply compojure/routes (concat handlers [rook-handler])))
-         handler' (namespace-middleware handler namespace)]
+         handler' (namespace-middleware handler namespace-name)]
      (compojure/context path [] handler'))))
