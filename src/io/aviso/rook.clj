@@ -81,10 +81,10 @@
    Each path returned is a tuple of [path-spec function-key] where:
      path-spec is a tuple of [method path]
      function-key is a keyword derived from the simple name of the function with the namespace"
-  [namespace]
-  (when-not (find-ns namespace)
-    (require namespace))
-  (->> namespace 
+  [namespace-name]
+  (when-not (find-ns namespace-name)
+    (require namespace-name))
+  (->> namespace-name 
    ns-publics
    (map second)
    (filter symbol-for-function?)
