@@ -6,6 +6,7 @@
     [io.aviso.rook-test2]
     [io.aviso.rook-test3]
     [io.aviso.rook-test4]
+    [io.aviso.rook-test5]
     [ring.mock.request :as mock]
     [ring.middleware.params]
     [ring.middleware.keyword-params]
@@ -181,6 +182,17 @@
 
       test-mw4 :get "/test4/proxy" "method=GET"
 
-      test-mw4 :put "/test4/proxy" "method=PUT"
-      ))
+      test-mw4 :put "/test4/proxy" "method=PUT")))
+
+(deftest function-order
+
+  (let [get-available-paths (-> 'io.aviso.rook ns-map (get 'get-available-paths))
+        paths  (get-available-paths 'io.aviso.rook-test5)
+        funcs (map #(nth % 2) paths)
+        ]
+
+    (is (= ['io.aviso.rook-test5/show-default 'io.aviso.rook-test5/show])
+        funcs)
+
+    )
   )

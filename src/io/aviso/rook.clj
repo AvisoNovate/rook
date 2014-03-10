@@ -148,7 +148,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
                 [route-method route-path fun])))
        (remove nil?)
        ;; sadly, the namespace stores interned values
-       (sort-by #(-> % second meta :line (or 0)))))
+       (sort-by (fn [[_ _ func]] (-> func meta :line (or 0))))))
 
 (defn- get-compiled-paths
   [namespace-name]
