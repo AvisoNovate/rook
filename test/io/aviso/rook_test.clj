@@ -70,7 +70,7 @@
 
 (deftest namespace-handler-test
 
-  (let [test-mw (-> (namespace-middleware rook-handler 'io.aviso.rook-test)
+  (let [test-mw (-> (namespace-middleware rook-dispatcher 'io.aviso.rook-test)
                     param-handling)]
 
     (are [method path expected-result]
@@ -91,7 +91,7 @@
 
 
 (deftest complete-handler-test
-  (let [test-mw (-> (namespace-middleware rook-handler 'io.aviso.rook-test)
+  (let [test-mw (-> (namespace-middleware rook-dispatcher 'io.aviso.rook-test)
                     (arg-resolver-middleware
                       (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
                       (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request))))
@@ -136,16 +136,20 @@
                                                                 (compojure/routes
                                                                   (compojure/context "/:key" []
                                                                                      (namespace-middleware
-                                                                                       rook-handler 'io.aviso.rook-test3))
-                                                                  rook-handler)
+                                                                                       rook-dispatcher 'io.aviso.rook-test3))
+                                                                  rook-dispatcher)
                                                                 'io.aviso.rook-test2))
-                                           rook-handler)
+                                           rook-dispatcher)
                                          'io.aviso.rook-test))
                     param-handling)
         test-mw2 (-> (namespace-handler "/merchant" 'io.aviso.rook-test
-                                        (compojure/GET "/test" [] {:body "test!"})
-                                        (namespace-handler "/:id/activate" 'io.aviso.rook-test2
-                                                           (namespace-handler "/:key" 'io.aviso.rook-test3)))
+                                        (compojure/routes
+                                          (compojure/GET "/test" [] {:body "test!"})
+                                          rook-dispatcher
+                                          (namespace-handler "/:id/activate" 'io.aviso.rook-test2
+                                                             (compojure/routes
+                                                               rook-dispatcher
+                                                               (namespace-handler "/:key" 'io.aviso.rook-test3)))))
                      param-handling)
         test-mw4 (-> (namespace-handler "/test4" 'io.aviso.rook-test4)
                      (arg-resolver-middleware request-arg-resolver))]

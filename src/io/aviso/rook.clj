@@ -196,20 +196,23 @@ a corresponding key in the built from keys and functions mentioned before - the 
   "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
   either by metadata or by default mappings from function name - sets this functions metadata in request map.
 
-  This does not invoke the function; that is the responsibility of the rook-handler function. Several additional
+  This does not invoke the function; that is the responsibility of the rook-dispatcher function. Several additional
   middleware filters will typically sit between identifying the function and actually invoking it."
   [handler namespace-name]
   (let [compiled-paths (get-compiled-paths namespace-name)]
     (fn [request]
-      (if-let [request' (match-against-compiled-paths request namespace-name compiled-paths)]
-        (handler request')
-        ;; TODO: If there's no match, does it make sense to continue into the handler, towards the rook-handler
-        ;; that will do nothing?
-        (handler request)))))
+      ;; The handler is always invoked.  If there's a matching function in the namespace,
+      ;; then the request will contain that matching function data in the :rook key. Otherwise
+      ;; the handler is invoked with the unchanged request (because a nested context may
+      ;; want to handle the request).
+      (handler (or
+                 (match-against-compiled-paths request namespace-name compiled-paths)
+                 request)))))
 
-(defn rook-handler
-  "Handler that uses information from :rook entry in the request map to invoke the previously
-  identified function, after resolving the function's arguments."
+(defn rook-dispatcher
+  "Ring request handler that uses information from :rook entry in the request map to invoke the previously
+  identified function, after resolving the function's arguments. This function must always be wrapped
+  in namespace-middleware (which is what identifies the resource handler function to invoke)."
   [request]
   (let [rook-data (-> request :rook)
         arg-resolvers (concat (-> rook-data :default-arg-resolvers)
@@ -222,20 +225,23 @@ a corresponding key in the built from keys and functions mentioned before - the 
       (apply fun argument-values))))
 
 (defn namespace-handler
-  "Helper handler, which wraps rook-handler in namespace middleware.
+  "Helper handler, which wraps rook-dispatcher in namespace middleware.
 
+  path - if not nil, then a Compojure context is created to contain the created middleware and handler.
+  The path should start with a slash, but not end with one.
   namespace-name - the symbol identifying the namespace to scan, e.g., 'org.example.resources.users
+  handler - The handler to use; defaults to rook-dispatcher, but in many cases, you will want to wrap
+  rook-dispatcher with additional middleware, or combine several handlers into a Compojure route.
 
-  The advanced version also takes a path for compojure.core/context and an optional list of sub-handlers that
-  will be invoked BEFORE rook-handler."
+  The advanced version also takes a path for compojure.core/context and the handler to invoke."
   ;; I'm thinking that handlers is wrong; the handlers should actually be middleware.
   ([namespace-name]
-   (namespace-middleware rook-handler namespace-name))
-  ([path namespace-name & handlers]
-   (let [handler (if (empty? handlers)
-                   rook-handler
-                   (apply compojure/routes (concat handlers [rook-handler])))
-         handler' (namespace-middleware handler namespace-name)]
-     (compojure/context path [] handler'))))
+   (namespace-handler nil namespace-name))
+  ([path namespace-name] (namespace-handler path namespace-name rook-dispatcher))
+  ([path namespace-name handler]
+   (let [handler' (namespace-middleware handler namespace-name)]
+     (if path
+       (compojure/context path [] handler')
+       handler'))))
 
 

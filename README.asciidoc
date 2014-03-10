@@ -121,7 +121,7 @@ submission.
 
 * Finally, unmatched arguments simply default to +nil+.
 
-Argument resolution is performed by the +rook-handler+ function, just before invoking the resource handler function.
+Argument resolution is performed by the +rook-dispatcher+ function, just before invoking the resource handler function.
 
 == Extending Argument Resolution
 
@@ -173,11 +173,11 @@ These can be composed:
 A typical web service will expose some number of resources; under Ring this means mapping a number of namespaces.
 
 The +namespace-handler+ function is the easy way to do this mapping. It combines +compojure.core/context+ with Rook's
-+namespace-middleware+ (which identifies the function to be invoked within the namespace) and +rook-handler+ (which resolves
++namespace-middleware+ (which identifies the function to be invoked within the namespace) and +rook-dispatcher+ (which resolves
 arguments and invokes the identified function).
 
 ----
-(defroutes api-routes
+(routes
   (namespace-handler "/users" 'org.example.resources.users)
   (namespace-handler "/orders" 'org.example.resources.orders))
 ----
@@ -187,6 +187,39 @@ WARNING: You must be sure to +require+ the resource namespaces.
 Remember that the way +context+ works is to match and strip off the prefix, so an incoming GET request for +/users/232+
 will be matched as context +/users/+; the Rook will identify function +show+ with path +/:id+; ultimately invoking it
 with the _string_ value +232+ for the +id+ parameter.
+
+In more complicated circumstances, you may have resources in a parent-child relationship. For example, if you were modelling
+_hotels_ which contain _rooms_, you might want to access the list of room for a hotel with the URL +/hotels/123/rooms/237+:
+
+----
+(routes
+  (namespace-handler "/hotels 'org.example.resources.hotels
+    (routes
+       (namespace-handler "/:hotel-id/rooms" 'org.example.resources.rooms)
+       rook-dispatcher)))
+----
+
+In this example, the first +namespace-handler+ call will match any URL that starts with +/hotels+. Since that
+may be a match for the hotels resource itself, or rooms within a specific hotel, the handler for the namespace
+can't simply be +rook-dispatcher+; instead it is a new route containing a namespace handler, and a +rook-dispatcher+
+for the +org.example.resources.hotels+ namespace.
+
+The nested route matches the +:hotel-id+ symbol from the path; this will be resolved to argument +hotel-id+ in any
+resource handler function that is invoked in the +rooms+ namespace.
+
+It is important that the +rook-dispatcher+ both be present, and come _last_.
+If it is missing, then requests for the +/hotels+ URL will be identified by the middleware, but will never be invoked.
+If it is present, but comes before the nested namespaces, then a conflict will occur: URLs that should match against
+the +rooms+ resource will also match against the +hotels+ resource, and since the +rook-dispatcher+ for the
++hotels+ resource is executed first (incorrectly), it will invoke a resource handler function from the +hotels+ namespace.
+
+The namespace middleware always invokes its delegate handler (the request handling function it wraps around), _even when no function has been identified_.
+This seems counter-intuitive, but makes sense in the context of the nested resources: for a particular request
+the +hotels+ namespace may not have a corresponding function to invoke, but the nested +rooms+ namespace may have
+a matching function.
+
+Also, in the nested resource scenario, the function to invoke may be identified in an outer context, then re-identified,
+in an inner context, before being invoked.
 
 == Writing Rook Middleware
 
@@ -198,14 +231,11 @@ List of argument resolvers that apply to any invoked resource handler function.
 +:namespace+::
 The symbol identifying the namespace containing the matched function.
 +:function+::
-The matched function, which will be invoked by +rook-handler+.
+The matched function, which will be invoked by +rook-dispatcher+.
 +:metadata+::
 The meta-data for the matched function.
 +:arg-resolvers+::
 List of argument resolvers from the matched function's meta-data.
 
-Rook middleware that fits between +namespace-middleware+ and +rook-handler+ should check for nested request key +[:rook :function]+ to
+Rook middleware that fits between +namespace-middleware+ and +rook-dispatcher+ should check for nested request key +[:rook :function]+ to
 see if a function has been identified.
-
-WARNING: It is likely that a future change will make the handler provided by +namespace-middleware+ not delegate
-to its handler unless a function is identified.
