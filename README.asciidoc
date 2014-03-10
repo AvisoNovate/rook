@@ -182,7 +182,7 @@ arguments and invokes the identified function).
   (namespace-handler "/orders" 'org.example.resources.orders))
 ----
 
-WARNING: You must be sure to +require+ the resource namespaces.
+INFO: Rook with +require+ the namespace if it does not already exist.
 
 Remember that the way +context+ works is to match and strip off the prefix, so an incoming GET request for +/users/232+
 will be matched as context +/users+; Rook will then identify function +org.example.resources.users/show+ with path +/:id+;
