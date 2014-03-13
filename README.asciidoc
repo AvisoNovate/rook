@@ -86,14 +86,15 @@ The +:path-spec+ contains two values: the keyword for the verb (this may also be
 
 == Middleware
 
-Ring is divided into two main pieces: a _middleware_ and a _handler_.
+Ring is divided into two main pieces: a _middleware_ and a _dispatcher_.
 
 The middleware analyzes the namespace and the incoming request; it will identify the matching resource handler function, storing
 the information about it under the +:rook+ request key.
 
-The _handler_ checks for that information; if present it invokes the identified resource handler function.
+The _dispatcher_ is a Ring request handler that checks for that information; if present it invokes the identified resource handler function.
+The resource handler function will return a Ring response.
 
-Applications will often add additional middleware in front of the handler; this allows for other concerns to be addressed,
+Applications will often add additional middleware in front of the dispatcher; this allows for other concerns to be addressed,
 such as authentication, logging, error handling, etc.
 
 == Argument Resolution
@@ -188,7 +189,7 @@ arguments and invokes the identified function).
   (namespace-handler "/orders" 'org.example.resources.orders))
 ----
 
-INFO: Rook will +require+ the namespace if it does not already exist.
+INFO: Rook will +require+ the namespace if it has not already been required.
 
 Remember that the way +context+ works is to match and strip off the prefix, so an incoming GET request for +/users/232+
 will be matched as context +/users+; Rook will then identify function +org.example.resources.users/show+ with path +/:id+;
