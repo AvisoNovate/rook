@@ -11,6 +11,11 @@ Rook makes use of https://github.com/weavejester/compojure[Compojure] to handle 
 
 Rook is available under the terms of the Apache Software License 2.0.
 
+Rook is available from the Clojars artifact repository as `io.aviso:rook`.
+Follow https://clojars.org/io.aviso/rook[these instructions] to configure the dependency in your build tool.
+
+http://howardlewisship.com/io.aviso/rook/[API Documentation]
+
 == Resource Handler Functions
 
 Rook analyzes the public functions of a namespace to determine which functions are invoked and under which circumstances.
