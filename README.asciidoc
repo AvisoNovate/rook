@@ -156,9 +156,10 @@ the map.
 Function +build-fn-arg-resolver+ constructs an argument resolver function from  a map of _functions_; The functions
 are selected by the argument keyword, and passed the request.
 
-Function +request-arg-resolver+ is an argument resolver that resolvers the argument keyword against the Ring request map itself.
+Function +request-arg-resolver+ is an argument resolver that resolves the argument keyword against the Ring request map itself.
 
-These can be composed:
++arg-resolver-middleware+ accepts any number of argument resolvers, allowing them to be easily composed and
+contributed:
 
 ----
 (defn add-standard-resolvers
@@ -182,7 +183,7 @@ arguments and invokes the identified function).
   (namespace-handler "/orders" 'org.example.resources.orders))
 ----
 
-INFO: Rook with +require+ the namespace if it does not already exist.
+INFO: Rook will +require+ the namespace if it does not already exist.
 
 Remember that the way +context+ works is to match and strip off the prefix, so an incoming GET request for +/users/232+
 will be matched as context +/users+; Rook will then identify function +org.example.resources.users/show+ with path +/:id+;
