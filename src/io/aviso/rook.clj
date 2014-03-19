@@ -40,11 +40,7 @@
   (let [arg-kw (keyword (name argument))
         api-kw (keyword (.replace (name argument) "-" "_"))]
     (or
-      (loop [[arg-resolver & arg-resolvers] arg-resolvers]
-        (when arg-resolver
-          (or
-            (arg-resolver arg-kw request)
-            (recur arg-resolvers))))
+      (some #(% arg-kw request) arg-resolvers)
       (when (= :request arg-kw) request)
       (get (:route-params request) api-kw)
       (get (:route-params request) arg-kw)
