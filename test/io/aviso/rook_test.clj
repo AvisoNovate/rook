@@ -1,6 +1,7 @@
 (ns io.aviso.rook-test
   (:use
     io.aviso.rook
+    io.aviso.rook.internals
     clojure.test)
   (:require
     [io.aviso.rook-test2]
@@ -186,13 +187,8 @@
 
 (deftest function-order
 
-  (let [get-available-paths (-> 'io.aviso.rook ns-map (get 'get-available-paths))
-        paths  (get-available-paths 'io.aviso.rook-test5)
-        funcs (map #(nth % 2) paths)
-        ]
+  (let [paths  (get-available-paths 'io.aviso.rook-test5)
+        funcs (map #(nth % 2) paths)]
 
     (is (= ['io.aviso.rook-test5/show-default 'io.aviso.rook-test5/show])
-        funcs)
-
-    )
-  )
+        funcs)))
