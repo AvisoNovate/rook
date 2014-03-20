@@ -7,6 +7,7 @@
   :profiles {:reflection-warnings {:aot         :all
                                    :global-vars {*warn-on-reflection* true}}
              :dev {:dependencies [[ring-mock "0.1.5"]
+                                  [io.aviso/pretty "0.1.10"]
                                   [log4j "1.2.17"]]}}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/tools.logging "0.2.6"]
