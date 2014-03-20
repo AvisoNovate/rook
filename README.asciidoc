@@ -241,7 +241,8 @@ The symbol identifying the namespace containing the matched function.
 +:function+::
 The matched function, which will be invoked by +rook-dispatcher+.
 +:metadata+::
-The meta-data for the matched function.
+The meta-data for the matched function. This is the merged meta-data of the function and the namespace (if there
+are collisions, the function takes precedence).
 +:arg-resolvers+::
 List of argument resolvers from the matched function's meta-data.
 
