@@ -7,14 +7,14 @@
   If a public method whose name matches a default mapping exists, then it will be added using the
   default mapping; for example, a method named \"index\" will automatically be matched against \"GET /\".
   This can be overriden by providing meta-data on the functions."
-  [[[:get "/new"] :new] ; :new is used to present an HTML form to a user, to create the entity, not needed in a pure web service
-   [[:get "/:id"] :show]
-   [[:put "/:id"] :update]
-   [[:patch "/:id"] :update]
-   [[:get "/:id/edit"] :edit] ; :edit parallels :new, a user-centric HTML form, not needed in a pure web service
-   [[:delete "/:id"] :destroy]
-   [[:get "/"] :index]
-   [[:post "/"] :create]])
+  [[:get "/new" :new] ; :new is used to present an HTML form to a user, to create the entity, not needed in a pure web service
+   [:get "/:id" :show]
+   [:put "/:id" :update]
+   [:patch "/:id" :update]
+   [:get "/:id/edit" :edit] ; :edit parallels :new, a user-centric HTML form, not needed in a pure web service
+   [:delete "/:id" :destroy]
+   [:get "/" :index]
+   [:post "/" :create]])
 
 (def supported-methods #{:get :put :patch :post :delete :head :all})
 
@@ -59,8 +59,8 @@
    )"
   [sym]
   (let [symbol-meta (meta sym)]
-    (when-let [path-spec (:path-spec symbol-meta)]
-      [path-spec (keyword (:name symbol-meta))])))
+    (when-let [[method path] (:path-spec symbol-meta)]
+      [method path (keyword (:name symbol-meta))])))
 
 (defn- ns-paths
   "Returns paths for <namespace> using DEFAULT_MAPPINGS and by scanning for functions :path-spec metadata.
@@ -85,7 +85,7 @@
     (require namespace-name))
   (let [inherited-meta-data (-> namespace-name find-ns meta (dissoc :doc))]
     (->> (ns-paths namespace-name)
-         (map (fn [[[route-method route-path] function-key]]
+         (map (fn [[route-method route-path function-key]]
                 (when-let [f (ns-function namespace-name function-key)]
                   [route-method route-path f (merge inherited-meta-data (meta f))])))
          (remove nil?)
