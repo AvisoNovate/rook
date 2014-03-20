@@ -192,3 +192,15 @@
 
     (is (= ['io.aviso.rook-test5/show-default 'io.aviso.rook-test5/show])
         funcs)))
+
+(deftest merged-metadata-from-namespace
+
+  (let [show-meta (->> 'io.aviso.rook-test5
+                       get-available-paths
+                       (filter (fn [[_ _ _ meta]] (= 'show (:name meta))))
+                       first
+                       last)]
+    (println show-meta)
+    (are [key expected] (= (get show-meta key) expected)
+                        :inherited :namespace
+                        :overridden :function)))

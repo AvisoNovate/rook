@@ -39,7 +39,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
   [namespace-name]
   (l/debugf "Scanning %s for mappable functions" namespace-name)
   (->> (internals/get-available-paths namespace-name)
-       (map (fn [[route-method route-path f]]
+       (map (fn [[route-method route-path f full-meta]]
               (assert (internals/supported-methods route-method)
                       (format "Method %s (from :path-spec of function %s) must be one of %s."
                               route-method
@@ -48,7 +48,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
               ;; It would be nice if there was a way to qualify the path for when we are nested
               ;; inside a Compojure context, but we'd need the request to do that.
               (l/debugf "Mapping %s `%s' to %s" (-> route-method name .toUpperCase) route-path f)
-              [route-method (clout/route-compile route-path) f]))
+              [route-method (clout/route-compile route-path) f full-meta]))
        (remove nil?)
        doall))
 

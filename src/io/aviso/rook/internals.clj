@@ -35,27 +35,19 @@
       (get (:params request) api-kw)
       (get (:params request) arg-kw))))
 
-(defn- symbol-for-function?
-  "Checks if a symbol is actually a function. The same function exists in clojure.test, but we don't want the dependency
-  on clojure.test in live, running code, do we?"
-  [sym]
-  (-> sym
+(defn- is-var-a-function?
+  "Checks if a var resolved from a namespace is actually a function."
+  [v]
+  (-> v
       deref
       ifn?))
 
 (defn- ns-function
-  "Return the var for the given namespance and function keyword."
+  "Return the var for the given namespace and function keyword."
   [namespace function-key]
-  (when-let [f (ns-resolve namespace (symbol (name function-key)))]
-    (when (symbol-for-function? f) ;it has to be a function all right
-      f)))
-
-(defn- get-function-meta
-  "Get meta for route-mapping and namespace."
-  [namespace [path-spec function-key]]
-  (when-let [f (ns-function namespace function-key)]
-    (let [[method path] path-spec]
-      (assoc (meta f) :method method :path path))))
+  (when-let [v (ns-resolve namespace (symbol (name function-key)))]
+    (when (is-var-a-function? v) ;it has to be a function all right
+      v)))
 
 (defn- function-entry
   "Create function entry if it has :path-spec defined in its metadata, for example:
@@ -72,27 +64,15 @@
 
 (defn- ns-paths
   "Returns paths for <namespace> using DEFAULT_MAPPINGS and by scanning for functions :path-spec metadata.
-   Each path returned is a tuple of [path-spec function-key] where:
-     path-spec is a tuple of [method path]
-     function-key is a keyword derived from the simple name of the function with the namespace"
+  The return value is a seq of tuples contaiing a path-spec tuple and the keyword for a function."
   [namespace-name]
-  (when-not (find-ns namespace-name)
-    (require namespace-name))
   (->> namespace-name
        ns-publics
-       (map second)
-       (filter symbol-for-function?)
+       vals
+       (filter is-var-a-function?)
        (map function-entry)
        (remove nil?)
        (concat default-mappings)))
-
-(defn scan-namespace-for-doc
-  "Build a map of functions in namespace <-> url prefixes."
-  [namespace]
-  (->> namespace
-       ns-paths
-       (map #(get-function-meta namespace %))
-       (remove nil?)))
 
 (defn get-available-paths
   "Scan namespace for available routes - only those that have available function are returned.
@@ -100,14 +80,17 @@
   Routes are sorted by the line number from metadata - which can be troubling if you have the same namespace in many files.
 
   But then, unless your name is Rich, you're in trouble already... "
-  [namespace]
-  (->> (ns-paths namespace)
-       (map (fn [[[route-method route-path] function-key]]
-              (when-let [fun (ns-function namespace function-key)]
-                [route-method route-path fun])))
-       (remove nil?)
-       ;; sadly, the namespace stores interned values
-       (sort-by (fn [[_ _ func]] (-> func meta :line (or 0))))))
+  [namespace-name]
+  (when-not (find-ns namespace-name)
+    (require namespace-name))
+  (let [inherited-meta-data (-> namespace-name find-ns meta (dissoc :doc))]
+    (->> (ns-paths namespace-name)
+         (map (fn [[[route-method route-path] function-key]]
+                (when-let [f (ns-function namespace-name function-key)]
+                  [route-method route-path f (merge inherited-meta-data (meta f))])))
+         (remove nil?)
+         ;; sadly, the namespace stores interned values
+         (sort-by (fn [[_ _ _ full-meta]] (-> full-meta :line (or 0)))))))
 
 (defn- method-matches?
   [request route-method]
@@ -115,7 +98,7 @@
       (= route-method (:request-method request))))
 
 (defn- match-request-to-compiled-path
-  [request namespace-name [route-method route-path fun]]
+  [request namespace-name [route-method route-path f full-meta]]
   (when-let [route-params (and (method-matches? request route-method)
                                (clout/route-matches route-path request))]
     (-> request
@@ -123,9 +106,9 @@
         ;; by this particular mathc.
         (update-in [:route-params] merge route-params)
         (update-in [:rook] merge {:namespace     namespace-name
-                                  :function      fun
-                                  :metadata      (meta fun)
-                                  :arg-resolvers (:arg-resolvers (meta fun))}))))
+                                  :function      f
+                                  :metadata      full-meta
+                                  :arg-resolvers (:arg-resolvers (meta f))}))))
 
 (defn match-against-compiled-paths
   "Uses the compiled paths to identify the matching function to be invoked and returns
