@@ -55,13 +55,18 @@ path specification.
 |/new
 |Present HTML form to user to create new resource
 
+|patch
+|PATCH
+|/:id
+|Modify existing resource; generally implemented as the same as `update`.footnote:[one function can delegate to the other.]
+
 |show
 |GET
 |/:id
 |Retrieve single resource by unique id
 
 |update
-|PUT or PATCH
+|PUT
 |/:id
 |Modify existing resource
 

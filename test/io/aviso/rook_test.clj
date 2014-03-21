@@ -8,6 +8,7 @@
     [io.aviso.rook-test3]
     [io.aviso.rook-test4]
     [io.aviso.rook-test5]
+    [io.aviso.rook-test6]
     [ring.mock.request :as mock]
     [ring.middleware.params]
     [ring.middleware.keyword-params]
@@ -187,7 +188,7 @@
 
 (deftest function-order
 
-  (let [paths  (get-available-paths 'io.aviso.rook-test5)
+  (let [paths (get-available-paths 'io.aviso.rook-test5)
         funcs (map #(nth % 2) paths)]
 
     (is (= ['io.aviso.rook-test5/show-default 'io.aviso.rook-test5/show])
@@ -204,3 +205,10 @@
     (are [key expected] (= (get show-meta key) expected)
                         :inherited :namespace
                         :overridden :function)))
+
+(deftest no-conflicts-when-path-spec-on-convention-name
+  (let [paths (get-available-paths 'io.aviso.rook-test6)
+        _ (is (= 1 (count paths)))
+        [method uri] (first paths)]
+    (is (= :post method))
+    (is (= "/:user-name/:password" uri))))

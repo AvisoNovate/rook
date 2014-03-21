@@ -7,14 +7,17 @@
   If a public method whose name matches a default mapping exists, then it will be added using the
   default mapping; for example, a method named \"index\" will automatically be matched against \"GET /\".
   This can be overriden by providing meta-data on the functions."
-  [[:get "/new" :new] ; :new is used to present an HTML form to a user, to create the entity, not needed in a pure web service
-   [:get "/:id" :show]
-   [:put "/:id" :update]
-   [:patch "/:id" :update]
-   [:get "/:id/edit" :edit] ; :edit parallels :new, a user-centric HTML form, not needed in a pure web service
-   [:delete "/:id" :destroy]
-   [:get "/" :index]
-   [:post "/" :create]])
+  {
+    'new [:get "/new"]
+    'edit [:get "/:id/edit"]
+    'show [:get "/:id"]
+    'update [:put "/:id"]
+    'patch [:patch "/:id"]
+    'destroy [:delete "/:id"]
+    'index [:get "/"]
+    'create [:post "/"]
+    }
+  )
 
 (def supported-methods #{:get :put :patch :post :delete :head :all})
 
@@ -58,8 +61,10 @@
    ...
    )"
   [sym]
-  (let [symbol-meta (meta sym)]
-    (when-let [[method path] (:path-spec symbol-meta)]
+  (let [symbol-meta (meta sym)
+        name (:name symbol-meta)
+        path-spec (or (:path-spec symbol-meta) (get default-mappings name))]
+    (when-let [[method path] path-spec]
       [method path (keyword (:name symbol-meta))])))
 
 (defn- ns-paths
@@ -71,8 +76,8 @@
        vals
        (filter is-var-a-function?)
        (map function-entry)
-       (remove nil?)
-       (concat default-mappings)))
+       ;; Remove functions that do not have :path-spec metadata, and don't match a convention name
+       (remove nil?)))
 
 (defn get-available-paths
   "Scan namespace for available routes - only those that have available function are returned.
