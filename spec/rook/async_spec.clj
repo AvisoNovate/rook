@@ -1,10 +1,11 @@
 (ns rook.async-spec
   (:use
-    [clojure.core.async :only [chan >!! <!! thread]]
+    [clojure.core.async :only [go chan >!! <! <!! thread]]
     speclj.core)
   (:require
     [io.aviso.rook
      [async :as async]
+     [client :as c]
      [utils :as utils]]))
 
 (describe "io.aviso.rook.async"
@@ -34,6 +35,32 @@
         (should= false
                  (->
                    (async/routing {})
-                   <!!)))))
+                   <!!))))
+
+  (describe "loopback-handler"
+
+    (it "should expose the loopback in the request"
+        (let [fred (fn [request]
+                     (go
+                       (if (= (:uri request) "/fred")
+                         (->
+                           (c/new-request (:loopback-handler request))
+                           (c/to :get :barney)
+                           c/send
+                           <! ; get just the :body from the response
+                           utils/response)
+                         false)))
+              barney (fn [request]
+                       (go
+                         (if (= (:uri request) "/barney")
+                           (utils/response 200 "rubble")
+                           false)))
+              wrapped (async/wrap-with-loopback (async/routes fred barney))]
+          (should= "rubble"
+                   (->
+                     {:uri "/fred"}
+                     wrapped
+                     <!!
+                     :body))))))
 
 (run-specs :color true)
