@@ -4,6 +4,7 @@
     speclj.core)
   (:require
     [io.aviso.rook
+     [async :as async]
      [client :as c]
      [utils :as utils]]))
 
@@ -101,7 +102,7 @@
 
   (it "converts an exception on the exception channel into a 500 response"
       (should= 500
-               (-> (c/new-request #(utils/try-go % (throw (IllegalArgumentException.))))
+               (-> (c/new-request #(async/try-go % (throw (IllegalArgumentException.))))
                    (c/to :get)
                    c/send
                    <!!
