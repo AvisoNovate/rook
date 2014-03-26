@@ -36,7 +36,8 @@
        (try
          ~@body
          (catch Throwable t#
-           (>! ch# t#)
-           ;; Re-throw the exception; that's the only way to get out of the go block
-           ;; without returning a value.
-           (throw t#))))))
+           ;; The exception is routed to the exception channel.
+           ;; The go block returns nil (that's problematic according to the
+           ;; docs), but re-throwing the exeption results in an ugly
+           ;; exception trace on the console.
+           (>! ch# t#))))))
