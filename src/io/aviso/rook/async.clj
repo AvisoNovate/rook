@@ -152,9 +152,11 @@
   to interact with other resources as if via HTTP/HTTPs, but without the cost (in terms of processing time to
   encode and decode requests, and in terms of blocking the limited number of request servicing threads.
 
-  Request processing should be broken up into two phrases: a synchronous phase that is largely concerned with
-  standard protocol issues (such as converting the body from JSON or EDN text into Clojure data) and an
+  Request processing should be broken up into two phases: an initial synchronous phase that is largely concerned with
+  standard protocol issues (such as converting the body from JSON or EDN text into Clojure data) and a later,
   asynchronous phase (the routes provides to this function).
+
+  The loopback allows this later asynchronous phase to be re-entrant.
 
   The io.aviso.rook.client namespace is specifically designed to allow resources to communiate with each other
   via the loopback.
