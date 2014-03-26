@@ -16,8 +16,6 @@
     [clojure.string :as str]
     [io.aviso.rook [utils :as utils]]))
 
-(def edn "application/edn")
-
 (defn new-request
   "New request through the handler.
 
