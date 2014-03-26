@@ -170,11 +170,8 @@
   ([handler]
    (wrap-with-loopback handler :loopback-handler))
   ([handler k]
-   (let [loopback-handler (atom nil) ; for want of a this
-         handler' (fn [request]
-                    (let [this @loopback-handler
-                          wrapped (rook/arg-resolver-middleware handler (rook/build-map-arg-resolver k this))
-                          request' (assoc request k this)]
-                      (wrapped request')))]
-     (reset! loopback-handler handler')
+   (letfn [(handler' [request]
+                     (let [wrapped (rook/arg-resolver-middleware handler (rook/build-map-arg-resolver k handler'))
+                           request' (assoc request k handler')]
+                       (wrapped request')))]
      handler')))
