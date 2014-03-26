@@ -120,11 +120,6 @@
       (update-in [:headers] dissoc "content-length" "content-type")
       callback)))
 
-(defn- process-async-exception
-  [request uuid exception]
-  (l/errorf "%s exception during asynchronous processing: %s" uuid (-> exception .getMessage (or (-> exception .getClass .getName))))
-  (process-async-response request uuid (utils/response 500 nil)))
-
 (defn send
   "Sends the request asynchronously, using the web-service-handler provided to new-request. Returns a channel
   that will receive the result. When a response arrives from the handler, the correct callback is invoked.
@@ -152,7 +147,4 @@
                     (-> ring-request :body utils/pretty-print))
         response-ch (handler ring-request)]
     (go
-      (alt!
-        exception-ch ([exception] (process-async-exception request uuid exception))
-        response-ch ([response] (process-async-response request uuid response))
-        ))))
+      (process-async-response request uuid (<! response-ch)))))

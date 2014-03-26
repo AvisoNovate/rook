@@ -101,9 +101,7 @@
 
   (it "converts an exception on the exception channel into a 500 response"
       (should= 500
-               (-> (c/new-request #(utils/try-go
-                                    (:exception-ch %)
-                                    (throw (IllegalArgumentException.))))
+               (-> (c/new-request #(utils/try-go % (throw (IllegalArgumentException.))))
                    (c/to :get)
                    c/send
                    <!!
