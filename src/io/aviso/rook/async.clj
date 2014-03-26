@@ -145,3 +145,34 @@
   [path namespace-name handler]
   (let [handler' (rook/namespace-middleware handler namespace-name)]
     (context path handler')))
+
+(defn wrap-with-loopback
+  "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
+  This is essentially the whole point of of the asynchronous support: to allow individual resource handler functions
+  to interact with other resources as if via HTTP/HTTPs, but without the cost (in terms of processing time to
+  encode and decode requests, and in terms of blocking the limited number of request servicing threads.
+
+  Request processing should be broken up into two phrases: a synchronous phase that is largely concerned with
+  standard protocol issues (such as converting the body from JSON or EDN text into Clojure data) and an
+  asynchronous phase (the routes provides to this function).
+
+  The io.aviso.rook.client namespace is specifically designed to allow resources to communiate with each other
+  via the loopback.
+
+  handler - delegate asynchronous handler, typically via namespace-handler and or routes
+  k - the keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default.
+
+
+  The loopback handler is exposed via arg-resolver-middleware: resource handler functions can gain access
+  to the loopback by providing an argument with a matching name."
+  ([handler]
+   (wrap-with-loopback handler :loopback-handler))
+  ([handler k]
+   (let [loopback-handler (atom nil) ; for want of a this
+         handler' (fn [request]
+                    (let [this @loopback-handler
+                          wrapped (rook/arg-resolver-middleware handler (rook/build-map-arg-resolver k this))
+                          request' (assoc request k this)]
+                      (wrapped request')))]
+     (reset! loopback-handler handler')
+     handler')))
