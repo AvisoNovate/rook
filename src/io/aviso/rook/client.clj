@@ -95,7 +95,6 @@
 
 (defn- process-async-response
   [request uuid {:keys [status] :as response}]
-  (l/debug "process-async-response" response)
   (assert response
           (format "Handler closed channel for request %s without sending a response." uuid))
   (let [callback (-> request :callbacks (identify-callback status))]
