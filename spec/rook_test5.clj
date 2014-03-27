@@ -1,4 +1,4 @@
-(ns io.aviso.rook-test5
+(ns rook-test5
   "A testing namespace"
   {:inherited   :namespace
    :overridden :namespace})

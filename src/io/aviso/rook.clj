@@ -30,10 +30,10 @@ a corresponding key in the built from keys and functions mentioned before - the 
   (get request arg))
 
 (defn arg-resolver-middleware
-  "Middleware which adds provided argument resolvers to [:rook :default-arg-resolvers] collection."
+  "Middleware which adds provided argument resolvers to the [:rook :arg-resolvers] collection."
   [handler & arg-resolvers]
   (fn [request]
-    (handler (update-in request [:rook :default-arg-resolvers] concat arg-resolvers))))
+    (handler (update-in request [:rook :arg-resolvers] concat arg-resolvers))))
 
 (defn- get-compiled-paths
   [namespace-name]
@@ -72,17 +72,28 @@ a corresponding key in the built from keys and functions mentioned before - the 
 (defn rook-dispatcher
   "Ring request handler that uses information from :rook entry in the request map to invoke the previously
   identified function, after resolving the function's arguments. This function must always be wrapped
-  in namespace-middleware (which is what identifies the resource handler function to invoke)."
-  [request]
-  (let [rook-data (-> request :rook)
-        arg-resolvers (concat (-> rook-data :default-arg-resolvers)
-                              (-> rook-data :arg-resolvers))
-        f (-> rook-data :function)
-        args (-> rook-data :metadata :arglists first)
-        argument-values (map #(internals/extract-argument-value % request arg-resolvers) args)]
+  in namespace-middleware (which is what identifies the resource handler function to invoke).
+
+  This should always be wrapped with wrap-with-function-arg-resolvers, to ensure that function-specific
+  argument resolvers are present in the [:rook :arg-resolvers] key."
+  [{{f :function metadata :metadata resolvers :arg-resolvers} :rook :as request}]
+  (let [args (-> metadata :arglists first)
+        argument-values (map #(internals/extract-argument-value % request resolvers) args)]
     (when f
       (l/debug "Invoking handler function" f)
       (apply f argument-values))))
+
+(defn wrap-with-function-arg-resolvers
+  "Wraps the handler with a request that has the :arg-resolvers key extended with any
+  function-specific arg-resolvers (from the function's meta-data)."
+  [handler]
+  (fn [request]
+    (handler (update-in request [:rook :arg-resolvers] concat (-> request :rook :metadata :arg-resolvers)))))
+
+(def default-rook-pipeline
+  "The default pipeline for invoking a resource handler function: wraps rook-dispatcher
+  to do the actual work with middleware to extend :args-resolvers with function-specific arg resolvers."
+  (-> rook-dispatcher wrap-with-function-arg-resolvers))
 
 (defn namespace-handler
   "Helper handler, which wraps rook-dispatcher in namespace middleware.
@@ -91,13 +102,14 @@ a corresponding key in the built from keys and functions mentioned before - the 
   The path should start with a slash, but not end with one.
   namespace-name - the symbol identifying the namespace to scan, e.g., 'org.example.resources.users
   handler - The handler to use; defaults to rook-dispatcher, but in many cases, you will want to wrap
-  rook-dispatcher with additional middleware, or combine several handlers into a Compojure route.
+  default-rook-pipeline with additional middleware, or combine several handlers into a single Compojure route.
 
   The advanced version also takes a path for compojure.core/context and the handler to invoke."
   ;; I'm thinking that handlers is wrong; the handlers should actually be middleware.
   ([namespace-name]
    (namespace-handler nil namespace-name))
-  ([path namespace-name] (namespace-handler path namespace-name rook-dispatcher))
+  ([path namespace-name]
+   (namespace-handler path namespace-name default-rook-pipeline))
   ([path namespace-name handler]
    (let [handler' (namespace-middleware handler namespace-name)]
      (if path

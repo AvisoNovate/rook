@@ -1,4 +1,4 @@
-(ns io.aviso.rook-test6)
+(ns rook-test6)
 
 (defn create
   {:path-spec [:post "/:user-name/:password"]}

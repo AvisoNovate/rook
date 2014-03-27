@@ -112,8 +112,7 @@
         (update-in [:route-params] merge route-params)
         (update-in [:rook] merge {:namespace     namespace-name
                                   :function      f
-                                  :metadata      full-meta
-                                  :arg-resolvers (:arg-resolvers (meta f))}))))
+                                  :metadata      full-meta}))))
 
 (defn match-against-compiled-paths
   "Uses the compiled paths to identify the matching function to be invoked and returns

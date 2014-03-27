@@ -1,4 +1,4 @@
-(ns io.aviso.rook-test4)
+(ns rook-test4)
 
 (defn proxy-request
   {:path-spec [:all "/proxy"]}

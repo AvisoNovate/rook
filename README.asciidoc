@@ -133,6 +133,8 @@ submission.
 * Finally, unmatched arguments simply default to +nil+.
 
 Argument resolution is performed by the +rook-dispatcher+ function, just before invoking the resource handler function.
+The +default-rook-pipeline+ includes +rook-dispatcher+ plus middleware to add any argument resolvers from the
+function's +:arg-resolvers+ meta-data to the list of argument resolvers used by +rook-dispatcher+.
 
 == Extending Argument Resolution
 
@@ -153,19 +155,21 @@ the +:argument-resolvers+ meta-data key is a sequence of resolvers.
 
 Argument resolver functions take precedence over the default argument resolvers.
 
-In addition, middleware may provide resolvers as the key +:default-arg-resolvers+ under the +:rook+ request key;
+In addition, middleware may provide resolvers as the key +:arg-resolvers+ under the +:rook+ request key;
 this is a list of argument resolver functions that apply to any resource handler function.
 
-WARNING: Currently, default argument resolvers are invoked _first_, before function-specific resolvers; this seems backwards
+WARNING: Currently, argument resolvers are invoked _first_, before function-specific resolvers; this seems backwards
 and is likely to change.
 
-Function +arg-resolver-middleware+ is used to specify additional functions for +:default-arg-resolvers+.
+Function +arg-resolver-middleware+ is used to specify additional functions for +:arg-resolvers+.
 
 Function +build-map-arg-resolver+ constructs an argument resolver function from a map; It simply returns values from
 the map.
 
-Function +build-fn-arg-resolver+ constructs an argument resolver function from  a map of _functions_; The functions
+Function +build-fn-arg-resolver+ constructs an argument resolver function from a map of _functions_; The functions
 are selected by the argument keyword, and passed the request.
+
+INFO: Remember that a keyword can act like a function when passed a map, such as the Ring request.
 
 Function +request-arg-resolver+ is an argument resolver that resolves the argument keyword against the Ring request map itself.
 
@@ -185,7 +189,7 @@ contributed:
 A typical web service will expose some number of resources; under Ring this means mapping a number of namespaces.
 
 The +namespace-handler+ function is the easy way to do this mapping. It combines +compojure.core/context+ with Rook's
-+namespace-middleware+ (which identifies the function to be invoked within the namespace) and +rook-dispatcher+ (which resolves
++namespace-middleware+ (which identifies the function to be invoked within the namespace) and +default-rook-pipeline+ (which resolves
 arguments and invokes the identified function).
 
 ----
@@ -209,21 +213,23 @@ hotel with the URL +/hotels/123/rooms/237+:
   (namespace-handler "/hotels 'org.example.resources.hotels
     (routes
        (namespace-handler "/:hotel-id/rooms" 'org.example.resources.rooms)
-       rook-dispatcher)))
+       default-rook-pipeline)))
 ----
 
 In this example, the first +namespace-handler+ call will match any URL that starts with +/hotels+. Since that
 may be a match for the hotels resource itself, or rooms within a specific hotel, the handler for the namespace
-can't simply be +rook-dispatcher+; instead it is a new route containing a namespace handler, and a +rook-dispatcher+
-for the +org.example.resources.hotels+ namespace.
+can't simply be +default-rook-pipeline+; instead it is a new route containing a namespace handler, and the
++default-rook-pipeline+ for the +org.example.resources.hotels+ namespace.
 
 The nested route matches the +:hotel-id+ symbol from the path; this will be resolved to argument +hotel-id+ in any
 resource handler function that is invoked in the +rooms+ namespace.
 
-It is important that the +rook-dispatcher+ both be present, and come _last_.
+It is important that the +default-rook-pipeline+ both be present, and come _last_.
+
 If it is missing, then requests for the +/hotels+ URL will be identified by the middleware, but will never be invoked.
+
 If it is present, but comes before the nested namespaces, then a conflict will occur: URLs that should match against
-the +rooms+ resource will also match against the +hotels+ resource, and since the +rook-dispatcher+ for the
+the +rooms+ resource will also match against the +hotels+ resource, and since the +default-rook-pipeline+ for the
 +hotels+ resource is executed first (incorrectly), it will invoke a resource handler function from the +hotels+ namespace.
 
 The namespace middleware always invokes its delegate handler (the request handling function it wraps around), _even when no function has been identified_.
@@ -237,19 +243,17 @@ in an inner context, before being invoked.
 == Writing Rook Middleware
 
 Rook uses the +:rook+ key of the request to store information needed to process requests.
-With the exception of +:default-arg-resolvers+, the values are supplied by the the +namespace-middleware+ function.
+With the exception of +:arg-resolvers+, the values are supplied by the the +namespace-middleware+ function.
 
-+:default-arg-resolvers+::
++:arg-resolvers+::
 List of argument resolvers that apply to any invoked resource handler function.
 +:namespace+::
 The symbol identifying the namespace containing the matched function.
 +:function+::
-The matched function, which will be invoked by +rook-dispatcher+.
+The matched function, which will be invoked by +default-rook-pipeline+.
 +:metadata+::
 The meta-data for the matched function. This is the merged meta-data of the function and the namespace (if there
 are collisions, the function takes precedence).
-+:arg-resolvers+::
-List of argument resolvers from the matched function's meta-data.
 
 Rook middleware that fits between +namespace-middleware+ and +rook-dispatcher+ should check for nested request key +[:rook :function]+ to
 see if a function has been identified.
