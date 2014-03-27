@@ -257,3 +257,24 @@ are collisions, the function takes precedence).
 
 Rook middleware that fits between +namespace-middleware+ and +rook-dispatcher+ should check for nested request key +[:rook :function]+ to
 see if a function has been identified.
+
+== Async
+
+Rook can be used entirely as a normal set of Ring response handlers and middleware.  However, it is even more useful when combined
+with https://github.com/clojure/core.async[Clojure's core.async library].
+
+Rook includes support for an asynchronous pipeline, where processing of a request can occur without blocking any threads
+(and parts of which may occur in parallel).
+Async Rook also supports re-entrant requests that bypass the protocol layers; this allows your resource handler functions
+to easily send _loopback_ requests to other resources within the same server, without needing to encode and decode data, or send HTTP/HTTPs
+requests, or block threads.
+This will ensure that your code _eats its own dogfood_ by using the same REST APIs is exports, rather than bypassing
+the APIs to invoke Clojure functions directly.
+
+Finally, Rook includes a client library that makes it very easy to initiate loopback requests and process failure and success responses,
+again built on top of core.async.
+
+Time will tell just how well this works (its early days yet), but we hope to be able to handle a very large volume of requests
+very efficiently.
+
+More documentation on this is forthcoming.
