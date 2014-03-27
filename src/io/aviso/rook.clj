@@ -2,6 +2,7 @@
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
     [io.aviso.rook.internals :as internals]
+    [ring.middleware params format keyword-params]
     [clojure.tools.logging :as l]
     [clojure.string :as str]
     [compojure.core :as compojure]
@@ -116,4 +117,11 @@ a corresponding key in the built from keys and functions mentioned before - the 
        (compojure/context path [] handler')
        handler'))))
 
+(defn wrap-with-standard-middleware
+  "The standard middleware that Rook expects to be present before it is passed the Ring request."
+  [handler]
+  (-> handler
+      (ring.middleware.format/wrap-restful-format :formats [:json-kw :edn])
+      ring.middleware.keyword-params/wrap-keyword-params
+      ring.middleware.params/wrap-params))
 
