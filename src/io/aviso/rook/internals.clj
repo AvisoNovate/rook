@@ -1,6 +1,8 @@
 (ns io.aviso.rook.internals
   "Unsupported internal functions used in the implementation."
-  (:require [clout.core :as clout]))
+  (:require
+    [clout.core :as clout]
+    [io.aviso.rook.internal.map-transform :as mt]))
 
 (def ^:private default-mappings
   "Default mappings for route specs to functions. We use keyword for function name for increased readability.
@@ -8,14 +10,14 @@
   default mapping; for example, a method named \"index\" will automatically be matched against \"GET /\".
   This can be overriden by providing meta-data on the functions."
   {
-    'new [:get "/new"]
-    'edit [:get "/:id/edit"]
-    'show [:get "/:id"]
-    'update [:put "/:id"]
-    'patch [:patch "/:id"]
+    'new     [:get "/new"]
+    'edit    [:get "/:id/edit"]
+    'show    [:get "/:id"]
+    'update  [:put "/:id"]
+    'patch   [:patch "/:id"]
     'destroy [:delete "/:id"]
-    'index [:get "/"]
-    'create [:post "/"]
+    'index   [:get "/"]
+    'create  [:post "/"]
     }
   )
 
@@ -79,6 +81,11 @@
        ;; Remove functions that do not have :path-spec metadata, and don't match a convention name
        (remove nil?)))
 
+(defn- eval-namespace-meta-values
+  [n meta-map]
+  (binding [*ns* n]
+    (mt/transform-values meta-map eval)))
+
 (defn get-available-paths
   "Scan namespace for available routes - only those that have available function are returned.
 
@@ -88,7 +95,10 @@
   [namespace-name]
   (when-not (find-ns namespace-name)
     (require namespace-name))
-  (let [inherited-meta-data (-> namespace-name find-ns meta (dissoc :doc))]
+  ;; namespace meta-data is not evaluated
+  (let [n (find-ns namespace-name)
+        meta-eval (partial eval-namespace-meta-values n)
+        inherited-meta-data (-> n meta (dissoc :doc) meta-eval)]
     (->> (ns-paths namespace-name)
          (map (fn [[route-method route-path function-key]]
                 (when-let [f (ns-function namespace-name function-key)]
@@ -110,9 +120,9 @@
         ;; Merge params previously identified by Clout/Compojure with those identified
         ;; by this particular mathc.
         (update-in [:route-params] merge route-params)
-        (update-in [:rook] merge {:namespace     namespace-name
-                                  :function      f
-                                  :metadata      full-meta}))))
+        (update-in [:rook] merge {:namespace namespace-name
+                                  :function  f
+                                  :metadata  full-meta}))))
 
 (defn match-against-compiled-paths
   "Uses the compiled paths to identify the matching function to be invoked and returns

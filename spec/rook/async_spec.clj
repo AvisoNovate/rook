@@ -3,6 +3,7 @@
     [clojure.core.async :only [go chan >!! <! <!! thread]]
     speclj.core)
   (:require
+    [ring.mock.request :as mock]
     [io.aviso.rook
      [async :as async]
      [client :as c]
@@ -61,6 +62,22 @@
                      {:uri "/fred"}
                      wrapped
                      <!!
-                     :body))))))
+                     :body)))))
+
+  (describe "end-to-end test"
+
+    (it "should allow resources to collaborate"
+
+        (let [routes (async/routes
+                       (async/namespace-handler "/fred" 'fred)
+                       (async/namespace-handler "/barney" 'barney))
+              handler (->
+                        routes
+                        async/wrap-with-loopback
+                        async/async-handler->ring-handler)]
+          (should= ":barney says `ribs!'"
+                   (-> (mock/request :get "/fred")
+                       handler
+                       :body))))))
 
 (run-specs :color true)

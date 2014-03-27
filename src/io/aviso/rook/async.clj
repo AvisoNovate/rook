@@ -114,6 +114,12 @@
                      (format "Function %s, invoked as an asynchronous request handler, returned nil." f)
                      request)))))
 
+(def default-rook-pipeline
+  "The default rook pipeline for async processing. Wraps async-rook-dispatcher with middleware to
+  set the :arg-resolvers."
+  (-> async-rook-dispatcher
+      rook/wrap-with-function-arg-resolvers))
+
 ;;; Have to much about with some private functions in compojure.core ... at least, until we
 ;;; (perhaps) move Rook directly to clout.
 
@@ -142,9 +148,11 @@
 (defn namespace-handler
   "Asynchronous namespace handler. Adds namespace middleware, but the handler (including any middleware on the handler)
   should be asynchronous (returning a channel, not a direct result)."
-  [path namespace-name handler]
-  (let [handler' (rook/namespace-middleware handler namespace-name)]
-    (context path handler')))
+  ([path namespace-name]
+   (namespace-handler path namespace-name default-rook-pipeline))
+  ([path namespace-name handler]
+   (let [handler' (rook/namespace-middleware handler namespace-name)]
+     (context path handler'))))
 
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
