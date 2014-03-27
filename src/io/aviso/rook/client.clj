@@ -29,12 +29,12 @@
   {:handler   web-service-handler
    ;; If there isn't an exact match on status code, the special keys :success and :failure
    ;; are checked. :success matches any 2xx code, :failure matches anything else.
-   ;; :success by default returns just the body of the response.
-   ;; :failure by default eturns the entire response.
+   ;; :success by default returns just the body of the response in the second slot.
+   ;; :failure by default returns the entire response, in the first slot.
    ;; In both cases, a couple of headers are scrubbed before passing the response
    ;; through the callback.
-   :callbacks {:success :body
-               :failure identity}})
+   :callbacks {:success (fn [response] [nil (:body response)])
+               :failure vector}})
 
 (defn- element-to-string
   [element]
@@ -127,16 +127,20 @@
   that will receive the result. When a response arrives from the handler, the correct callback is invoked.
   The value put into the result channel is the value of the response passed through the callback.
 
-  Each request is assigned a UUID to its :request-id key; this is to faciliate easier tracing of the request
-  and response in any logged output.
+  The default callbacks produce a vector where the first value is the failure response (the entire Ring response map)
+  and the second value is the body of the success response (in which case, the first value is nil).
 
-  Each request is provided with an :exception-ch; "
+  The intent is to use destructuring to determine which case occured, and proceed accordingly.
+
+  The then macro is useful for working with this result directly.
+
+  Each request is assigned a UUID to its :request-id key; this is to faciliate easier tracing of the request
+  and response in any logged output. "
   [request]
   (let [uuid (utils/new-uuid)
-        exception-ch (chan 1)
         ring-request (-> request
                          :ring-request
-                         (assoc :request-id uuid :exception-ch exception-ch))
+                         (assoc :request-id uuid))
         handler (:handler request)
         _ (assert (and (:request-method ring-request)
                        (:uri ring-request))
@@ -150,3 +154,39 @@
         response-ch (handler ring-request)]
     (go
       (process-async-response request uuid (<! response-ch)))))
+
+(defn- make-body [symbol body]
+  (cond
+    (empty? body) symbol
+    (= 1 (count body)) (first body)
+    :else (cons 'do body)))
+
+(defmacro then
+  "The send function returns a channel from which the eventual result can be taken; this macro makes it easy to response
+  to either the normal success or failure cases, as determined by the default callbacks. Then makes use of <! and can therefore
+  only be used inside a go block.
+
+  channel - the expression which produces the channel, e.g., the result of calling send
+  failure - the symbol which will be assigned the failure response
+  failure-body - evaluated when there's a failure; if omitted, defaults to returning the failure response
+  success - the symbol which will be assigned the success body (from the Ring response)
+  success-body - evaluated when there is no failure, defaults to returning the success body
+
+  Example:
+    (-> (c/new-request handler)
+        (c/to :get :endpoint)
+        (c/send)
+        (c/then (success
+                  (write-success-to-log success)
+                  success)))
+
+  The entire failure clause can be omitted (as in the example)."
+  ([channel success-clause]
+   `(then ~channel (failure#) ~success-clause))
+  ([channel [failure & failure-body] [success & success-body]]
+   (assert failure "No failure symbol was provided to the then macro")
+   (assert success "No success symbol was provided to the then macro")
+   `(let [[~failure ~success] (<! ~channel)]
+      (if ~failure
+        ~(make-body failure failure-body)
+        ~(make-body success success-body)))))

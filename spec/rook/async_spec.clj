@@ -48,8 +48,7 @@
                            (c/new-request (:loopback-handler request))
                            (c/to :get :barney)
                            c/send
-                           <! ; get just the :body from the response
-                           utils/response)
+                           (c/then (reply (utils/response reply))))
                          false)))
               barney (fn [request]
                        (go

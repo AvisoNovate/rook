@@ -30,7 +30,7 @@
 
   (it "seperates path elements with a slash"
       (should= "/foo/23/skidoo"
-               (-> (c/new-request :placehoder)
+               (-> (c/new-request :placeholder)
                    (c/to :get "foo" 23 :skidoo)
                    :ring-request
                    :uri)))
@@ -55,7 +55,8 @@
                (-> (c/new-request @handler)
                    (c/to :get)
                    c/send
-                   <!!)))
+                   <!!
+                   first)))
 
   (it "can pass query parameters in the request"
       (let [params {:foo "foo" :bar ["biff baz"]}]
@@ -87,6 +88,7 @@
                    c/send
                    ;; 401 response is passed through as-is
                    <!!
+                   first
                    ;; body of response is the incoming request.
                    :body
                    ;; Filter out some extra information
@@ -98,14 +100,16 @@
                (-> (c/new-request (constantly (respond (utils/response 299 :response-body))))
                    (c/to :get)
                    c/send
-                   <!!)))
+                   <!!
+                   second)))
 
-  (it "converts an exception on the exception channel into a 500 response"
+  (it "converts an exception inside a try-go block into a 500"
       (should= 500
                (-> (c/new-request #(async/try-go % (throw (IllegalArgumentException.))))
                    (c/to :get)
                    c/send
                    <!!
+                   first
                    :status))))
 
 (run-specs :color true)
