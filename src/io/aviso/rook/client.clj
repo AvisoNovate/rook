@@ -161,16 +161,29 @@
     (= 1 (count body)) (first body)
     :else (cons 'do body)))
 
+(defmacro then*
+  "Alternate version of the then macro, used when the vector returned by c/send is available."
+  ([result-vector success-clause]
+   `(then* ~result-vector (failure#) ~success-clause))
+  ([result-vector [failure & failure-body] [success & success-body]]
+   (assert failure "No failure symbol was provided to the then* macro")
+   (assert success "No success symbol was provided to the then* macro")
+   `(let [[~failure ~success] ~result-vector]
+      (if ~failure
+        ~(make-body failure failure-body)
+        ~(make-body success success-body)))))
+
 (defmacro then
-  "The send function returns a channel from which the eventual result can be taken; this macro makes it easy to response
-  to either the normal success or failure cases, as determined by the default callbacks. Then makes use of <! and can therefore
+  "The send function returns a channel from which the eventual result can be taken; this macro makes it easy to respond
+  to either the normal success or failure cases, as determined by the default callbacks. then makes use of <! and can therefore
   only be used inside a go block.
 
   channel - the expression which produces the channel, e.g., the result of calling send
-  failure - the symbol which will be assigned the failure response
-  failure-body - evaluated when there's a failure; if omitted, defaults to returning the failure response
-  success - the symbol which will be assigned the success body (from the Ring response)
-  success-body - evaluated when there is no failure, defaults to returning the success body
+  failure-clause - a symbol, followed by zero or more expression to be evaluated with the symbol bound to the failure response
+  success-clause - as with failure-clause, but with the symbol bound to the body of the success response
+
+  The body of either failure-clause or success-clause can be omitted; it defaults to the symbol, meaning that the
+  failure or success body is simply returned.
 
   Example:
     (-> (c/new-request handler)
@@ -180,13 +193,8 @@
                   (write-success-to-log success)
                   success)))
 
-  The entire failure clause can be omitted (as in the example)."
+  The entire failure clause can also be omitted (as in the example)."
   ([channel success-clause]
    `(then ~channel (failure#) ~success-clause))
-  ([channel [failure & failure-body] [success & success-body]]
-   (assert failure "No failure symbol was provided to the then macro")
-   (assert success "No success symbol was provided to the then macro")
-   `(let [[~failure ~success] (<! ~channel)]
-      (if ~failure
-        ~(make-body failure failure-body)
-        ~(make-body success success-body)))))
+  ([channel failure-clause success-clause]
+   `(then* (<! ~channel) ~failure-clause ~success-clause)))
