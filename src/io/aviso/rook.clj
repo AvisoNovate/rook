@@ -2,6 +2,7 @@
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
     [io.aviso.rook.internals :as internals]
+    [io.aviso.rook.schema-validation :as v]
     [ring.middleware params format keyword-params]
     [clojure.tools.logging :as l]
     [clojure.string :as str]
@@ -93,8 +94,9 @@ a corresponding key in the built from keys and functions mentioned before - the 
 
 (def default-rook-pipeline
   "The default pipeline for invoking a resource handler function: wraps rook-dispatcher
-  to do the actual work with middleware to extend :args-resolvers with function-specific arg resolvers."
-  (-> rook-dispatcher wrap-with-function-arg-resolvers))
+  to do the actual work with middleware to extend :args-resolvers with function-specific arg resolvers and
+  schema validation."
+  (-> rook-dispatcher wrap-with-function-arg-resolvers v/wrap-with-schema-validation))
 
 (defn namespace-handler
   "Helper handler, which wraps rook-dispatcher in namespace middleware.

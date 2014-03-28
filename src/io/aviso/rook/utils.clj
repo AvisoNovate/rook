@@ -1,7 +1,8 @@
 (ns io.aviso.rook.utils
   "Kitchen-sink of useful standalone utilities."
   (:import
-    (java.util UUID))
+    (java.util UUID)
+    (javax.servlet.http HttpServletResponse))
   (:require
     [clojure.pprint :as pprint]))
 
@@ -13,7 +14,7 @@
 
 (defn response
   "Construct Ring response for success or other status."
-  ([body] (response 200 body))
+  ([body] (response HttpServletResponse/SC_OK body))
   ([status body] {:status status :body body}))
 
 (defn pretty-print

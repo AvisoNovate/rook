@@ -9,19 +9,25 @@
   Because nil is not a valid return value from a go block, the value false (wrapped in a channel)
   is used when a request handler, or middleware, chooses not to process the request.
 
-  Async middleware comes in two categories.  Basic middleware, that simply adds or modifies
+  Async middleware comes in three categories.  Basic middleware, that simply adds or modifies
   the Ring request map works the same, and passes the result of the delegate handler through
   unchanged (but that result will be channel, not the actual Ring response).
 
-  Complex middleware that operates on the return value from the delegated handler is more complex.
-  The delegates handler should be invoked inside a go block, so that the result from the handler
+  Intercepting middleware may perform an immediate (non-asynchronous) computation and return a value,
+  or may proceed directly to the delegate asynchronous handler. The returned value must be wrapped
+  in a channel (using result->channel). An example of this is middleware that performs authentication
+  or input validation.
+
+  Complex middleware that operates on the return value from the delegated handler, or must
+  perform its own async operations, is more complex.
+  The delegated handler should be invoked inside a go block, so that the result from the handler
   can be obtained without blocking."
-  (:use
-    [clojure.core.async :only [chan go >! <! <!! >!!]])
   (:require
+    [clojure.core.async :refer [chan go >! <! <!! >!!]]
     [clojure.tools.logging :as l]
     [clout.core :as clout]
-    [io.aviso.rook :as rook]))
+    [io.aviso.rook :as rook]
+    [io.aviso.rook.schema-validation :as sv]))
 
 (defmacro try-go
   "Wraps the body in a go block and a try block. The try block will
@@ -114,11 +120,21 @@
                      (format "Function %s, invoked as an asynchronous request handler, returned nil." f)
                      request)))))
 
+(defn wrap-with-schema-validation
+  "The asynchronous version of schema validation, triggered by the :schema meta-data attribute."
+  [handler]
+  (fn [request]
+    (or
+      (when-let [schema (-> request :rook :metadata :schema)]
+        (result->channel (sv/validate-against-schema request schema)))
+      (handler request))))
+
 (def default-rook-pipeline
   "The default rook pipeline for async processing. Wraps async-rook-dispatcher with middleware to
-  set the :arg-resolvers."
+  set the :arg-resolvers, and to peform schema validation."
   (-> async-rook-dispatcher
-      rook/wrap-with-function-arg-resolvers))
+      rook/wrap-with-function-arg-resolvers
+      wrap-with-schema-validation))
 
 ;;; Have to much about with some private functions in compojure.core ... at least, until we
 ;;; (perhaps) move Rook directly to clout.
@@ -157,24 +173,23 @@
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
   This is essentially the whole point of of the asynchronous support: to allow individual resource handler functions
-  to interact with other resources as if via HTTP/HTTPs, but without the cost (in terms of processing time to
+  to interact with other resources as if via HTTP/HTTPs, but without the cost, in terms of processing time to
   encode and decode requests, and in terms of blocking the limited number of request servicing threads.
 
   Request processing should be broken up into two phases: an initial synchronous phase that is largely concerned with
   standard protocol issues (such as converting the body from JSON or EDN text into Clojure data) and a later,
-  asynchronous phase (the routes provides to this function).
+  asynchronous phase (the routes provided to this function as handler).
 
   The loopback allows this later asynchronous phase to be re-entrant.
 
   The io.aviso.rook.client namespace is specifically designed to allow resources to communiate with each other
   via the loopback.
 
-  handler - delegate asynchronous handler, typically via namespace-handler and or routes
+  handler - delegate asynchronous handler, typically via namespace-handler and/or routes
   k - the keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default.
 
-
   The loopback handler is exposed via arg-resolver-middleware: resource handler functions can gain access
-  to the loopback by providing an argument with a matching name."
+  to the loopback by providing an argument with a matching name. The default Ring request key is :loopback-handler."
   ([handler]
    (wrap-with-loopback handler :loopback-handler))
   ([handler k]
