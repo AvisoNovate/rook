@@ -1,13 +1,18 @@
+:imagesdir: images
+
 = Rook
 
 Rook is a set of middleware and handlers to enable metadata-based routing for https://github.com/ring-clojure/ring[Ring] web applications.
 
 The intention is to expose a Clojure _namespace_ as a web service _resource_; there's a default mapping of HTTP verbs
-and paths to function names; these can be extended or overridden by meta-data on the functions in the namespace.
+and paths to function names; these can be extended or overridden by metadata on the functions in the namespace.
 
 The end result is that a proper web service resource can be created in very little code.
 
 Rook makes use of https://github.com/weavejester/compojure[Compojure] to handle request routing.
+
+Rook works well with https://github.com/clojure/core.async[Clojure's core.async] to allow you to build richly interdependent resources
+without blocking all your threads.
 
 Rook is available under the terms of the Apache Software License 2.0.
 
@@ -76,7 +81,7 @@ Rook's job is to help with routing the incoming request to your functions;
 it also assists with passing information from the request path or query parameters
 into your function ... the implementation of the function is entirely yours.
 
-You are free to name your functions as you like; in which case, specify the +:path-spec+ meta data on your functions to inform
+You are free to name your functions as you like; in which case, specify the +:path-spec+ metadata on your functions to inform
 Rook:
 
 ----
@@ -88,6 +93,17 @@ Rook:
 ----
 
 The +:path-spec+ contains two values: the keyword for the verb (this may also be the value +:all+) and the path to match.
+
+== Ring Handlers and Middleware
+
+image:rook-sync.png[Rook Processing Diagram]
+
+Rook works within the Ring framework by providing middleware and request handlers, forming a processing pipeline.
+The section marked *namespace-handler*  in the diagram represents a portion of the overall pipeline constructed by
+that function.
+
+Customizing and extending Rook is just a matter of understanding how these middleware and handlers work together, and knowing
+how and when to override or inject your own middleware into the pipeline.
 
 == Middleware
 
@@ -134,7 +150,8 @@ submission.
 
 Argument resolution is performed by the +rook-dispatcher+ function, just before invoking the resource handler function.
 The +default-rook-pipeline+ includes +rook-dispatcher+ plus middleware to add any argument resolvers from the
-function's +:arg-resolvers+ meta-data to the list of argument resolvers used by +rook-dispatcher+.
+function's +:arg-resolvers+ metadata footnote:[Remember that Rook merges function metadata with metadata of the containing namespace]
+to the list of argument resolvers used by +rook-dispatcher+.
 
 == Extending Argument Resolution
 
@@ -150,8 +167,8 @@ Argument resolvers can fulfill many purposes:
 
 * They can provide access to other resources, such as database connection pools.
 
-Argument resolver functions can be specified as meta-data directly on the resource handler function;
-the +:argument-resolvers+ meta-data key is a sequence of resolvers.
+Argument resolver functions can be specified as metadata directly on the resource handler function;
+the +:argument-resolvers+ metadata key is a sequence of resolvers.
 
 Argument resolver functions take precedence over the default argument resolvers.
 
@@ -169,7 +186,7 @@ the map.
 Function +build-fn-arg-resolver+ constructs an argument resolver function from a map of _functions_; The functions
 are selected by the argument keyword, and passed the request.
 
-INFO: Remember that a keyword can act like a function when passed a map, such as the Ring request.
+IMPORTANT: Remember that a keyword can act like a function when passed a map, such as the Ring request.
 
 Function +request-arg-resolver+ is an argument resolver that resolves the argument keyword against the Ring request map itself.
 
@@ -198,7 +215,7 @@ arguments and invokes the identified function).
   (namespace-handler "/orders" 'org.example.resources.orders))
 ----
 
-INFO: Rook will +require+ the namespace if it has not already been required.
+IMPORTANT: Rook will +require+ the namespace if it has not already been required.
 
 Remember that the way +context+ works is to match and strip off the prefix, so an incoming GET request for +/users/232+
 will be matched as context +/users+; Rook will then identify function +org.example.resources.users/show+ with path +/:id+;
@@ -252,11 +269,48 @@ The symbol identifying the namespace containing the matched function.
 +:function+::
 The matched function, which will be invoked by +default-rook-pipeline+.
 +:metadata+::
-The meta-data for the matched function. This is the merged meta-data of the function and the namespace (if there
+The metadata for the matched function. This is the merged metadata of the function and the namespace (if there
 are collisions, the function takes precedence).
 
 Rook middleware that fits between +namespace-middleware+ and +rook-dispatcher+ should check for nested request key +[:rook :function]+ to
 see if a function has been identified.
+
+== Validation
+
+Validation is based on https://github.com/prismatic/schema[Prismatic Schema].
+
+If a function defines +:schema+ metadata, then that is used to validate the request +:params+.
++:params+ contains a merge of query parameters with any data that was submitted in the request body.
+
+Validation assumes that the query parameters keys are converted from strings to keywords (via +ring.middleware.keyword-params+)
+and that submitted JSON content is converted to Clojure data using keyword keys (via +rink.middleware.format/wrap.restful-format+).
+
+Rook sanitizes the parameter data before validating it; it attempts to remove any keys that do not match a required or optional key
+specified in the schema. This follows the general ethic of ignoring extra data that the receiver doesn't specifically understand.
+
+If validation is successful, the processing continues with the _original_ request +:params+ (not the sanitized params).
+
+If validation is unsuccesful, then a 400 Bad Request response is returned; The body of the response contains a map:
+
+----
+{
+  :error "validation-error"
+  :failure "..."
+}
+----
+
+WARNING: What gets reported as the +:failure+ has yet to be worked out.
+
+
+Validation is still a work in progress.
+
+* Sanitizing the data is still limited and likely buggy.
+
+* You should probably use embedded underscores in keywords within the schema, for JSON compatibility.  Your function arguments can still
+  use embedded dashes in argument names; the mapping occurs after schema validation.
+
+* Failures are not reported well.
+
 
 == Async
 
@@ -268,7 +322,7 @@ Rook includes support for an asynchronous pipeline, where processing of a reques
 Async Rook also supports re-entrant requests that bypass the protocol layers; this allows your resource handler functions
 to easily send _loopback_ requests to other resources within the same server, without needing to encode and decode data, or send HTTP/HTTPs
 requests, or block threads.
-This will ensure that your code _eats its own dogfood_ by using the same REST APIs is exports, rather than bypassing
+This will ensure that your code _eats its own dogfood_ by using the same REST APIs it exports, rather than bypassing
 the APIs to invoke Clojure functions directly.
 
 Finally, Rook includes a client library that makes it very easy to initiate loopback requests and process failure and success responses,
@@ -278,3 +332,8 @@ Time will tell just how well this works (its early days yet), but we hope to be 
 very efficiently.
 
 More documentation on this is forthcoming.
+
+== Future Directions
+
+Currently, Rook builds on top of the standard Jetty bindings for Ring. In the future, a non-blocking implementation based on http://netty.io/[Netty]
+would be desirable.
