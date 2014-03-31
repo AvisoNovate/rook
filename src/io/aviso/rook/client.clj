@@ -1,6 +1,6 @@
 (ns io.aviso.rook.client
   "Because a significant part of implementing a service is communicating with other services, a consistent
-  client-library is useful. This client library is a simple DSL for assembling a partial Ring request,
+  client library is useful. This client library is a simple DSL for assembling a partial Ring request,
   as well as specifying callbacks based on success, failure, or specific status codes.
 
 
@@ -8,10 +8,11 @@
   handles the request asynchronously, returning a core.async channel to which the eventual response
   will be sent.
 
-  Likewise, the API is opionated that the body of the request and eventual response be in EDN format."
+  Likewise, the API is opionated that the body of the request and eventual response be Clojure data (rather
+  than JSON or EDN encoded strings)."
   (:refer-clojure :exclude [send])
-  (:use [clojure.core.async :only [go <! chan alt!]])
   (:require
+    [clojure.core.async :refer [go <! chan alt!]]
     [clojure.tools.logging :as l]
     [clojure.string :as str]
     [io.aviso.rook
@@ -19,11 +20,15 @@
      [utils :as utils]]))
 
 (defn new-request
-  "New request through the handler.
+  "New request through the handler.  A client request is a structure that stores a (partial) Ring request,
+  a handler function (that will be passed the Ring request), and additional data used to handle
+  the response from the handler.
 
-  web-service-handler - a function that is passed a (partial) Ring request and returns the channel
-  that will receive the Ring response. Internally, it is typically
-  implemented using the core.async go or thread macros. "
+  The API is fluid, with calls to various functions taking and returning the client request
+  as the first parameter; these can be assembled using the -> macro.
+
+  The handler is passed the Ring request map and returns a core.async channel that will receive
+  the response. The handler is typically implemented using the core.async go or thread macros."
   [web-service-handler]
   (assert web-service-handler)
   {:handler   web-service-handler
@@ -57,13 +62,18 @@
                   (str/join "/")
                   (str "/")))))
 
-(defn with-body
-  [request body]
-  (assoc-in request [:ring-request :body] body))
+(defn with-body-params
+  "Stores a Clojure map as the body of the request (as if EDN content was parsed into Clojure data.
+  The :params key of the Ring request will be the merge of :query-params and :body-params."
+  [request params]
+  (assert (map? params))
+  (assoc-in request [:ring-request :body-params] params))
 
-(defn with-parameters
-  [request parameters]
-  (update-in request [:ring-request :params] merge parameters))
+(defn with-query-params
+  "Adds parameters to the :query-params key using merge. The query parameters should use keywords for keys. The
+  :params key of the Ring request will be the merge of :query-params and :body-params."
+  [request params]
+  (update-in request [:ring-request :query-params] merge params))
 
 (defn with-headers
   [request headers]
@@ -107,8 +117,10 @@
     ;; flavor of response has been provided; often these responses can be huge.
     (binding [*print-level* 4
               *print-length* 5]
-      (l/debugf "%s response:%n%s"
+      (l/debugf "%s - response from %s `%s':%n%s"
                 uuid
+                (-> request :ring-request :request-method name .toUpperCase)
+                (-> request :ring-request :uri)
                 (utils/pretty-print response)))
     ;; Invoke the callback; the result from the callback is the result of the go block.
     ;; In some cases, the response from upstream is returned exactly as is; for example, this
@@ -137,20 +149,19 @@
   and response in any logged output. "
   [request]
   (let [uuid (utils/new-uuid)
-        ring-request (-> request
-                         :ring-request
-                         (assoc :request-id uuid))
+        ring-request (:ring-request request)
+        ring-request' (assoc ring-request :request-id uuid
+                                          :params (merge (:query-params ring-request) (:body-params ring-request)))
         handler (:handler request)
-        _ (assert (and (:request-method ring-request)
-                       (:uri ring-request))
+        _ (assert (and (:request-method ring-request')
+                       (:uri ring-request'))
                   "No target (request method and URI) has been specified.")
-        _ (l/debugf "%s - %s request to `%s'%nparameters: %s%nbody: %s"
+        _ (l/debugf "%s - %s request to `%s'%n%s"
                     uuid
-                    (-> ring-request :request-method name .toUpperCase)
-                    (-> ring-request :uri)
-                    (-> ring-request :params utils/pretty-print)
-                    (-> ring-request :body utils/pretty-print))
-        response-ch (handler ring-request)]
+                    (-> ring-request' :request-method name .toUpperCase)
+                    (-> ring-request' :uri)
+                    (-> ring-request (dissoc :request-method :uri) utils/pretty-print))
+        response-ch (handler ring-request')]
     (go
       (process-async-response request uuid (<! response-ch)))))
 

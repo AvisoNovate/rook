@@ -62,37 +62,35 @@
       (let [params {:foo "foo" :bar ["biff baz"]}]
         (should= params
                  (-> (c/new-request :placeholder)
-                     (c/with-parameters params)
+                     (c/with-query-params params)
                      :ring-request
-                     :params))))
+                     :query-params))))
 
-  (it "can pass a body in the request"
-      (let [body {:foo 1 :bar 2}]
-        (should= body
+  (it "can pass body parameters in the request"
+      (let [params {:foo 1 :bar 2}]
+        (should= params
                  (-> (c/new-request :placeholder)
-                     (c/with-body body)
+                     (c/with-body-params params)
                      :ring-request
-                     :body))))
+                     :body-params))))
 
   (it "passes a Ring request to the handler"
       (should= {:request-method :put
                 :uri            "/target"
                 :headers        {"auth" "implied"}
-                :params         {:page 1}
-                :body           {:content :magic}}
-               (-> (c/new-request #(respond (utils/response 401 %)))
+                :query-params   {:page 1}
+                :body-params           {:content :magic}
+                :params         {:page 1 :content :magic}}
+               (-> (c/new-request #(respond (utils/response 200 %)))
                    (c/to :put :target)
                    (c/with-headers {"auth" "implied"})
-                   (c/with-parameters {:page 1})
-                   (c/with-body {:content :magic})
+                   (c/with-query-params {:page 1})
+                   (c/with-body-params {:content :magic})
                    c/send
-                   ;; 401 response is passed through as-is
                    <!!
-                   first
-                   ;; body of response is the incoming request.
-                   :body
+                   second
                    ;; Filter out some extra information
-                   (select-keys [:request-method :uri :headers :params :body]))))
+                   (select-keys [:request-method :uri :headers :query-params :body-params :params]))))
 
   (it "by default passes any success code through the success callback"
       ;; We could pass 200 thru 299 to prove a point ...
