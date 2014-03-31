@@ -205,7 +205,7 @@ contributed:
 
 == Mapping Namespaces
 
-A typical web service will expose some number of resources; under Ring this means mapping a number of namespaces.
+A typical web service will expose some number of resources; under Rook this means mapping a number of namespaces.
 
 The {api}/io.aviso.rook.html#var-namespace-handler[+namespace-handler+] function is the easy way to do this mapping. It combines +compojure.core/context+ with Rook's
 +namespace-middleware+ (which identifies the function to be invoked within the namespace) and +default-rook-pipeline+.
@@ -222,7 +222,7 @@ Remember that the way +context+ works is to match and strip off the prefix, so a
 will be matched as context +/users+; Rook will then identify function +org.example.resources.users/show+ with path +/:id+;
 ultimately invoking the function with the _string_ value +232+ for the +id+ parameter.
 
-In more complicated circumstances, you may have resources in a parent-child relationship. For example, if you were modelling
+In more complicated circumstances, you may have resources in a parent-child relationship. For example, if you were modeling
 _hotels_ which contain _rooms_, you might want to access the list of rooms for a particular
 hotel with the URL +/hotels/123/rooms/237+:
 
@@ -332,9 +332,7 @@ again built on top of core.async.
 Time will tell just how well this works (its early days yet), but we hope to be able to handle a very large volume of requests
 very efficiently.
 
+In addition, by leveraging Jetty's support for continuations, it is easy to create a server that is fully asynchronous end to end: a very small number of request processing threads in Jetty can handle a very large number of concurrent requests, with nearly all the real work taking place in threads managed by +go+ or +thread+ blocks.
+
 More documentation on this is forthcoming.
 
-== Future Directions
-
-Currently, Rook builds on top of the standard Jetty bindings for Ring. In the future, a non-blocking implementation based on http://netty.io/[Netty]
-would be desirable.
