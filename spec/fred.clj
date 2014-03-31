@@ -2,9 +2,8 @@
   ;; Used a non-standard prefix for rook, to demonstrate that the eval occurs
   ;; in the fred namespace, not somewhere where there's a rook alias already.
   {:arg-resolvers [(r/build-map-arg-resolver :partner :barney)]}
-  (:use
-    [clojure.core.async :only [go]])
   (:require
+    [clojure.core.async :refer [go]]
     [io.aviso.rook :as r]
     [io.aviso.rook
      [client :as c]

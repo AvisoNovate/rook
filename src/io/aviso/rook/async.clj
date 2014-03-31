@@ -26,8 +26,14 @@
     [clojure.core.async :refer [chan go >! <! <!! >!!]]
     [clojure.tools.logging :as l]
     [clout.core :as clout]
+    [ring.middleware
+     [format-params :as format-params]
+     [format-response :as format-response]]
     [io.aviso.rook :as rook]
-    [io.aviso.rook.schema-validation :as sv]))
+    [io.aviso.rook.internal.exceptions :as exceptions]
+    [io.aviso.rook
+     [schema-validation :as sv]
+     [utils :as utils]]))
 
 (defmacro try-go
   "Wraps the body in a go block and a try block. The try block will
@@ -42,16 +48,14 @@
        (catch Throwable t#
          (let [r# ~request]
            (l/errorf t# "Exception processing request %s (%s `%s')"
-                     (:request-id r#)
+                     (:request-id r# (or "<INCOMING>"))
                      (-> r# :request-method name .toUpperCase)
                      (:uri r#)))
-         {:status 500}))))
+         (utils/response 500 {:exception (exceptions/to-message t#)})))))
 
 (defn async-handler->ring-handler
   "Wraps an asynchronous handler function as a standard synchronous handler."
   [async-handler]
-  ;; Here's where Netty, instead of Jetty, would be nice. While Clojure is doing async work,
-  ;; the Jetty request handling thread blocks.
   (fn [request]
     (-> request async-handler <!!)))
 
@@ -198,3 +202,35 @@
                            request' (assoc request k handler')]
                        (wrapped request')))]
      handler')))
+
+
+(defn wrap-restful-format
+  "Asychronous version of ring.middleware.format/wrap-restful-format; this implementation uses
+  go blocks and tricks to work inside an asynchronous pipeline."
+  ([handler]
+   (wrap-restful-format handler [:json-kw :edn]))
+  ([handler formats]
+   (let [req-handler (format-params/wrap-restful-params handler :formats formats)
+         req-handler' (fn [request]
+                        (try-go request
+                          (-> request req-handler <!)))]
+     (fn [request]
+       (try-go request
+         (if-let [response (-> request req-handler' <!)]
+           (->
+             ;; "Fake" handler. This is an ugly bit of hack to allow the execution
+             ;; of the true handlers earlier in the go block, and have the response
+             ;; (if not nil), already taken from the channel.
+             (constantly response)
+             (format-response/wrap-restful-response :formats formats)
+             ;; apply and maps need a little coaxing...
+             (apply [request]))
+           false))))))
+
+(defn wrap-with-standard-middleware
+  "Default asynchronous middleware."
+  [handler]
+  (-> handler
+      wrap-restful-format
+      ring.middleware.keyword-params/wrap-keyword-params
+      ring.middleware.params/wrap-params))
