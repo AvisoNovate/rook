@@ -4,4 +4,4 @@
 (defn index
   {:sync true}
   []
-  (utils/response "ribs!"))
+  (utils/response {:message "ribs!"}))

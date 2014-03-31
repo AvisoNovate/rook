@@ -77,6 +77,7 @@
           (should= ":barney says `ribs!'"
                    (-> (mock/request :get "/fred")
                        handler
-                       :body))))))
+                       :body
+                       :message))))))
 
 (run-specs :color true)

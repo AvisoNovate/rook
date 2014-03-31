@@ -17,4 +17,4 @@
         (c/to :get partner)
         c/send
         (c/then (response
-                  (utils/response (format "%s says `%s'" partner response)))))))
+                  (utils/response {:message (format "%s says `%s'" partner (:message response))}))))))
