@@ -16,7 +16,7 @@
       (let [request-map (-> (servlet/build-request-map request)
                             ;; The change:
                             (assoc ::http-servlet-request request
-                                                          :http-servlet-response response))
+                                                          ::http-servlet-response response))
             response-map (handler request-map)]
         (when response-map
           (servlet/update-servlet-response response response-map)
