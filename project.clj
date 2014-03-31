@@ -8,7 +8,7 @@
                                    :global-vars {*warn-on-reflection* true}}
              :dev {:dependencies [[ring-mock "0.1.5"]
                                   [io.aviso/pretty "0.1.10"]
-                                  [speclj "2.9.1"]
+                                  [speclj "2.5.0"]
                                   [log4j "1.2.17"]]}}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/core.async "0.1.267.0-0d7780-alpha"]
@@ -16,6 +16,5 @@
                  [ring-middleware-format "0.3.2"]
                  [prismatic/schema "0.2.1"]
                  [compojure "1.1.6"]]
-  :plugins [[test2junit "1.0.1"]
-            [speclj "2.9.1"]]
+  :plugins [[speclj "2.5.0"]]
   :test-paths ["spec"])
