@@ -92,6 +92,19 @@
                    ;; Filter out some extra information
                    (select-keys [:request-method :uri :headers :query-params :body-params :params]))))
 
+  (it "overrides query parameters with body-parameters in the Ring request"
+      (should= {:query-only :query-params
+                :body-only  :body-params
+                :both       :body-params}
+               (-> (c/new-request #(respond (utils/response 200 %)))
+                   (c/to :put :target)
+                   (c/with-query-params {:query-only :query-params :both :query-params})
+                   (c/with-body-params {:body-only :body-params :both :body-params})
+                   c/send
+                   <!!
+                   second
+                   :params)))
+
   (it "by default passes any success code through the success callback"
       ;; We could pass 200 thru 299 to prove a point ...
       (should= :response-body
