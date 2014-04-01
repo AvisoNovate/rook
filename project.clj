@@ -12,7 +12,7 @@
                                   [speclj "2.5.0"]
                                   [log4j "1.2.17"]]}}
   :dependencies [[org.clojure/clojure "1.5.1"]
-                 [org.clojure/core.async "0.1.267.0-0d7780-alpha"]
+                 [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
                  [org.clojure/tools.logging "0.2.6"]
                  [ring-middleware-format "0.3.2"]
                  [prismatic/schema "0.2.1"]
