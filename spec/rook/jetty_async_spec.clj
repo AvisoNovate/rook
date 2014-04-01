@@ -28,14 +28,13 @@
         (should= "application/json; charset=utf-8" (-> response :headers (get "Content-Type")))
         (should= "{\"message\":\":barney says `ribs!'\"}" (:body response))))
 
-  (it "can respond with a failure if the content is not valid"
+  (it "will respond with a failure if the content is not valid"
       (let [response (client/post "http://localhost:9988/fred"
                                   {:accept           :edn
                                    :content-type     :edn
                                    :body             "{not valid EDN"
                                    :as               :clojure
                                    :throw-exceptions false})]
-        #_ (clojure.pprint/pprint response)
         (should= 500 (:status response))
         (should= {:exception "EOF while reading"} (:body response))))
 
