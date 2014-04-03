@@ -167,12 +167,19 @@
 
 (defn namespace-handler
   "Asynchronous namespace handler. Adds namespace middleware, but the handler (including any middleware on the handler)
-  should be asynchronous (returning a channel, not a direct result)."
+  should be asynchronous (returning a channel, not a direct result).
+
+  In most cases, a path will be specified and the context macro used to put the new handler inside the context. However,
+  path may also be nil."
+  ([namespace-name]
+   (namespace-handler nil namespace-name))
   ([path namespace-name]
    (namespace-handler path namespace-name default-rook-pipeline))
   ([path namespace-name handler]
    (let [handler' (rook/namespace-middleware handler namespace-name)]
-     (context path handler'))))
+     (if path
+       (context path handler')
+       handler'))))
 
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
