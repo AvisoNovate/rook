@@ -38,6 +38,18 @@
                    (async/routing {})
                    <!!))))
 
+  (describe "namespace-handler"
+
+    (it "allows the path to be nil"
+        (let [handler (async/namespace-handler 'barney)]
+          (should= {:message "ribs!"}
+                   (->
+                     (mock/request :get "/")
+                     handler
+                     <!!
+                     :body)))))
+
+
   (describe "loopback-handler"
 
     (it "should expose the loopback in the request"
