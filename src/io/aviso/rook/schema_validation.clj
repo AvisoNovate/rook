@@ -40,7 +40,7 @@
   [failures]
   {:error "validation-error"
    ;; This needs work; it won't transfer very well to the client for starters.
-   :failures failures})
+   :failures (str failures)})
 
 (defn validate-against-schema
   "Performs the validation and returns nil if no error, or a 400 response (with additional
