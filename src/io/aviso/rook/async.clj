@@ -23,7 +23,7 @@
   The delegated handler should be invoked inside a go block, so that the result from the handler
   can be obtained without blocking."
   (:require
-    [clojure.core.async :refer [chan go >! <! <!! >!!]]
+    [clojure.core.async :refer [chan go >! <! <!! >!! thread]]
     [clojure.tools.logging :as l]
     [clout.core :as clout]
     [ring.middleware
@@ -68,11 +68,13 @@
     ch))
 
 (defn ring-handler->async-handler
-  "Wraps a syncronous Ring handler function as an asynchrounous handler. The handler is invoked immediately
-  (not in another thread), but the result is wrapped in a channel."
+  "Wraps a syncronous Ring handler function as an asynchrounous handler. The handler is invoked in another
+   thread, and a nil response is converted to false."
   [handler]
   (fn [request]
-    (-> request handler result->channel)))
+    (thread (->
+              (request handler)
+              (or false)))))
 
 (defn routing
   "Routes a request to sequence of async handlers. Each handler should return a channel
@@ -99,7 +101,8 @@
 
 (defn async-rook-dispatcher
   "Replaces the default (synchronous) rook dispatcher. Resource handler methods
-  may themselves be synchronous or asynchronous (the default).
+  may themselves be synchronous or asynchronous, with asynchronous the default.
+
   The function meta-data key :sync can be set to true
   to indicate that the handler is synchronous.
 
@@ -108,16 +111,16 @@
   The function may return false to allow the search for a handler to continue.
 
   For a synchronous handler (which must have the :sync meta-data), the function
-  is invoked immediately, and its result wrapped in a channel.
+  is invoked in a thread, and its result wrapped in a channel (with nil converted to false).
 
   If no resource handler function has been identified, this function
   will return false (wrapped in a channel)."
   [{{meta-data :metadata f :function} :rook :as request}]
   (cond
     (nil? f) (result->channel false)
-    (:sync meta-data) (-> request
-                          rook/rook-dispatcher
-                          result->channel)
+    (:sync meta-data) (thread (->
+                                (rook/rook-dispatcher request)
+                                (or false)))
     :else (or
             (rook/rook-dispatcher request)
             (throw (ex-info

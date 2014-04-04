@@ -41,4 +41,4 @@
   (after-all
     (.stop @server)))
 
-(run-specs :color true :reporters ["documentation"])
+(run-specs)

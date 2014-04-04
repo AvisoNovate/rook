@@ -9,6 +9,8 @@
      [client :as c]
      [utils :as utils]]))
 
+(defn- invoke [handler] (handler {}))
+
 (describe "io.aviso.rook.async"
 
   (describe "routing"
@@ -37,6 +39,41 @@
                  (->
                    (async/routing {})
                    <!!))))
+
+  (describe "result->channel"
+
+    (it "returns most values normally"
+        (should= :anything
+                 (-> :anything
+                     async/result->channel
+                     <!!)))
+
+    (it "converts nil to false"
+
+        (should= false
+                 (-> nil
+                     async/result->channel
+                     <!!))))
+
+  (describe "ring-handler->async-handler"
+
+    (it "executes on a different thread"
+
+        (should-not-be-same (Thread/currentThread)
+                            (->
+                              (fn [_] (Thread/currentThread))
+                              async/ring-handler->async-handler
+                              invoke
+                              <!!)))
+
+    (it "converts nil to false"
+        (should= false
+                 (->
+                   (constantly nil)
+                   async/ring-handler->async-handler
+                   invoke
+                   <!!))))
+
 
   (describe "namespace-handler"
 
@@ -92,4 +129,4 @@
                        :body
                        :message))))))
 
-(run-specs :color true)
+(run-specs)

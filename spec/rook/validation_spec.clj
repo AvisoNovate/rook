@@ -46,15 +46,6 @@
                      (request :post "/")
                      (assoc :data {:first-name "Wrong Key"})
                      handler
-                     :status))))
-    (it "is present in the default synchronous pipeline"
-        (let [handler (-> (async/namespace-handler "/validating" 'validating)
-                          async/async-handler->ring-handler)]
-          (should= HttpServletResponse/SC_BAD_REQUEST
-                   (->
-                     (request :post "/validating")
-                     (assoc :data {:first-name "Wrong Key"})
-                     handler
                      :status))))))
 
-(run-specs :color true)
+(run-specs)

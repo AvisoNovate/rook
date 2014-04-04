@@ -208,4 +208,4 @@
         (should= :post method)
         (should= "/:user-name/:password" uri)))))
 
-(run-specs :color true)
+(run-specs)

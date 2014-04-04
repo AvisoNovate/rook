@@ -123,4 +123,4 @@
                    first
                    :status))))
 
-(run-specs :color true)
+(run-specs)
