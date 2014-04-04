@@ -24,21 +24,16 @@
 (def supported-methods #{:get :put :patch :post :delete :head :all})
 
 (defn extract-argument-value
-  "Return parameter values for handler function based on request data. The order of parameter resolution is following:
-  => request parameter gets mapped to the request
-  => data parameter gets mapped to the parsed and validated request data (if available)
-  => parameters found in (:route-params request) are mapped then
-  => then we use POST/GET parameters from (:params) (we assume that they are keywordized using appropriate middleware)"
+  "Uses the arg-resolvers to identify the resolved value for an argument. First a check for
+  the keyword version of the argument (which is a symbol) takes place. If that resolves as nil,
+  a second search occurs, using the API version of the keyword (with dashes converted to underscores)."
   [argument request arg-resolvers]
   (let [arg-kw (keyword (name argument))
         api-kw (keyword (.replace (name argument) "-" "_"))]
     (or
       (some #(% arg-kw request) arg-resolvers)
-      (when (= :request arg-kw) request)
-      (get (:route-params request) api-kw)
-      (get (:route-params request) arg-kw)
-      (get (:params request) api-kw)
-      (get (:params request) arg-kw))))
+      (if (= arg-kw api-kw)
+        (some #(% api-kw request) arg-resolvers)))))
 
 (defn- is-var-a-function?
   "Checks if a var resolved from a namespace is actually a function."

@@ -124,37 +124,34 @@ Ring assists with extracting information from the request and provides it as arg
 
 Ring uses the name of the argument to identify the value to provide.
 
-An argument named +request+ is passed the Ring request map.
+First, the argument name is converted to a keyword and a search of the argument resolvers (described shortly) occurs.
 
-Otherwise, the argument name is converted to a pair of Clojure keywords.  The first keyword is the direct translation of the symbol
-to a keyword (e.g., +user-id+ to +:user-id+), this is the *argument keyword*.
-The second keyword converts embedded dashes to underscores (e.g., +user-id+ to +:user_id+).footnote:[
+If the search is unsuccessful, then a second search occurs, using the argument name converted to a keyword ... but with
+dashes converted to underscores, e.g., +user-id+ to +:user_id+.footnote:[
 The second keyword exists to pragmatically support clients sending JSON, rather than EDN, data; in JavaScript, underscores are
-easier to wrangle than dashes.] This is the *API keyword*.
+easier to wrangle than dashes.]
 
 It is assumed that standard http://ring-clojure.github.io/ring/ring.middleware.keyword-params.html[Ring middleware] is in place to
 convert the +:params+ map from string keys to keyword keys.
 
-The order of search:
-
-* Invoke any argument resolver functions (see next section), passing the argument keyword.
-
-* A parameter name +request+ is resolved to the Ring request map.
-
-* Check the the request's +:route-params+, first for the argument keyword, then the API keyword; these represent keywords in the path specification.
-
-* Check the request's +:params+, first for the argument keyword, then the API keyword; these are parameters provided via the request's query string, or form
-submission.
-
-* Finally, unmatched arguments simply default to +nil+.
-
 Argument resolution is performed by the {api}/io.aviso.rook.html#var-rook-dispatcher[+rook-dispatcher]+ function,
 just before invoking the resource handler function.
-The {api}/io.aviso.rook.html#var-default-rook-pipeline[+default-rook-pipeline+] includes +rook-dispatcher+ plus middleware to add any argument resolvers from the
+The {api}/io.aviso.rook.html#var-default-rook-pipeline[+default-rook-pipeline+] includes +rook-dispatcher+ plus middleware to add any
+argument resolvers from the
 function's +:arg-resolvers+ metadata footnote:[Remember that Rook merges function metadata with metadata of the containing namespace]
 to the list of argument resolvers used by +rook-dispatcher+.
 
-== Extending Argument Resolution
+WARNING: If both the namespace and the function define +:arg-resolvers+ metadata, then the function's list overrides
+the namespace's.
+
+Function {api}/io.aviso.rook.html#var-wrap-with-default-arg-resolvers[+wrap-with-default-arg-resolvers+]
+provides a default set of argument resolvers:
+
+* Matching value from the +:params+ key of the request, for access to data provided by query parameters and the request body).
+
+* Matching value from the +:route-params+ key of the request, for access to data provided as keywords in the path spec.
+
+* +:request+ is resolved to the Ring request map itself.
 
 Argument resolution can be extended by providing argument resolver functions.  An argument resolver function
 is passed the argument keyword, and the Ring request map
@@ -171,15 +168,8 @@ Argument resolvers can fulfill many purposes:
 Argument resolver functions can be specified as metadata directly on the resource handler function;
 the +:arg-resolvers+ metadata is a sequence of resolvers.
 
-Argument resolver functions take precedence over the default argument resolvers.
-
-In addition, middleware may provide resolvers as the key +:arg-resolvers+ under the +:rook+ request key;
-this is a list of argument resolver functions that apply to any resource handler function.
-
-WARNING: Currently, general argument resolvers are invoked _first_, before function-specific resolvers; this seems backwards
-and is likely to change.
-
 Function {api}/io.aviso.rook.html#var-arg-resolver-middleware[+arg-resolver-middleware+] is used to specify additional functions for +:arg-resolvers+.
+Argument resolvers added later are considered more specific and so are checked first.
 
 Function {api}/io.aviso.rook.html#var-build-map-arg-resolver[+build-map-arg-resolver+] constructs an argument resolver function from a map; It simply returns values from
 the map.
@@ -264,7 +254,7 @@ Rook uses the +:rook+ key of the request to store information needed to process 
 With the exception of +:arg-resolvers+, the values are supplied by the the +namespace-middleware+ function.
 
 +:arg-resolvers+::
-List of argument resolvers that apply to any invoked resource handler function.
+List of argument resolvers that apply to any invoked resource handler functions.
 +:namespace+::
 The symbol identifying the namespace containing the matched function.
 +:function+::
@@ -312,6 +302,35 @@ Validation is still a work in progress.
 
 * Failures are not reported well.
 
+== Sample Server
+
+Below is the minimal setup for a standard Jetty Ring server handling Rook resources.
+
+----
+(ns org.example.server
+  (:use
+    compojure.core
+  (:require
+    [ring.adapter.jetty :as jetty]
+    [io.aviso.rook :as rook])
+
+(defn start-server
+    [port]
+    (let [handler (->
+                    (routes
+                      (namespace-handler "/users" 'org.example.resources.users)
+                      (namespace-handler "/orders" 'org.example.resources.orders)
+                      (namespace-handler "/hotels 'org.example.resources.hotels
+                        (routes
+                          (namespace-handler "/:hotel-id/rooms" 'org.example.resources.rooms)
+                          rook/default-rook-pipeline)))
+                    rook/wrap-with-standard-middleware)])
+      (jetty/run-jetty handler {:port port :join? false}))
+
+----
+
+A more complete example would also configure https://github.com/AvisoNovate/twixt[Twixt] for exception reporting, and to (perhaps) provide a client-side application
+that uses the provided web service.
 
 == Async
 

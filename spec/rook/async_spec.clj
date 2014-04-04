@@ -4,6 +4,7 @@
     speclj.core)
   (:require
     [ring.mock.request :as mock]
+    [io.aviso.rook :as rook]
     [io.aviso.rook
      [async :as async]
      [client :as c]
@@ -84,7 +85,21 @@
                      (mock/request :get "/")
                      handler
                      <!!
-                     :body)))))
+                     :body))))
+
+    (it "should expose the request's :params key as an argument"
+        (let [handler (->
+                        (async/namespace-handler 'echo-params)
+                        (rook/wrap-with-default-arg-resolvers))
+              params {:foo :bar}]
+          (should-be-same params
+            (->
+              (mock/request :get "/")
+              (assoc :params params)
+              handler
+              <!!
+              :body
+              :params-arg)))))
 
 
   (describe "loopback-handler"

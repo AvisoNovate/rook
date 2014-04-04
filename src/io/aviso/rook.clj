@@ -9,17 +9,22 @@
     [compojure.core :as compojure]
     [clout.core :as clout]))
 
+(defn- prefix-with
+  "Like concat, but with arguments reversed."
+  [coll1 coll2]
+  (concat coll2 coll1))
+
 (defn build-map-arg-resolver
-  "Build an argument resolver which takes a list of keys and constant values and when required argument
-has a corresponding key in the map built from keys and constant values - the value for such key is returned."
+  "Builds a static argument resolver around the map of keys and values; the values are the extract resolved
+  value for arguments matching the keys."
   [& kvs]
   (let [arg-map (apply hash-map kvs)]
     (fn [arg request]
       (get arg-map arg))))
 
 (defn build-fn-arg-resolver
-  "Build an argument resolver which takes a list of keys and functions and when required argument has
-a corresponding key in the built from keys and functions mentioned before - the function is invoked with request as argument. "
+  "Builds dynamic argument resolvers that extract data from the request. The value for each key is a function;
+  the function is invoked to resolve the argument matching the key. The function is passed the Ring request map."
   [& kvs]
   (let [arg-map (apply hash-map kvs)]
     (fn [arg request]
@@ -27,15 +32,29 @@ a corresponding key in the built from keys and functions mentioned before - the 
         (fun request)))))
 
 (defn request-arg-resolver
-  "Standard argument resolver that adds values from request to map to resolved arguments."
+  "A dynamic argument resolver that simply resolves the argument to the matching key in the request map."
   [arg request]
   (get request arg))
 
+
 (defn arg-resolver-middleware
-  "Middleware which adds provided argument resolvers to the [:rook :arg-resolvers] collection."
+  "Middleware which adds the provided argument resolvers to the [:rook :arg-resolvers] collection.
+  Argument resolvers are used to gain access to information in the request, or information that
+  can be computed from the request, or static information that can be injected into resource handler
+  functions."
   [handler & arg-resolvers]
   (fn [request]
-    (handler (update-in request [:rook :arg-resolvers] concat arg-resolvers))))
+    (handler (update-in request [:rook :arg-resolvers] prefix-with arg-resolvers))))
+
+(defn wrap-with-default-arg-resolvers
+  "Adds a default set of argument resolvers, allowing for resolution of :request, and for
+  the argument as a route param or an ordinary param."
+  [handler]
+  (arg-resolver-middleware handler
+                           (fn [param-keyword request] (get-in request [:params param-keyword]))
+                           (fn [route-keyword request] (get-in request [:route-params route-keyword]))
+                           (build-fn-arg-resolver :request identity
+                                                  :params :params)))
 
 (defn- get-compiled-paths
   [namespace-name]
@@ -90,13 +109,15 @@ a corresponding key in the built from keys and functions mentioned before - the 
   function-specific arg-resolvers (from the function's meta-data)."
   [handler]
   (fn [request]
-    (handler (update-in request [:rook :arg-resolvers] concat (-> request :rook :metadata :arg-resolvers)))))
+    (handler (update-in request [:rook :arg-resolvers] prefix-with (-> request :rook :metadata :arg-resolvers)))))
 
 (def default-rook-pipeline
   "The default pipeline for invoking a resource handler function: wraps rook-dispatcher
   to do the actual work with middleware to extend :args-resolvers with function-specific arg resolvers and
   schema validation."
-  (-> rook-dispatcher wrap-with-function-arg-resolvers v/wrap-with-schema-validation))
+  (-> rook-dispatcher
+      wrap-with-function-arg-resolvers
+      v/wrap-with-schema-validation))
 
 (defn namespace-handler
   "Helper handler, which wraps rook-dispatcher in namespace middleware.
@@ -123,6 +144,7 @@ a corresponding key in the built from keys and functions mentioned before - the 
   "The standard middleware that Rook expects to be present before it is passed the Ring request."
   [handler]
   (-> handler
+      wrap-with-default-arg-resolvers
       (ring.middleware.format/wrap-restful-format :formats [:json-kw :edn])
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))

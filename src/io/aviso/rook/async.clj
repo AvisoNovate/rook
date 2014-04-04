@@ -138,7 +138,7 @@
 
 (def default-rook-pipeline
   "The default rook pipeline for async processing. Wraps async-rook-dispatcher with middleware to
-  set the :arg-resolvers, and to peform schema validation."
+  set the :arg-resolvers specific to the function, and to peform schema validation."
   (-> async-rook-dispatcher
       rook/wrap-with-function-arg-resolvers
       wrap-with-schema-validation))
@@ -241,6 +241,7 @@
   "Default asynchronous middleware."
   [handler]
   (-> handler
+      rook/wrap-with-default-arg-resolvers
       wrap-restful-format
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))

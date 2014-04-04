@@ -19,6 +19,7 @@
 
 (defn param-handling [handler]
   (-> handler
+      wrap-with-default-arg-resolvers
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
 
@@ -50,8 +51,7 @@
 
           :put "/123" 'rook-test :function nil
 
-          :get "/?offset-100" 'rook-test2 :function #'rook-test2/index))
-    )
+          :get "/?offset-100" 'rook-test2 :function #'rook-test2/index)))
 
   (describe "argment resolution"
     (it "should use :arg-resolvers to calculate argument values"
@@ -74,53 +74,33 @@
 
             :put "/123" nil)))
 
+    (it "should expose the request's :params key as an argument"
+        (let [handler (->
+                        (namespace-handler 'echo-params)
+                        wrap-with-default-arg-resolvers)
+              params {:foo :bar}]
+          (should-be-same params
+            (->
+              (mock/request :get "/")
+              (assoc :params params)
+              handler
+              :body
+              :params-arg))))
+
     (it "should operate with all types of arg-resolvers"
         (let [test-mw (-> (namespace-middleware default-rook-pipeline 'rook-test)
                           (arg-resolver-middleware
                             (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
-                            (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request))))
-                            #'request-arg-resolver)
+                            (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request)))))
                           param-handling)]
           (should= "test1=TEST!,id=123,test2=TEST@,test3=TEST#,test4=test$/123/activate,request=13,meth=:1234"
                    (->
+                     ;; So we've set up a specific conflict for test1 ... is it the query parameter value "1test"
+                     ;; or is it the arg-resolver value "TEST!". The correct answer is "TEST!" because
+                     ;; that arg-resolver is added later in processing, and is therefore deemed to be more
+                     ;; specific.
                      (mock/request :post "/123/activate?test1=1test")
-                     test-mw)))
-
-        (let [map-resolver (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
-              fn-resolver (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request))))
-              arg-resolvers1 [map-resolver fn-resolver #'request-arg-resolver]
-              arg-resolvers2 [#'request-arg-resolver map-resolver fn-resolver]
-              handler (-> identity param-handling)
-              test-request (->
-                             (mock/request :post "/123/activate?test_value=TT!")
-                             handler)]
-
-          (do-template [arg-symbol resolvers expected]
-            (should= expected
-                     (extract-argument-value arg-symbol test-request resolvers))
-
-            'test1 [map-resolver] "TEST!"
-            'test2 [map-resolver] "TEST@"
-            'test3 [map-resolver] "TEST#"
-
-            'test1 arg-resolvers1 "TEST!"
-            'test2 arg-resolvers1 "TEST@"
-            'test3 arg-resolvers1 "TEST#"
-
-            'test-value arg-resolvers1 "TT!"
-            'test_value arg-resolvers1 "TT!"
-
-            'test1 [fn-resolver] nil
-            'test2 [fn-resolver] nil
-            'test3 [fn-resolver] nil
-
-            'request-method [map-resolver] :1234
-            'request-method arg-resolvers1 :1234
-            'request-method arg-resolvers2 :post
-
-            'test4 arg-resolvers2 "test$/123/activate"
-
-            ))))
+                     test-mw)))))
 
   (describe "nested contexts"
 
@@ -202,10 +182,10 @@
             :overridden :function)))
 
     (it "should not conflict when a function with a convention name has overriding :path-spec meta-data"
-      (let [paths (get-available-paths 'rook-test6)
-            _ (should= 1 (count paths))
-            [method uri] (first paths)]
-        (should= :post method)
-        (should= "/:user-name/:password" uri)))))
+        (let [paths (get-available-paths 'rook-test6)
+              _ (should= 1 (count paths))
+              [method uri] (first paths)]
+          (should= :post method)
+          (should= "/:user-name/:password" uri)))))
 
 (run-specs)
