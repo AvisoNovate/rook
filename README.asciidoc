@@ -151,6 +151,8 @@ provides a default set of argument resolvers:
 
 * Matching value from the +:route-params+ key of the request, for access to data provided as keywords in the path spec.
 
+* +:params+ is resolved the the +:params+ map of the Ring request map.
+
 * +:request+ is resolved to the Ring request map itself.
 
 Argument resolution can be extended by providing argument resolver functions.  An argument resolver function
