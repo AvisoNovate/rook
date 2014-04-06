@@ -357,3 +357,8 @@ In addition, by leveraging Jetty's support for continuations, it is easy to crea
 
 More documentation on this is forthcoming.
 
+WARNING: When returning a response whose body is an InputStream, it is important to set the +Content-Length+
+header to the size of the stream.
+Failure to do so results in spurious 404 responses to the client.footnote:[It is not clear whether this is a bug in
+Jetty, or related to how Rook's async support uses Jetty continuations.]
+
