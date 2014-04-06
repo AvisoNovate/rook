@@ -3,6 +3,7 @@
   this :schema meta-data key of the targetted function, if non-nil, is used to
   validate the incoming data."
   (:import (javax.servlet.http HttpServletResponse)
+           (schema.core EnumSchema)
            (clojure.lang IPersistentMap))
   (:require
     [schema.core :as s]
@@ -24,6 +25,9 @@
 
   ;; Non-matches are passed through unchanged.
   Object
+  (sanitize [_ data] data)
+
+  EnumSchema
   (sanitize [_ data] data)
 
   IPersistentMap
