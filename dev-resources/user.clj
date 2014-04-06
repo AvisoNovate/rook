@@ -2,7 +2,11 @@
   (:use
     clojure.repl
     io.aviso.repl
-    speclj.config))
+    speclj.config)
+  (:require
+    ;; If not present, then test suite fails loading schema-validation with a ClassNotFound on EnumSchema
+    ;; Leaky abstractions ...
+    schema.core))
 
 (install-pretty-exceptions)
 
