@@ -37,7 +37,7 @@
   [method uri]
   "Formats a method (a keyword, e.g. :get) and a URI into a single string."
   (format "%s `%s'"
-          (-> method name .toString .toUpperCase)
+          (-> method name .toUpperCase)
           uri))
 
 (defn summarize-request
