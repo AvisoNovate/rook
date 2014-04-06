@@ -13,10 +13,11 @@
             (->
               (async/routes
                 (async/namespace-handler "/fred" 'fred)
-                (async/namespace-handler "/barney" 'barney))
+                (async/namespace-handler "/barney" 'barney)
+                (async/namespace-handler "/slow" 'slow))
               async/wrap-with-loopback
               async/wrap-with-standard-middleware
-              (jetty/run-async-jetty {:port 9988 :join? false})))
+              (jetty/run-async-jetty {:port 9988 :join? false :async-timeout 100})))
 
   (it "did initialize the server successfully"
       (should-not-be-nil @server))
@@ -37,6 +38,12 @@
                                    :throw-exceptions false})]
         (should= 500 (:status response))
         (should= {:exception "EOF while reading"} (:body response))))
+
+  (it "handles a slow handler timeout"
+      (let [response (client/get "http://localhost:9988/slow"
+                                 {:accept           :json
+                                  :throw-exceptions false})]
+        (should= HttpServletResponse/SC_GATEWAY_TIMEOUT (:status response))))
 
   (after-all
     (.stop @server)))

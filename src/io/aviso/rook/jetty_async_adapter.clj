@@ -6,9 +6,11 @@
            (org.eclipse.jetty.continuation ContinuationSupport Continuation))
   (:require
     [clojure.tools.logging :as l]
-    [clojure.core.async :refer [go <! timeout alts!]]
+    [clojure.core.async :refer [go <! timeout alts! take!]]
     [io.aviso.rook.utils :as utils]
-    [ring.util.servlet :as servlet]
+    [ring.util
+     [servlet :as servlet]
+     [response :as r]]
     [ring.adapter.jetty :as jetty]))
 
 (defn customized-proxy-handler
@@ -36,6 +38,18 @@
 ;;; others as standard synchronous web servers or services.  The customized proxy handler
 ;;; is benign if async is not actually used.
 
+(defn- send-async-response
+  [^Continuation continuation response]
+  (try
+    (-> continuation
+        .getServletResponse
+        (servlet/update-servlet-response response))
+    (.complete continuation)
+
+    (catch Throwable t
+      (l/errorf t "Unable to send asynchronous response %s to client."
+                (utils/pretty-print-brief response)))))
+
 (defn- wrap-with-continuation
   [handler timeout-ms]
   (fn [request]
@@ -43,32 +57,35 @@
           ^HttpServletResponse res (::http-servlet-response request)
           ^Continuation continuation (ContinuationSupport/getContinuation req)]
       (.suspend continuation res)
-      (go
-        (let [response-ch (-> request
-                              (dissoc ::http-servlet-request ::http-servlet-response)
-                              handler)
-              ;; Jetty can do a timeout, but we have our own.
-              [response] (alts! [response-ch (timeout timeout-ms)])
-              _ (if response
-                  (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
-                  (l/warnf "Request %s timed out after %d ms."
-                           (utils/summarize-request request)
-                           timeout-ms))
-              response' (or response {:status HttpServletResponse/SC_GATEWAY_TIMEOUT})]
-          (try
-            (-> continuation
-                .getServletResponse
-                (servlet/update-servlet-response response'))
-            (.complete continuation)
+      (let [response-ch (-> request
+                            (dissoc ::http-servlet-request ::http-servlet-response)
+                            handler)
+            responded (atom false)]
 
-            (catch Throwable t
-              (l/errorf t "Unable to send asynchronous response %s to client."
-                        (binding []
-                          (utils/pretty-print response')))))
+        (take! response-ch
+               (fn [response]
+                 (if-not response
+                   (l/warnf "Handler for %s closed the channel without providing a response."
+                            (utils/summarize-request request))
+                   (if (compare-and-set! responded false true)
+                     (do
+                       (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
+                       (send-async-response continuation response))
+                     (l/warnf "Ignoring response for %s, received after %,d ms timeout."
+                              (utils/summarize-request request)
+                              timeout-ms)))))
 
-          ;; go blocks must return non-nil, however there should not be anyone receiving
-          ;; from the channel.
-          true)))
+        (take! (timeout timeout-ms)
+               (fn [_]
+                 (when (compare-and-set! responded false true)
+                   (l/warnf "Request %s timed out after %,d ms."
+                            (utils/summarize-request request)
+                            timeout-ms)
+                   (send-async-response continuation
+                                        (->
+                                          (utils/response HttpServletResponse/SC_GATEWAY_TIMEOUT
+                                                          "Processing of request timed out.")
+                                          (r/content-type "text/plain"))))))))
 
     ;; Return nil right now, to prevent the proxy handler from sending an immediate response.
     nil))
