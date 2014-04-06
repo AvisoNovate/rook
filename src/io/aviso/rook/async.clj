@@ -133,7 +133,8 @@
   (fn [request]
     (or
       (when-let [schema (-> request :rook :metadata :schema)]
-        (result->channel (sv/validate-against-schema request schema)))
+        (when-let [failure-response (sv/validate-against-schema request schema)]
+          (result->channel failure-response)))
       (handler request))))
 
 (def default-rook-pipeline
