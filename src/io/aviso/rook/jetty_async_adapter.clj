@@ -48,22 +48,27 @@
                               (dissoc ::http-servlet-request ::http-servlet-response)
                               handler)
               ;; Jetty can do a timeout, but we have our own.
-              [response] (alts! [response-ch (timeout timeout-ms)])]
+              [response] (alts! [response-ch (timeout timeout-ms)])
+              _ (if response
+                  (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
+                  (l/warnf "Request %s `%s' timed out after %d ms."
+                           (-> request :request-method name .toString .toUpperCase)
+                           (-> request :uri)
+                           timeout-ms))
+              response' (or response {:status HttpServletResponse/SC_GATEWAY_TIMEOUT})]
+          (try
+            (-> continuation
+                .getServletResponse
+                (servlet/update-servlet-response response'))
+            (.complete continuation)
 
-          (if response
-            (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
-            (l/warnf "Request %s `%s' timed out after %d ms."
-                     (-> request :request-method name .toString .toUpperCase)
-                     (-> request :uri)
-                     timeout-ms))
+            (catch Throwable t
+              (l/errorf t "Unable to send asynchronous response %s to client."
+                        (binding []
+                          (utils/pretty-print response')))))
 
-          (-> continuation
-              .getServletResponse
-              (servlet/update-servlet-response
-                (or response
-                    {:status HttpServletResponse/SC_GATEWAY_TIMEOUT})))
-          (.complete continuation)
-          ;; go blocks must return non-nil
+          ;; go blocks must return non-nil, however there should not be anyone receiving
+          ;; from the channel.
           true)))
 
     ;; Return nil right now, to prevent the proxy handler from sending an immediate response.
