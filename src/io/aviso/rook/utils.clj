@@ -33,3 +33,15 @@
   (binding [*print-level* 4
             *print-length* 5] (pretty-print object)))
 
+(defn summarize-method-and-uri
+  [method uri]
+  "Formats a method (a keyword, e.g. :get) and a URI into a single string."
+  (format "%s `%s'"
+          (-> method name .toString .toUpperCase)
+          uri))
+
+(defn summarize-request
+  "Returns a summary of the request: the :request-method and the :uri, formatted as a single string."
+  [request]
+  (summarize-method-and-uri (:request-method request) (:uri request)))
+

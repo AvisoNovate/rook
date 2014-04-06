@@ -47,10 +47,9 @@
        ~@body
        (catch Throwable t#
          (let [r# ~request]
-           (l/errorf t# "Exception processing request %s (%s `%s')"
+           (l/errorf t# "Exception processing request %s (%s)"
                      (:request-id r# (or "<INCOMING>"))
-                     (-> r# :request-method name .toUpperCase)
-                     (:uri r#)))
+                     (utils/summarize-request r#)))
          (utils/response 500 {:exception (exceptions/to-message t#)})))))
 
 (defn async-handler->ring-handler

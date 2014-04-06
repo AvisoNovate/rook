@@ -51,9 +51,8 @@
               [response] (alts! [response-ch (timeout timeout-ms)])
               _ (if response
                   (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
-                  (l/warnf "Request %s `%s' timed out after %d ms."
-                           (-> request :request-method name .toString .toUpperCase)
-                           (-> request :uri)
+                  (l/warnf "Request %s timed out after %d ms."
+                           (utils/summarize-request request)
                            timeout-ms))
               response' (or response {:status HttpServletResponse/SC_GATEWAY_TIMEOUT})]
           (try

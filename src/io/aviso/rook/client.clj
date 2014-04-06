@@ -115,10 +115,9 @@
                        :response   response})))
     ;; The idea here is to only present enough to let the developer know that the right
     ;; flavor of response has been provided; often these responses can be huge.
-    (l/debugf "%s - response from %s `%s':%n%s"
+    (l/debugf "%s - response from %s:%n%s"
               uuid
-              (-> request :ring-request :request-method name .toUpperCase)
-              (-> request :ring-request :uri)
+              (utils/summarize-request (:ring-request request))
               (utils/pretty-print-brief response))
     ;; Invoke the callback; the result from the callback is the result of the go block.
     ;; In some cases, the response from upstream is returned exactly as is; for example, this
@@ -154,10 +153,9 @@
         _ (assert (and (:request-method ring-request')
                        (:uri ring-request'))
                   "No target (request method and URI) has been specified.")
-        _ (l/debugf "%s - %s request to `%s'%n%s"
+        _ (l/debugf "%s - request to %s%n%s"
                     uuid
-                    (-> ring-request' :request-method name .toUpperCase)
-                    (-> ring-request' :uri)
+                    (utils/summarize-request ring-request')
                     (-> ring-request (dissoc :request-method :uri) utils/pretty-print))
         response-ch (handler ring-request')]
     (go

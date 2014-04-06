@@ -1,8 +1,10 @@
 (ns io.aviso.rook
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
-    [io.aviso.rook.internals :as internals]
-    [io.aviso.rook.schema-validation :as v]
+    [io.aviso.rook
+     [schema-validation :as v]
+     [internals :as internals]
+     [utils :as utils]]
     [ring.middleware params format keyword-params]
     [clojure.tools.logging :as l]
     [clojure.string :as str]
@@ -68,7 +70,8 @@
                               (str/join ", " internals/supported-methods)))
               ;; It would be nice if there was a way to qualify the path for when we are nested
               ;; inside a Compojure context, but we'd need the request to do that.
-              (l/debugf "Mapping %s `%s' to %s" (-> route-method name .toUpperCase) route-path f)
+              (l/debugf "Mapping %s to %s"
+                        (utils/summarize-method-and-uri route-method name) route-path f)
               [route-method (clout/route-compile route-path) f full-meta]))
        (remove nil?)
        doall))
