@@ -71,7 +71,7 @@
               ;; It would be nice if there was a way to qualify the path for when we are nested
               ;; inside a Compojure context, but we'd need the request to do that.
               (l/debugf "Mapping %s to %s"
-                        (utils/summarize-method-and-uri route-method name) route-path f)
+                        (utils/summarize-method-and-uri route-method route-path) f)
               [route-method (clout/route-compile route-path) f full-meta]))
        (remove nil?)
        doall))
