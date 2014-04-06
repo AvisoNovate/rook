@@ -115,13 +115,11 @@
                        :response   response})))
     ;; The idea here is to only present enough to let the developer know that the right
     ;; flavor of response has been provided; often these responses can be huge.
-    (binding [*print-level* 4
-              *print-length* 5]
-      (l/debugf "%s - response from %s `%s':%n%s"
-                uuid
-                (-> request :ring-request :request-method name .toUpperCase)
-                (-> request :ring-request :uri)
-                (utils/pretty-print response)))
+    (l/debugf "%s - response from %s `%s':%n%s"
+              uuid
+              (-> request :ring-request :request-method name .toUpperCase)
+              (-> request :ring-request :uri)
+              (utils/pretty-print-brief response))
     ;; Invoke the callback; the result from the callback is the result of the go block.
     ;; In some cases, the response from upstream is returned exactly as is; for example, this
     ;; is the default behavior for a 401 status. However, downstream the content type will change

@@ -24,3 +24,9 @@
                 :stream nil
                 :pretty true))
 
+(defn pretty-print-brief
+  "Prints the object more briefly, with limits on level and length."
+  [object]
+  (binding [*print-level* 4
+                     *print-length* 5] (pretty-print object)))
+
