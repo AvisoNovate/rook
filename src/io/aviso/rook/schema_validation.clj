@@ -2,12 +2,12 @@
   "Adds validation of incoming content, based on Prismatic Schema. Added to the Rook pipeline,
   this :schema meta-data key of the targetted function, if non-nil, is used to
   validate the incoming data."
-  (:import (javax.servlet.http HttpServletResponse)
-           (schema.core EnumSchema)
-           (clojure.lang IPersistentMap))
   (:require
     [schema.core :as s]
-    [io.aviso.rook.utils :as utils]))
+    [io.aviso.rook.utils :as utils])
+  (:import (javax.servlet.http HttpServletResponse)
+           (schema.core EnumSchema)
+           (clojure.lang IPersistentMap)))
 
 
 (defn- identify-schema-keys
