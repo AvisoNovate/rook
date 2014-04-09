@@ -22,6 +22,7 @@
   perform its own async operations, is more complex.
   The delegated handler should be invoked inside a go block, so that the result from the handler
   can be obtained without blocking."
+  (:import (javax.servlet.http HttpServletResponse))
   (:require
     [clojure.core.async :refer [chan go >! <! <!! >!! thread]]
     [clojure.tools.logging :as l]
@@ -109,6 +110,10 @@
   the function should return a channel that will receive the ultimate result.
   The function may return false to allow the search for a handler to continue.
 
+  Asynchronous handler functions should be careful to return a 500 response if there is
+  a failure (e.g., a thrown exception).  For synchronous functions, a try block is provided
+  to generate the 500 response if an exception is thrown.
+
   For a synchronous handler (which must have the :sync meta-data), the function
   is invoked in a thread, and its result wrapped in a channel (with nil converted to false).
 
@@ -118,7 +123,11 @@
   (cond
     (nil? f) (result->channel false)
     (:sync meta-data) (thread (->
-                                (rook/rook-dispatcher request)
+                                (try
+                                  (rook/rook-dispatcher request)
+                                  (catch Throwable t
+                                    (l/errorf t "Handler function %s failed." (-> request :rook :function))
+                                    {:status HttpServletResponse/SC_INTERNAL_SERVER_ERROR}))
                                 (or false)))
     :else (or
             (rook/rook-dispatcher request)

@@ -1,4 +1,5 @@
 (ns rook.async-spec
+  (:import (javax.servlet.http HttpServletResponse))
   (:use
     [clojure.core.async :only [go chan >!! <! <!! thread]]
     speclj.core)
@@ -142,6 +143,16 @@
                    (-> (mock/request :get "/fred")
                        handler
                        :body
-                       :message))))))
+                       :message))))
+
+    (it "returns a 500 response if a sync handler throws an error"
+        (let [handler (->
+                        (async/namespace-handler "/fail" 'failing)
+                        async/wrap-with-loopback
+                        async/async-handler->ring-handler)]
+          (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                   (-> (mock/request :get "/fail")
+                       handler
+                       :status))))))
 
 (run-specs)
