@@ -28,6 +28,7 @@
     [clojure.tools.logging :as l]
     [clout.core :as clout]
     [ring.middleware
+     [session :as session]
      [format-params :as format-params]
      [format-response :as format-response]]
     [io.aviso.rook :as rook]
@@ -254,3 +255,18 @@
       wrap-restful-format
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
+
+(defn wrap-session
+  "The async version of ring.middleware.session/wrap-with-session.
+  Session handling is not part of the standard middleware, and must be
+  added in explicitly."
+  ([handler] (wrap-session handler {}))
+  ([handler options]
+   (let [options' (session/session-options options)]
+     (fn [request]
+       (go
+         (let [request' (session/session-request request options')]
+           (->
+             (handler request')
+             <!
+             (session/session-response request' options'))))))))
