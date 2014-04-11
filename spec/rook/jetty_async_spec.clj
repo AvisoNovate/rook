@@ -71,6 +71,11 @@
                                   :throw-exceptions false})]
         (should= HttpServletResponse/SC_GATEWAY_TIMEOUT (:status response))))
 
+  (it "responds with 404 if no handler can be found"
+      (let [response (client/get "http://localhost:9988/wilma"
+                                 {:throw-exceptions false})]
+        (should= HttpServletResponse/SC_NOT_FOUND (:status response))))
+
   (after-all
     (.stop @server)))
 
