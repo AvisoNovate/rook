@@ -6,7 +6,7 @@
            (org.eclipse.jetty.continuation ContinuationSupport Continuation))
   (:require
     [clojure.tools.logging :as l]
-    [clojure.core.async :refer [go <! timeout alts! take!]]
+    [clojure.core.async :refer [go <! timeout alts! take! close!]]
     [io.aviso.rook.utils :as utils]
     [ring.util
      [servlet :as servlet]
@@ -60,6 +60,7 @@
       (let [response-ch (-> request
                             (dissoc ::http-servlet-request ::http-servlet-response)
                             handler)
+            timeout-ch (timeout timeout-ms)
             responded (atom false)]
 
         (take! response-ch
@@ -67,20 +68,19 @@
                  (if-not response
                    (l/warnf "Handler for %s closed the channel without providing a response."
                             (utils/summarize-request request))
-                   (if (compare-and-set! responded false true)
-                     (do
-                       (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
-                       (send-async-response continuation response))
-                     (l/warnf "Ignoring response for %s, received after %,d ms timeout."
-                              (utils/summarize-request request)
-                              timeout-ms)))))
+                   (when (compare-and-set! responded false true)
+                     (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
+                     (send-async-response continuation response)
+                     (close! timeout-ch)))))
 
-        (take! (timeout timeout-ms)
+        (take! timeout-ch
                (fn [_]
                  (when (compare-and-set! responded false true)
                    (l/warnf "Request %s timed out after %,d ms."
                             (utils/summarize-request request)
                             timeout-ms)
+                   ;; At this point, no longer interested in the response should it ever arrive.
+                   (close! response-ch)
                    (send-async-response continuation
                                         (->
                                           (utils/response HttpServletResponse/SC_GATEWAY_TIMEOUT
