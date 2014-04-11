@@ -14,10 +14,15 @@
 
 
 (defn response
-  "Construct Ring response for success or other status."
-  ([body] (r/response body))
+  "Construct Ring response for success or other status.  If the status code is omitted, it defaults
+  to 200.  If only the body is provided, but it is numeric, then it is treated as a status code with
+  an empty body."
+  ([body]
+   (if (number? body)
+     (response body nil)
+     (r/response body)))
   ([status body] (->
-                   (response body)
+                   (r/response body)
                    (r/status status))))
 
 (defn pretty-print
