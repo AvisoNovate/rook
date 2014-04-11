@@ -48,14 +48,44 @@
   (fn [request]
     (handler (update-in request [:rook :arg-resolvers] prefix-with arg-resolvers))))
 
+(defn- require-port?
+  [scheme port]
+  (case scheme
+    :http (not (= port 80))
+    :https (not (= port 443))
+    true))
+
+(defn resource-uri-arg-resolver
+  "Calculates the URI for a resource (handy when creating a Location header, for example).
+  First, calculates the server URI, which is either the :server-uri key in the request OR
+  is calcualted from the request's :scheme, :server-name and :server-port.  It should be
+  the address of the root of the server.
+
+  From there, the :context key (maintained by Compojure, when delving into nested contexts)
+  is used to assemble the rest of the URI.
+
+  The URI ends with a slash."
+  [request]
+  (let [server-uri (or (:server-uri request)
+                       (str (-> request :scheme name)
+                            "://"
+                            (-> request :server-name)
+                            (let [port (-> request :server-port)]
+                              (if (require-port? (:scheme request) port)
+                                (str ":" port)))))]
+    (str server-uri (:context request) "/")))
+
 (defn wrap-with-default-arg-resolvers
-  "Adds a default set of argument resolvers, allowing for resolution of :request, and for
-  the argument as a route param or an ordinary param."
+  "Adds a default set of argument resolvers, allowing for resolution of :request (as the request),
+  :params (the :params key of the request),
+  :resource-uri (via resource-uri-arg-resolver),
+  and for the argument as a route param or an ordinary param."
   [handler]
   (arg-resolver-middleware handler
                            (fn [param-keyword request] (get-in request [:params param-keyword]))
                            (fn [route-keyword request] (get-in request [:route-params route-keyword]))
                            (build-fn-arg-resolver :request identity
+                                                  :resource-uri resource-uri-arg-resolver
                                                   :params :params)))
 
 (defn- get-compiled-paths

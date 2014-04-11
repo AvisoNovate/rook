@@ -186,6 +186,51 @@
               _ (should= 1 (count paths))
               [method uri] (first paths)]
           (should= :post method)
-          (should= "/:user-name/:password" uri)))))
+          (should= "/:user-name/:password" uri))))
+
+  (describe ":resource-uri argument resolver"
+
+    (with handler (-> (namespace-handler nil 'creator
+                                         (compojure/routes
+                                           (namespace-handler "/nested" 'creator)
+                                           default-rook-pipeline))
+                      wrap-with-standard-middleware))
+    (with request {:scheme         :http
+                   :server-name    "rook.aviso.io"
+                   :server-port    80
+                   :request-method :post})
+
+    (it "resolves the correct value for a top-level resource"
+        (let [h @handler]
+          (should= "http://rook.aviso.io/<ID>"
+                   (-> @request
+                       (assoc :uri "/")
+                       h
+                       (get-in [:headers "Location"])))))
+
+    (it "resolves the correct value for a nested resource"
+        (let [h @handler]
+          (should= "http://rook.aviso.io/nested/<ID>"
+                   (-> @request
+                       (assoc :uri "/nested")
+                       h
+                       (get-in [:headers "Location"])))))
+
+    (it "will use the :server-uri key if present"
+        (should= "http://overrride.com/api/"
+                 (resource-uri-arg-resolver {:server-uri "http://overrride.com"
+                                             :context    "/api"})))
+
+    (it "will include the port number if not matching the scheme default"
+        (should= "http://server.com:81/"
+                 (resource-uri-arg-resolver {:scheme      :http
+                                             :server-port 81
+                                             :server-name "server.com"}))
+
+        (should= "https://server.com:232/"
+                 (resource-uri-arg-resolver {:scheme      :https
+                                             :server-port 232
+                                             :server-name "server.com"})))))
+
 
 (run-specs)

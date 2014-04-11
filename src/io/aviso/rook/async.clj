@@ -221,15 +221,28 @@
   k - the keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default.
 
   The loopback handler is exposed via arg-resolver-middleware: resource handler functions can gain access
-  to the loopback by providing an argument with a matching name. The default Ring request key is :loopback-handler."
+  to the loopback by providing an argument with a matching name. The default Ring request key is :loopback-handler.
+
+  The loopback handler will capture some request data when first invoked (in a non-loopback request); this information
+  is merged into the request map provided to the handler. The keys :scheme, :server-port, :server-name,
+  and :server-uri are captured, so that the :resource-uri argument can be calculated.
+
+  In addition, the [:rook :arg-resolvers] key is capture, since often default argument resolvers are
+  defined higher in the pipeline."
   ([handler]
    (wrap-with-loopback handler :loopback-handler))
   ([handler k]
-   (letfn [(handler' [request]
-                     (let [wrapped (rook/arg-resolver-middleware handler (rook/build-map-arg-resolver k handler'))
-                           request' (assoc request k handler')]
-                       (wrapped request')))]
-     handler')))
+   (fn [request]
+     (let [arg-resolvers (-> request :rook :arg-resolvers)
+           captured-request-data (select-keys request [:scheme :server-port :server-name :server-uri])]
+       (letfn [(handler' [nested-request]
+                         (let [wrapped (rook/arg-resolver-middleware handler (rook/build-map-arg-resolver k handler'))
+                               request' (-> nested-request
+                                            (assoc k handler')
+                                            (assoc-in [:rook :arg-resolvers] arg-resolvers)
+                                            (merge captured-request-data))]
+                           (wrapped request')))]
+         (handler' request))))))
 
 
 (defn wrap-restful-format

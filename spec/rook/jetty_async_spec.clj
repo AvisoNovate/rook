@@ -21,7 +21,9 @@
         (async/namespace-handler "/fred" 'fred)
         (async/namespace-handler "/barney" 'barney)
         (async/namespace-handler "/slow" 'slow)
-        (async/namespace-handler "/sessions" 'sessions))
+        (async/namespace-handler "/sessions" 'sessions)
+        (async/namespace-handler "/creator" 'creator)
+        (async/namespace-handler "/creator-loopback" 'creator-loopback))
       async/wrap-with-loopback
       async/wrap-session
       async/wrap-with-standard-middleware
@@ -75,6 +77,12 @@
       (let [response (client/get "http://localhost:9988/wilma"
                                  {:throw-exceptions false})]
         (should= HttpServletResponse/SC_NOT_FOUND (:status response))))
+
+  (it "can still calculate :resource-uri even after a loopback"
+      (let [response (client/post "http://localhost:9988/creator-loopback"
+                                  {:throw-exceptions false})]
+        (should= "http://localhost:9988/creator/<ID>"
+                 (get-in response [:headers "Location"]))))
 
   (after-all
     (.stop @server)))

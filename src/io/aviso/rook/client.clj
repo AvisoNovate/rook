@@ -143,7 +143,7 @@
   The then macro is useful for working with this result directly.
 
   Each request is assigned a UUID to its :request-id key; this is to faciliate easier tracing of the request
-  and response in any logged output. "
+  and response in any logged output."
   [request]
   (let [uuid (utils/new-uuid)
         ring-request (:ring-request request)
