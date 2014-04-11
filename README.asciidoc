@@ -155,6 +155,17 @@ provides a default set of argument resolvers:
 
 * +:request+ is resolved to the Ring request map itself.
 
+* +:resource-uri+ is resolved to the base URI for a resource
+
+
+For +:resource-uri+, Rook will use information in the Ring request to build a URI that targets a particular
+resource namespace; this includes the +:scheme+, +:server-name+, and +:server-port+ keys, plus the
++:context+ key (set by Compojure as part of context routing).
+
+When behind a firewall, the values of the keys may not be valid. Rook will look for a +:server-uri+ request key
+and use that in preference to building one from +:scheme+, +:server-name:, and +:server-port+. You can use
+middleware to place such a value into the request early in your processing.
+
 Argument resolution can be extended by providing argument resolver functions.  An argument resolver function
 is passed the argument keyword, and the Ring request map
 and returns the resolved value for the argument.
@@ -208,7 +219,7 @@ The {api}/io.aviso.rook.html#var-namespace-handler[+namespace-handler+] function
   (namespace-handler "/orders" 'org.example.resources.orders))
 ----
 
-IMPORTANT: Rook will +require+ the namespace if it has not already been required.
+IMPORTANT: Rook will +require+ the namespace if it has not already been previously loaded into Clojure.
 
 Remember that the way +context+ works is to match and strip off the prefix, so an incoming GET request for +/users/232+
 will be matched as context +/users+; Rook will then identify function +org.example.resources.users/show+ with path +/:id+;
