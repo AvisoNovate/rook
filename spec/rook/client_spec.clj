@@ -116,7 +116,7 @@
 
   (it "converts an exception inside a try-go block into a 500"
       (should= 500
-               (-> (c/new-request #(async/try-go % (throw (IllegalArgumentException.))))
+               (-> (c/new-request #(async/safe-go % (throw (IllegalArgumentException.))))
                    (c/to :get)
                    c/send
                    <!!

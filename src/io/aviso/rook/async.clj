@@ -37,14 +37,14 @@
      [schema-validation :as sv]
      [utils :as utils]]))
 
-(defmacro try-go
-  "Wraps the body in a go block and a try block. The try block will
-  catch any throwable and log it as an error, then return a status 500 response.
+(defmacro safety-first
+  "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
+  is converted to a 500 response. Also, if the body evaluates to nil, it is converted to false.
 
   The request is used when reporting the exception (it contains a :request-id
   key set by io.aviso.client/send)."
   [request & body]
-  `(go
+  `(or
      (try
        ~@body
        (catch Throwable t#
@@ -52,7 +52,22 @@
            (l/errorf t# "Exception processing request %s (%s)"
                      (:request-id r# (or "<INCOMING>"))
                      (utils/summarize-request r#)))
-         (utils/response 500 {:exception (exceptions/to-message t#)})))))
+         (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                         {:exception (exceptions/to-message t#)})))
+     false))
+
+
+(defmacro safe-go
+  "Wraps the body in a safety-first blocks and a go block. The request is used by safety-first if it must
+  fabricate a response."
+  [request & body]
+  `(go (safety-first ~request ~@body)))
+
+(defmacro safe-thread
+  "Wraps the body in a safety-first blocks and a thread block. The request is used by safety-first if it must
+  fabricate a response."
+  [request & body]
+  `(thread (safety-first ~request ~@body)))
 
 (defn async-handler->ring-handler
   "Wraps an asynchronous handler function as a standard synchronous handler."
@@ -73,16 +88,14 @@
    thread, and a nil response is converted to false."
   [handler]
   (fn [request]
-    (thread (->
-              (request handler)
-              (or false)))))
+    (safe-thread request (handler request))))
 
 (defn routing
   "Routes a request to sequence of async handlers. Each handler should return a channel
   that contains either a Ring response map or false (nil is not an allowed value over a channel). Handlers
   are typically implemented using core.async go or thread blocks."
   [request & handlers]
-  (go
+  (safe-go request
     (loop [[handler & more] handlers]
       (if handler
         ;; Invoke the handler asynchronously and park until it responds.
@@ -123,13 +136,8 @@
   [{{meta-data :metadata f :function} :rook :as request}]
   (cond
     (nil? f) (result->channel false)
-    (:sync meta-data) (thread (->
-                                (try
-                                  (rook/rook-dispatcher request)
-                                  (catch Throwable t
-                                    (l/errorf t "Handler function %s failed." (-> request :rook :function))
-                                    {:status HttpServletResponse/SC_INTERNAL_SERVER_ERROR}))
-                                (or false)))
+    (:sync meta-data) (safe-thread request
+                                   (rook/rook-dispatcher request))
     :else (or
             (rook/rook-dispatcher request)
             (throw (ex-info
@@ -232,20 +240,21 @@
   ([handler formats]
    (let [req-handler (format-params/wrap-restful-params handler :formats formats)
          req-handler' (fn [request]
-                        (try-go request
-                          (-> request req-handler <!)))]
+                        (safe-go request
+                                 (-> request req-handler <!)))]
      (fn [request]
-       (try-go request
-         (if-let [response (-> request req-handler' <!)]
-           (->
-             ;; "Fake" handler. This is an ugly bit of hack to allow the execution
-             ;; of the true handlers earlier in the go block, and have the response
-             ;; (if not nil), already taken from the channel.
-             (constantly response)
-             (format-response/wrap-restful-response :formats formats)
-             ;; apply and maps need a little coaxing...
-             (apply [request]))
-           false))))))
+       (safe-go request
+                (if-let [response (-> request req-handler' <!)]
+                  (->
+                    ;; "Fake" handler. This is an ugly bit of hack to allow the execution
+                    ;; of the true handlers earlier in the go block, and have the response
+                    ;; (if not nil), already taken from the channel.
+                    (constantly response)
+                    (format-response/wrap-restful-response :formats formats)
+                    ;; And now we can invoke our "just brewed up" handler (wrapped around our
+                    ;; standin for the already executed handler).
+                    (as-> f (f request)))
+                  false))))))
 
 (defn wrap-with-standard-middleware
   "Default asynchronous middleware."
@@ -264,7 +273,7 @@
   ([handler options]
    (let [options' (session/session-options options)]
      (fn [request]
-       (go
+       (safe-go request
          (let [request' (session/session-request request options')]
            (->
              (handler request')
