@@ -288,11 +288,37 @@ If a function defines +:schema+ metadata, then that is used to validate the requ
 
 Validation assumes that the query parameters keys are converted from strings to keywords (via +ring.middleware.keyword-params+)
 and that submitted JSON content is converted to Clojure data using keyword keys (via +rink.middleware.format/wrap.restful-format+).
+These filters are part of the standard set of Rook middleware.
 
-Rook sanitizes the parameter data before validating it; it attempts to remove any keys that do not match a required or optional key
-specified in the schema. This follows the general ethic of ignoring extra data that the receiver doesn't specifically understand.
+Rook performs _coercion_ on the request parameters before validation them and passing them to the next handler. This works
+best when you define the explicit types as +s/Str+, +s/Int+, +s/Bool+, and use +s/enum+.
 
-If validation is successful, the processing continues with the _original_ request +:params+ (not the sanitized params).
+You should name your keys for JSON compatibility. By convenience and convention, JSON prefers underscores
+rather than embedded dashes.
+Rook's argument resolvers allow you to use Clojure naming (embedded dashes) in your resource handler functions.
+
+WARNING: Schema is, by default, picky: any unexpected key is a failure.
+Since the Request +:params+ includes arbitrary query parameters, you will usually want to add a mapping of +s/Any+ to +s/Any+ in your
+top-level schema, to ensure that spurious query parameters do not cause validation errors.
+
+A sample schema might be:
+
+----
+(def index
+  {:schema {(s/optional-key :sort_keys)       [(s/enum :first_name :last_name :updated_at)
+            (s/optional-key :sort_descending] s/Bool
+            (s/optional-key :offset)          s/Int
+            (s/optional-key :count)           s/Int
+            s/Any                             s/Any}}
+  [sort-keys sort-descending offset count]
+  ...)
+----
+
+
+
+If validation is successful, then processing continues with the _coerced_ request +:params+.
+In the above example, if the JSON request body was +{"sort_keys":["last_name"]}+, then the +sort-keys+ argument will be
++[:last_name]+.
 
 If validation is unsuccessful, then a 400 Bad Request response is returned; The body of the response contains a map:
 
@@ -304,16 +330,6 @@ If validation is unsuccessful, then a 400 Bad Request response is returned; The 
 ----
 
 WARNING: What gets reported as the +:failure+ has yet to be worked out.
-
-
-Validation is still a work in progress.
-
-* Sanitizing the data is still limited and likely buggy.
-
-* You should probably use embedded underscores in keywords within the schema, for JSON compatibility.  Your function arguments can still
-  use embedded dashes in argument names; the mapping occurs after schema validation.
-
-* Failures are not reported well.
 
 == Sample Server
 

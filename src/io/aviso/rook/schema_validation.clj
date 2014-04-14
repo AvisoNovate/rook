@@ -4,62 +4,60 @@
   validate the incoming data."
   (:require
     [schema.core :as s]
+    [schema.coerce :as coerce]
+    [schema.utils :as su]
     [io.aviso.rook.utils :as utils])
-  (:import (javax.servlet.http HttpServletResponse)
-           (schema.core EnumSchema)
-           (clojure.lang IPersistentMap)))
+  (:import (javax.servlet.http HttpServletResponse)))
 
-
-(defn- identify-schema-keys
-  [map-schema]
-  (map s/explicit-schema-key (keys map-schema)))
-
-(defprotocol DataSanitization
-  "Applies to a Schema and a Data and produces a new Data that contains only keys that are appropriate to the Schema."
-  (sanitize [schema data]))
-
-(extend-protocol DataSanitization
-
-  nil
-  (sanitize [_ _] nil)
-
-  ;; Non-matches are passed through unchanged.
-  Object
-  (sanitize [_ data] data)
-
-  EnumSchema
-  (sanitize [_ data] data)
-
-  IPersistentMap
-  (sanitize [schema data]
-    (reduce-kv (fn [output k v]
-                 (let [k' (s/explicit-schema-key k)]
-                   (if (contains? data k')
-                     (assoc output k' (sanitize v (get data k')))
-                     output)))
-               {}
-               schema)))
 
 (defn format-failures
   [failures]
-  {:error "validation-error"
+  {:error    "validation-error"
    ;; This needs work; it won't transfer very well to the client for starters.
    :failures (str failures)})
 
+;;; Would prefer to merge my own into what string-coercion-matcher provides,
+;;; but see https://github.com/Prismatic/schema/issues/82
+(def ^:private extra-coercions {s/Bool (coerce/safe #(Boolean/parseBoolean %))})
+
+(defn- string-coercion-matcher
+  [schema]
+  (or (extra-coercions schema)
+      (coerce/string-coercion-matcher schema)))
+
 (defn validate-against-schema
-  "Performs the validation and returns nil if no error, or a 400 response (with additional
-  details in the body) if invalid."
-  [{:keys [params]} schema]
-  ;; TODO: possibly manipulate input to conform, as much as possible to the
-  ;; schema. Challenge: extra keys should be ignored, not cause errors!
-  (if-let [failures (s/check schema (sanitize schema params))]
-    (utils/response HttpServletResponse/SC_BAD_REQUEST (format-failures failures))))
+  "Performs the validation. The data is coerced using the string-cooercion-matcher (which makes sense
+  as many of the values are provided as string query parameters, but need to be other types).
+
+  Validation may either fail or succeed.  For a failure, an error response must be sent
+  to the client. For success, the cooerced parameters must be passed to the next handler.
+
+  Rreturns a tuple:
+  On success, the tuple is [:valid request] (that is, an updated request with the params
+  re-written).
+  On failure, the tuple is [:invalid response]: a response to return to the client."
+  [request schema]
+  (let [coercer (coerce/coercer schema string-coercion-matcher)
+        params' (-> request :params coercer)]
+    (if (su/error? params')
+      [:invalid (utils/response HttpServletResponse/SC_BAD_REQUEST (-> params' su/error-val format-failures))]
+      [:valid (assoc request :params params')])))
 
 (defn wrap-with-schema-validation
-  [handler]
-  (fn [request]
-    (or
-      (when-let [schema (-> request :rook :metadata :schema)]
-        (validate-against-schema request schema))
-      (handler request))))
+  "Wraps a handler with validation, which is triggered by the [:rook :metadata :schema] key in the
+  request.
+
+  The two-argument version includes a function used to wrap the bad request response;
+  this is identity in the normal case (and is provided to support async processing)."
+  ([handler]
+   (wrap-with-schema-validation handler identity))
+  ([handler wrap-invalid-response]
+   (fn [request]
+     (or
+       (when-let [schema (-> request :rook :metadata :schema)]
+         (let [[valid? data] (validate-against-schema request schema)]
+           (case valid?
+             :valid (handler data)
+             :invalid (wrap-invalid-response data))))
+       (handler request)))))
 

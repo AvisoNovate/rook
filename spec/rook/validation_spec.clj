@@ -15,35 +15,46 @@
                      (s/optional-key :address) [s/Str]
                      (s/optional-key :city)    s/Str})
 
+(defn should-be-valid [expected-request [valid? actual-request]]
+  (should= :valid valid?)
+  (should= expected-request actual-request))
+
 (describe "io.aviso.rook.schema-validation"
+
 
   (describe "validate-against-schema"
 
-    (it "returns nil if validation is successful"
-        (should-be-nil
-          (validate-against-schema {:params {:name "Rook"}} example-schema)))
+    (it "returns :valid if validation is successful"
+        (let [request {:params {:name "Rook"}}]
+          (should-be-valid request (validate-against-schema request example-schema))))
 
     (it "should accept optional keys"
-        (should-be-nil
-          (validate-against-schema {:params {:name "Rook" :address ["Division St."]}} example-schema)))
+        (let [request {:params {:name "Rook" :address ["Division St."]}}]
+          (should-be-valid request (validate-against-schema request example-schema))))
 
     (it "returns a failure response if validation fails"
-        (let [response (validate-against-schema {:params {:user-name "Rook"}} example-schema)]
-          (should-not-be-nil response)
+        (let [[valid? response] (validate-against-schema {:params {:user-name "Rook"}} example-schema)]
+          (should= :invalid valid?)
           (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
           (should= "validation-error" (-> response :body :error))))
 
-    (it "should handle s/enum schema types"
-        ;; Test is necessary because the s/enum type, EnumSchema, is also IPersistentMap
-        ;; with key :vs which causes a failure treating the string (or keyword) from the data as
-        ;; a map as well.
-        (should-be-nil
-          (validate-against-schema {:params {:enable "true"}} {:enable (s/enum "true" "false")})))
+    (describe "cooercions"
 
-    (it "ignores extra keys"
-        (should-be-nil
-          (validate-against-schema {:params {:name "Rook" :ssn "999-99-9999"}} example-schema))))
+      (it "should cooerce strings to s/Int"
+          (should-be-valid {:params {:number (int 5)}}
+                           (validate-against-schema {:params {:number "5"}}
+                                                    {:number s/Int})))
 
+      (it "should cooerce strings to s/Bool"
+          (should-be-valid {:params {:t true :f false}}
+                           (validate-against-schema {:params {:t "true" :f "false"}}
+                                                    {:t s/Bool
+                                                     :f s/Bool})))
+
+      (it "should cooerce strings to keywords"
+          (should-be-valid {:params {:languages [:english :french]}}
+                           (validate-against-schema {:params {:languages ["english" "french"]}}
+                                                    {:languages [(s/enum :english :french)]})))))
 
   (describe "middleware"
 

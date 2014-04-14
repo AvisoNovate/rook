@@ -147,12 +147,7 @@
 (defn wrap-with-schema-validation
   "The asynchronous version of schema validation, triggered by the :schema meta-data attribute."
   [handler]
-  (fn [request]
-    (or
-      (when-let [schema (-> request :rook :metadata :schema)]
-        (when-let [failure-response (sv/validate-against-schema request schema)]
-          (result->channel failure-response)))
-      (handler request))))
+  (sv/wrap-with-schema-validation handler result->channel))
 
 (def default-rook-pipeline
   "The default rook pipeline for async processing. Wraps async-rook-dispatcher with middleware to
