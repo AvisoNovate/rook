@@ -1,5 +1,7 @@
 (ns rook.validation-spec
-  (:import (javax.servlet.http HttpServletResponse))
+  (:import (javax.servlet.http HttpServletResponse)
+           (java.util Date TimeZone Calendar)
+           (java.text SimpleDateFormat))
   (:use
     speclj.core
     ring.mock.request
@@ -18,6 +20,10 @@
 (defn should-be-valid [expected-request [valid? actual-request]]
   (should= :valid valid?)
   (should= expected-request actual-request))
+
+(defn current-instant
+  []
+  (Date.))
 
 (describe "io.aviso.rook.schema-validation"
 
@@ -54,7 +60,13 @@
       (it "should cooerce strings to keywords"
           (should-be-valid {:params {:languages [:english :french]}}
                            (validate-against-schema {:params {:languages ["english" "french"]}}
-                                                    {:languages [(s/enum :english :french)]})))))
+                                                    {:languages [(s/enum :english :french)]})))
+
+      (it "should coorce strings to Date"
+          (let [now (current-instant)]
+            (should-be-valid {:params {:date now}}
+                             (validate-against-schema {:params {:date (format-instant now)}}
+                                                      {:date s/Inst}))))))
 
   (describe "middleware"
 

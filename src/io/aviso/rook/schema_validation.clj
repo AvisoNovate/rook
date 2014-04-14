@@ -7,7 +7,9 @@
     [schema.coerce :as coerce]
     [schema.utils :as su]
     [io.aviso.rook.utils :as utils])
-  (:import (javax.servlet.http HttpServletResponse)))
+  (:import (javax.servlet.http HttpServletResponse)
+           (java.text SimpleDateFormat)
+           (java.util TimeZone Date)))
 
 
 (defn format-failures
@@ -16,9 +18,35 @@
    ;; This needs work; it won't transfer very well to the client for starters.
    :failures (str failures)})
 
+;; Borrowed from clojure.instant:
+(def ^:private thread-local-utc-date-format
+  ;; SimpleDateFormat is not thread-safe, so we use a ThreadLocal proxy for access.
+  ;; http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4228335
+  (let [gmt (TimeZone/getTimeZone "GMT")]
+    (proxy [ThreadLocal] []
+      (initialValue []
+        (doto (SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+          (.setTimeZone gmt))))))
+
+(defn parse-instant
+  "Parses a date and time in ISO8601 format into an instant (a Date)."
+  [date-str]
+  (-> thread-local-utc-date-format
+      .get
+      (.parse date-str)))
+
+(defn format-instant
+  "Formats an instant into ISO8601 format."
+  [^Date instant]
+  (-> thread-local-utc-date-format
+      .get
+      (.format instant)))
+
 ;;; Would prefer to merge my own into what string-coercion-matcher provides,
 ;;; but see https://github.com/Prismatic/schema/issues/82
-(def ^:private extra-coercions {s/Bool (coerce/safe #(Boolean/parseBoolean %))})
+(def ^:private extra-coercions
+  {s/Bool (coerce/safe #(Boolean/parseBoolean %))
+   s/Inst (coerce/safe #(parse-instant %))})
 
 (defn- string-coercion-matcher
   [schema]

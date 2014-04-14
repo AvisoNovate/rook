@@ -293,6 +293,11 @@ These filters are part of the standard set of Rook middleware.
 Rook performs _coercion_ on the request parameters before validation them and passing them to the next handler. This works
 best when you define the explicit types as +s/Str+, +s/Int+, +s/Bool+, and use +s/enum+.
 
+TIP: Use +s/Inst+ to represent time instants (dates that include time).
+These will be converted from Strings by parsing an
+http://en.wikipedia.org/wiki/ISO8601[ISO-8601] formatted date (+yyyy-mm-ddThh:mm:ss.SSSZ+).footnote:[This format is compatible
+with the client-side function +Date.toISOString()+]
+
 You should name your keys for JSON compatibility. By convenience and convention, JSON prefers underscores
 rather than embedded dashes.
 Rook's argument resolvers allow you to use Clojure naming (embedded dashes) in your resource handler functions.
