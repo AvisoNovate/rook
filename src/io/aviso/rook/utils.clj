@@ -1,10 +1,10 @@
 (ns io.aviso.rook.utils
   "Kitchen-sink of useful standalone utilities."
   (:import
-    (java.util UUID)
-    (javax.servlet.http HttpServletResponse))
+    (java.util UUID))
   (:require
     [ring.util.response :as r]
+    [ring.util.time :as t]
     [clojure.pprint :as pprint]))
 
 (defn new-uuid
@@ -24,6 +24,11 @@
   ([status body] (->
                    (r/response body)
                    (r/status status))))
+
+(defn date-header
+  "Adds a date header to the response, using the RFC-1123 format."
+  [response name date]
+  (r/header response name (t/format-date date)))
 
 (defn pretty-print
   "Pretty-prints the supplied object to a returned string."
