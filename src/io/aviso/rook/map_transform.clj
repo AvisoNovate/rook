@@ -1,4 +1,4 @@
-(ns io.aviso.rook.internal.map-transform
+(ns io.aviso.rook.map-transform
   "Transform the keys and/or values of a map.")
 
 (defn transform

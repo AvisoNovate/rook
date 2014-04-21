@@ -2,7 +2,7 @@
   "Unsupported internal functions used in the implementation."
   (:require
     [clout.core :as clout]
-    [io.aviso.rook.internal.map-transform :as mt]))
+    [io.aviso.rook.map-transform :as mt]))
 
 (def ^:private default-mappings
   "Default mappings for route specs to functions. We use keyword for function name for increased readability.
