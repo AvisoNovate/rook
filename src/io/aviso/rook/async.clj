@@ -59,15 +59,15 @@
 
 (defmacro safe-go
   "Wraps the body in a safety-first blocks and a go block. The request is used by safety-first if it must
-  fabricate a response."
-  [request & body]
-  `(go (safety-first ~request ~@body)))
+  fabricate a response. Requires at least one expression."
+  [request expr & more]
+  `(go (safety-first ~request ~expr ~@more)))
 
 (defmacro safe-thread
   "Wraps the body in a safety-first blocks and a thread block. The request is used by safety-first if it must
-  fabricate a response."
-  [request & body]
-  `(thread (safety-first ~request ~@body)))
+  fabricate a response. Requires at least one expression."
+  [request expr & more]
+  `(thread (safety-first ~request ~expr ~@more)))
 
 (defn async-handler->ring-handler
   "Wraps an asynchronous handler function as a standard synchronous handler."
