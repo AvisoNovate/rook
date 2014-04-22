@@ -11,9 +11,10 @@
                                                   [clj-http "0.9.1"]
                                                   [speclj "2.5.0"]
                                                   [log4j "1.2.17"]]}}
-  :dependencies [[org.clojure/clojure "1.5.1"]
+  :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
                  [org.clojure/tools.logging "0.2.6"]
+                 [ring "1.2.2"]
                  [ring-middleware-format "0.3.2" :exclusions [cheshire
                                                               org.clojure/tools.reader]]
                  [prismatic/schema "0.2.1" :exclusions [potemkin]]
