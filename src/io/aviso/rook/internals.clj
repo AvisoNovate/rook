@@ -2,7 +2,7 @@
   "Unsupported internal functions used in the implementation."
   (:require
     [clout.core :as clout]
-    [io.aviso.rook.map-transform :as mt]))
+    [io.aviso.rook.utils :as utils]))
 
 (def ^:private default-mappings
   "Default mappings for route specs to functions. We use keyword for function name for increased readability.
@@ -79,7 +79,7 @@
 (defn- eval-namespace-meta-values
   [n meta-map]
   (binding [*ns* n]
-    (mt/transform-values meta-map eval)))
+    (utils/transform-values meta-map eval)))
 
 (defn get-available-paths
   "Scan namespace for available routes - only those that have available function are returned.
