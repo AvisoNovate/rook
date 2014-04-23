@@ -201,6 +201,12 @@
        (context path handler')
        handler'))))
 
+(def request-copy-properties
+  "Properties of a Ring request that should be copied into a chained request."
+  [:server-port :server-name :remote-addr :scheme :content-type :character-encoding
+   :ssl-client-cert :headers
+   :server-uri])
+
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
   This is essentially the whole point of of the asynchronous support: to allow individual resource handler functions
@@ -223,17 +229,22 @@
   to the loopback by providing an argument with a matching name. The default Ring request key is :loopback-handler.
 
   The loopback handler will capture some request data when first invoked (in a non-loopback request); this information
-  is merged into the request map provided to the handler. The keys :scheme, :server-port, :server-name,
-  and :server-uri are captured, so that the :resource-uri argument can be calculated.
+  is merged into the request map provided to the handler. This includes :scheme, :server-port, :server-name,
+  and several others. Specifically :server-uri is captured, so that the :resource-uri argument can be calculated.
 
-  In addition, the [:rook :arg-resolvers] key is capture, since often default argument resolvers are
+  What's not captured: the :body, :params, :uri, :query-string, and all the various :*-params generated
+  by standard middleware. Essentially, enough information is captured and restored to allow the eventual
+  handler to make determinations about the originating request, but not know the specific URI, query parameters,
+  or posted data.
+
+  In addition, the [:rook :arg-resolvers] key is captured, since often default argument resolvers are
   defined higher in the pipeline."
   ([handler]
    (wrap-with-loopback handler :loopback-handler))
   ([handler k]
    (fn [request]
      (let [arg-resolvers (-> request :rook :arg-resolvers)
-           captured-request-data (select-keys request [:scheme :server-port :server-name :server-uri])]
+           captured-request-data (select-keys request request-copy-properties)]
        (letfn [(handler' [nested-request]
                          (let [wrapped (rook/arg-resolver-middleware handler (rook/build-map-arg-resolver k handler'))
                                request' (-> nested-request
@@ -255,11 +266,11 @@
        (let [response-ch (chan 1)]
          ;; To keep things fully asynchronous, we first invoke the downstream handler.
          (take! (try
-                   (req-handler request)
-                   (catch Throwable t
-                     (result->channel
-                       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                                       {:exception (exceptions/to-message t)}))))
+                  (req-handler request)
+                  (catch Throwable t
+                    (result->channel
+                      (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                                      {:exception (exceptions/to-message t)}))))
                 (fn [handler-response]
                   (put! response-ch
                         (->
