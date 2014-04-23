@@ -24,7 +24,7 @@
   can be obtained without blocking."
   (:import (javax.servlet.http HttpServletResponse))
   (:require
-    [clojure.core.async :refer [chan go >! <! <!! >!! thread]]
+    [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take!]]
     [clojure.tools.logging :as l]
     [clout.core :as clout]
     [ring.middleware
@@ -58,13 +58,13 @@
 
 
 (defmacro safe-go
-  "Wraps the body in a safety-first blocks and a go block. The request is used by safety-first if it must
+  "Wraps the body in a safety-first block and then in a go block. The request is used by safety-first if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
   `(go (safety-first ~request ~expr ~@more)))
 
 (defmacro safe-thread
-  "Wraps the body in a safety-first blocks and a thread block. The request is used by safety-first if it must
+  "Wraps the body in a safety-first block and then in a thread block. The request is used by safety-first if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
   `(thread (safety-first ~request ~expr ~@more)))
@@ -80,33 +80,36 @@
   nil is converted to false."
   [result]
   (let [ch (chan 1)]
-    (>!! ch (or result false))
+    (put! ch (or result false))
     ch))
 
 (defn ring-handler->async-handler
-  "Wraps a syncronous Ring handler function as an asynchrounous handler. The handler is invoked in another
+  "Wraps a syncronous Ring handler function as an asynchronous handler. The handler is invoked in another
    thread, and a nil response is converted to false."
   [handler]
   (fn [request]
     (safe-thread request (handler request))))
+
+(defn- routing*
+  [request response-ch handlers]
+  (if (empty? handlers)
+    ;; Resolve to false when running out of handlers.
+    (put! response-ch false)
+    ;; Otherwise, see if the first handler will return a truthy value
+    (take! (safety-first request ((first handlers) request))
+           (fn [handler-response]
+             (if handler-response
+               (put! response-ch handler-response)
+               (routing* request response-ch (rest handlers)))))))
 
 (defn routing
   "Routes a request to sequence of async handlers. Each handler should return a channel
   that contains either a Ring response map or false (nil is not an allowed value over a channel). Handlers
   are typically implemented using core.async go or thread blocks."
   [request & handlers]
-  (safe-go request
-    (loop [[handler & more] handlers]
-      (if handler
-        ;; Invoke the handler asynchronously and park until it responds.
-        (let [result-ch (handler request)
-              result (<! result-ch)]
-          ;; Again, a result of false means "continue the search".
-          (if-not (false? result)
-            result
-            (recur more)))
-        ;; And since there was no match yet, we signal to continue the search.
-        false))))
+  (let [response-ch (chan 1)]
+    (routing* request response-ch handlers)
+    response-ch))
 
 (defn routes
   "Creates an async handler that routes to a number of other async handlers."
@@ -125,11 +128,12 @@
   The function may return false to allow the search for a handler to continue.
 
   Asynchronous handler functions should be careful to return a 500 response if there is
-  a failure (e.g., a thrown exception).  For synchronous functions, a try block is provided
-  to generate the 500 response if an exception is thrown.
+  a failure (e.g., a thrown exception).  The safe-go and safe-thread macros
+  are useful to easily ensure this.
 
-  For a synchronous handler (which must have the :sync meta-data), the function
+  For a synchronous handler (which must have the :sync true meta-data), the function
   is invoked in a thread, and its result wrapped in a channel (with nil converted to false).
+  Exceptions thrown by a synchronous handler are automatically converted into a 500 response.
 
   If no resource handler function has been identified, this function
   will return false (wrapped in a channel)."
@@ -246,23 +250,27 @@
   ([handler]
    (wrap-restful-format handler [:json-kw :edn]))
   ([handler formats]
-   (let [req-handler (format-params/wrap-restful-params handler :formats formats)
-         req-handler' (fn [request]
-                        (safe-go request
-                                 (-> request req-handler <!)))]
+   (let [req-handler (format-params/wrap-restful-params handler :formats formats)]
      (fn [request]
-       (safe-go request
-                (if-let [response (-> request req-handler' <!)]
-                  (->
-                    ;; "Fake" handler. This is an ugly bit of hack to allow the execution
-                    ;; of the true handlers earlier in the go block, and have the response
-                    ;; (if not nil), already taken from the channel.
-                    (constantly response)
-                    (format-response/wrap-restful-response :formats formats)
-                    ;; And now we can invoke our "just brewed up" handler (wrapped around our
-                    ;; standin for the already executed handler).
-                    (as-> f (f request)))
-                  false))))))
+       (let [response-ch (chan 1)]
+         ;; To keep thing fully asynchronous, we first invoke the downstream handler.
+         (take! (try
+                   (req-handler request)
+                   (catch Throwable t
+                     (result->channel
+                       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                                       {:exception (exceptions/to-message t)}))))
+                (fn [handler-response]
+                  (put! response-ch
+                        (->
+                          ;; We can't pass the asynchronous req-handler to w-r-r, it expects
+                          ;; a sync handler. Instead, we provide a "fake" sync handler
+                          ;; that returns the previously obtained handler response.
+                          (constantly handler-response)
+                          (format-response/wrap-restful-response :formats formats)
+                          ;; Capture and invoke the wrapped, fake handler
+                          (as-> f (f request))))))
+         response-ch)))))
 
 (defn wrap-with-standard-middleware
   "Default asynchronous middleware."
@@ -282,8 +290,8 @@
    (let [options' (session/session-options options)]
      (fn [request]
        (safe-go request
-         (let [request' (session/session-request request options')]
-           (->
-             (handler request')
-             <!
-             (session/session-response request' options'))))))))
+                (let [request' (session/session-request request options')]
+                  (->
+                    (handler request')
+                    <!
+                    (session/session-response request' options'))))))))
