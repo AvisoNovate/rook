@@ -58,21 +58,25 @@
         (let [test-mw (-> (namespace-middleware default-rook-pipeline 'rook-test)
                           param-handling)]
 
-          (do-template [method path expected-result]
+          (do-template [method path headers expected-result]
             (should= expected-result
-                     (-> (mock/request method path) test-mw))
+                     (-> (mock/request method path)
+                         (assoc :headers headers)
+                         test-mw))
 
-            :get "/?limit=100" {:status 200 :body "limit=100"}
+            :get "/?limit=100"  nil {:status 200 :body "limit=100"}
 
-            :get "/123" {:status 200 :body "id=123"}
+            :get "/123" nil {:status 200 :body "id=123"}
 
-            :post "/123/activate?test1=1test" "test1=1test,id=123,test2=,test3=,test4=,request=13,meth="
+            :post "/123/activate?test1=1test" nil "test1=1test,id=123,test2=,test3=,test4=,request=13,meth="
 
-            :get "/123/activate" nil
+            :get "/123/activate" nil nil
 
-            :put "/" nil
+            :post "/456/if-modified-since" {"if-modified-since" "time-instant"} {:id "456" :if-modified-since "time-instant"}
 
-            :put "/123" nil)))
+            :put "/" nil nil
+
+            :put "/123" nil nil)))
 
     (it "should expose the request's :params key as an argument"
         (let [handler (->

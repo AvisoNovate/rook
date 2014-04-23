@@ -79,11 +79,16 @@
   "Adds a default set of argument resolvers, allowing for resolution of :request (as the request),
   :params (the :params key of the request),
   :resource-uri (via resource-uri-arg-resolver),
-  and for the argument as a route param or an ordinary param."
+  and for the argument as a parameter (from the :params map),
+  or a route parameter (from :route-params)
+  or an header."
   [handler]
   (arg-resolver-middleware handler
-                           (fn [param-keyword request] (get-in request [:params param-keyword]))
-                           (fn [route-keyword request] (get-in request [:route-params route-keyword]))
+                           (fn [kw request]
+                             (or
+                               (get-in request [:params kw])
+                               (get-in request [:route-params kw])
+                               (get-in request [:headers (name kw)])))
                            (build-fn-arg-resolver :request identity
                                                   :resource-uri resource-uri-arg-resolver
                                                   :params :params)))

@@ -151,6 +151,9 @@ provides a default set of argument resolvers:
 
 * Matching value from the +:route-params+ key of the request, for access to data provided as keywords in the path spec.
 
+* Matching value from the +:headers+ key of the request (with the keyword converted to a string, since +:headers+ keys are
+always lower-case strings).
+
 * +:params+ is resolved the the +:params+ map of the Ring request map.
 
 * +:request+ is resolved to the Ring request map itself.

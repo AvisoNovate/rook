@@ -19,3 +19,8 @@
        ",request=" (count request)
        ",meth=" request-method))
 
+(defn check-if-modified
+  {:path-spec [:post "/:id/if-modified-since"]}
+  [id if-modified-since]
+  {:id id
+   :if-modified-since if-modified-since})
