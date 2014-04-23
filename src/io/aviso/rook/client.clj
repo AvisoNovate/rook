@@ -30,7 +30,7 @@
   The handler is passed the Ring request map and returns a core.async channel that will receive
   the response. The handler is typically implemented using the core.async go or thread macros."
   [web-service-handler]
-  (assert web-service-handler)
+  {:pre [(some? web-service-handler)]}
   {:handler   web-service-handler
    ;; If there isn't an exact match on status code, the special keys :success and :failure
    ;; are checked. :success matches any 2xx code, :failure matches anything else.
