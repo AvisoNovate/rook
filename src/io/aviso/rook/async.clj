@@ -300,9 +300,11 @@
   ([handler options]
    (let [options' (session/session-options options)]
      (fn [request]
-       (safe-go request
-                (let [request' (session/session-request request options')]
-                  (->
-                    (handler request')
-                    <!
-                    (session/session-response request' options'))))))))
+       (let [response-ch (chan 1)
+             request' (session/session-request request options')]
+         (take! (handler request')
+                (fn [handler-response]
+                  (put! response-ch (if handler-response
+                                      (session/session-response handler-response request' options')
+                                      false))))
+         response-ch)))))
