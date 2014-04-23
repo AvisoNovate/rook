@@ -253,7 +253,7 @@
    (let [req-handler (format-params/wrap-restful-params handler :formats formats)]
      (fn [request]
        (let [response-ch (chan 1)]
-         ;; To keep thing fully asynchronous, we first invoke the downstream handler.
+         ;; To keep things fully asynchronous, we first invoke the downstream handler.
          (take! (try
                    (req-handler request)
                    (catch Throwable t
