@@ -39,7 +39,8 @@
           (should-be-valid request (validate-against-schema request example-schema))))
 
     (it "returns a failure response if validation fails"
-        (let [[valid? response] (validate-against-schema {:params {:user-name "Rook"}} example-schema)]
+        (let [[valid? failures] (validate-against-schema {:params {:user-name "Rook"}} example-schema)
+              response (wrap-invalid-response failures)]
           (should= :invalid valid?)
           (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
           (should= "validation-error" (-> response :body :error))))
