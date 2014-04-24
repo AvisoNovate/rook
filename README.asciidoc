@@ -122,12 +122,15 @@ such as authentication, logging, error handling, etc.
 
 Ring assists with extracting information from the request and provides it as arguments to the invoked resource handler function.
 
+TIP: To avoid confusion, Rook uses the term _parameters_ to refer to query parameters that are part of an HTTP request; it uses
+_arguments_ to refer to function arguments (which are often called parameters, as well).
+
 Ring uses the name of the argument to identify the value to provide.
 
 First, the argument name is converted to a keyword and a search of the argument resolvers (described shortly) occurs.
 
-If the search is unsuccessful, then a second search occurs, using the argument name converted to a keyword ... but with
-dashes converted to underscores, e.g., +user-id+ to +:user_id+.footnote:[
+If the search is unsuccessful, then a second search occurs, but with
+dashes in the keyword converted to underscores, e.g., +user-id+ to +:user_id+.footnote:[
 The second keyword exists to pragmatically support clients sending JSON, rather than EDN, data; in JavaScript, underscores are
 easier to wrangle than dashes.]
 
@@ -154,12 +157,14 @@ provides a default set of argument resolvers:
 * Matching value from the +:headers+ key of the request (with the keyword converted to a string, since +:headers+ keys are
 always lower-case strings).
 
-* +:params+ is resolved the the +:params+ map of the Ring request map.
+* +:params+ is resolved to the +:params+ map of the Ring request map.
+
+* +:params*+ is resolved to the +:params+ map of the Ring request map, but with the keys _Clojureized_: underscores converted
+  to dashes.
 
 * +:request+ is resolved to the Ring request map itself.
 
 * +:resource-uri+ is resolved to the base URI for a resource
-
 
 For +:resource-uri+, Rook will use information in the Ring request to build a URI that targets a particular
 resource namespace; this includes the +:scheme+, +:server-name+, and +:server-port+ keys, plus the
@@ -172,6 +177,9 @@ middleware to place such a value into the request early in your processing.
 Argument resolution can be extended by providing argument resolver functions.  An argument resolver function
 is passed the argument keyword, and the Ring request map
 and returns the resolved value for the argument.
+
+IMPORTANT: Arguments may be a map, to leverage map destructing. However, you must always provide the +:as+ key
+in the map, as that is what Rook will key off of, rather than the argument name as it usually does.
 
 Argument resolvers can fulfill many purposes:
 

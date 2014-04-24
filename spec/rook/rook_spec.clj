@@ -64,7 +64,7 @@
                          (assoc :headers headers)
                          test-mw))
 
-            :get "/?limit=100"  nil {:status 200 :body "limit=100"}
+            :get "/?limit=100" nil {:status 200 :body "limit=100"}
 
             :get "/123" nil {:status 200 :body "id=123"}
 
@@ -84,12 +84,30 @@
                         wrap-with-default-arg-resolvers)
               params {:foo :bar}]
           (should-be-same params
-            (->
-              (mock/request :get "/")
-              (assoc :params params)
-              handler
-              :body
-              :params-arg))))
+                          (-> (mock/request :get "/")
+                              (assoc :params params)
+                              handler
+                              :body
+                              :params-arg))))
+
+    (it "should expose the request's :params as argument params* with translated keywords"
+        (let [handler (-> (namespace-handler 'echo-params)
+                          wrap-with-default-arg-resolvers)
+              params {:user_id "hlship@gmail.com" :new_password "secret"}]
+          (should= {:user-id      "hlship@gmail.com"
+                    :new-password "secret"}
+                   (-> (mock/request :get "/123")
+                       (assoc :params params)
+                       handler
+                       :body))))
+
+    (it "should fail if a map parameter does not include :as"
+        (should-throw IllegalArgumentException
+                      "map argument has no :as key"
+                      (let [handler (-> (namespace-handler 'echo-params)
+                                        wrap-with-default-arg-resolvers)]
+                        (-> (mock/request :put "/123")
+                            handler))))
 
     (it "should operate with all types of arg-resolvers"
         (let [test-mw (-> (namespace-middleware default-rook-pipeline 'rook-test)
