@@ -23,13 +23,26 @@
 
 (def supported-methods #{:get :put :patch :post :delete :head :all})
 
+(defn to-clojureized-keyword
+  "Converts a keyword with embedded underscores into one with embedded dashes."
+  [kw]
+  (-> kw
+      name
+      (.replace \_ \-)
+      keyword))
+
 (defn extract-argument-value
   "Uses the arg-resolvers to identify the resolved value for an argument. First a check for
   the keyword version of the argument (which is a symbol) takes place. If that resolves as nil,
   a second search occurs, using the API version of the keyword (with dashes converted to underscores)."
   [argument request arg-resolvers]
-  (let [arg-kw (keyword (name argument))
-        api-kw (keyword (.replace (name argument) "-" "_"))]
+  (let [arg-kw (keyword (if (map? argument)
+                          (-> argument
+                              :as
+                              (or (throw (IllegalArgumentException. "map argument has no :as key")))
+                              name)
+                          (name argument)))
+        api-kw (to-clojureized-keyword arg-kw)]
     (or
       (some #(% arg-kw request) arg-resolvers)
       (if (= arg-kw api-kw)
@@ -125,3 +138,4 @@
   when a match is found."
   [request namespace-name compiled-paths]
   (some (partial match-request-to-compiled-path request namespace-name) compiled-paths))
+

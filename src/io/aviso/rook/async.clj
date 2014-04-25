@@ -203,9 +203,7 @@
 
 (def request-copy-properties
   "Properties of a Ring request that should be copied into a chained request."
-  [:server-port :server-name :remote-addr :scheme :content-type :character-encoding
-   :ssl-client-cert :headers
-   :server-uri])
+  [:server-port :server-name :remote-addr :scheme :ssl-client-cert :server-uri])
 
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
@@ -213,8 +211,9 @@
   to interact with other resources as if via HTTP/HTTPs, but without the cost, in terms of processing time to
   encode and decode requests, and in terms of blocking the limited number of request servicing threads.
 
-  Request processing should be broken up into two phases: an initial synchronous phase that is largely concerned with
-  standard protocol issues (such as converting the body from JSON or EDN text into Clojure data) and a later,
+  Request processing should be broken up into two phases: an initial phase (synchronous or
+  asynchronous) that is largely concerned with standard protocol issues
+  (such as converting the body from JSON or EDN text into Clojure data) and a later,
   asynchronous phase (the routes provided to this function as handler).
 
   The loopback allows this later asynchronous phase to be re-entrant.
@@ -230,12 +229,17 @@
 
   The loopback handler will capture some request data when first invoked (in a non-loopback request); this information
   is merged into the request map provided to the handler. This includes :scheme, :server-port, :server-name,
-  and several others. Specifically :server-uri is captured, so that the :resource-uri argument can be calculated.
+  and several others.
 
-  What's not captured: the :body, :params, :uri, :query-string, and all the various :*-params generated
+  :server-uri is captured, so that the :resource-uri argument can be calculated.
+
+  What's not captured: the :body, :params, :uri, :query-string, :headers, and all the various :*-params generated
   by standard middleware. Essentially, enough information is captured and restored to allow the eventual
   handler to make determinations about the originating request, but not know the specific URI, query parameters,
   or posted data.
+
+  Specifically, the client in a loopback will need to explicitly decide which, if any, headers are to
+  be passed through the loopback.
 
   In addition, the [:rook :arg-resolvers] key is captured, since often default argument resolvers are
   defined higher in the pipeline."

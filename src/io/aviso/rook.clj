@@ -75,6 +75,23 @@
                                 (str ":" port)))))]
     (str server-uri (:context request) "/")))
 
+
+
+(defn clojureized-params-arg-resolver
+  "Converts the Request :params map, changing each key from embedded underscores to embedded dashes, the
+  latter being more idiomatic Clojure.
+
+  For example, you could define a parameter as:
+    {:keys [user-id email new-password] :as params*}
+
+  Which will work, even if the actual keys in the :params map were :user_id, :email, and :new_password.
+
+  This reflects the default configuration, where params* is mapped to this function."
+  [request]
+  (-> request
+      :params
+      (utils/transform-keys internals/to-clojureized-keyword)))
+
 (defn wrap-with-default-arg-resolvers
   "Adds a default set of argument resolvers, allowing for resolution of :request (as the request),
   :params (the :params key of the request),
@@ -91,7 +108,8 @@
                                (get-in request [:headers (name kw)])))
                            (build-fn-arg-resolver :request identity
                                                   :resource-uri resource-uri-arg-resolver
-                                                  :params :params)))
+                                                  :params :params
+                                                  :params* clojureized-params-arg-resolver)))
 
 (defn- get-compiled-paths
   [namespace-name]
