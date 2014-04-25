@@ -19,6 +19,14 @@
      [async :as async]
      [utils :as utils]]))
 
+(defn pass-headers
+  "Useful in cases where the success handler is interested in the response headers, rather
+  than the body of the response. For example, many responses return no body, but interesting headers (such
+  as a 201 (Created).  In that situation, the :success callback can be overridden to this function,
+  and the success clause of the `then` macro will receive the useful headers, rather than the empty body."
+  [response]
+  [nil (:headers response)])
+
 (defn new-request
   "New request through the handler.  A client request is a structure that stores a (partial) Ring request,
   a handler function (that will be passed the Ring request), and additional data used to handle
