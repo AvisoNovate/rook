@@ -53,6 +53,9 @@
   (or (extra-coercions schema)
       (coerce/string-coercion-matcher schema)))
 
+(defn wrap-invalid-response [failures]
+  (utils/response HttpServletResponse/SC_BAD_REQUEST (format-failures failures)))
+
 (defn validate-against-schema
   "Performs the validation. The data is coerced using the string-cooercion-matcher (which makes sense
   as many of the values are provided as string query parameters, but need to be other types).
@@ -63,12 +66,12 @@
   Rreturns a tuple:
   On success, the tuple is [:valid request] (that is, an updated request with the params
   re-written).
-  On failure, the tuple is [:invalid response]: a response to return to the client."
+  On failure, the tuple is [:invalid failures], where failures are an output from Schema validation."
   [request schema]
   (let [coercer (coerce/coercer schema string-coercion-matcher)
         params' (-> request :params coercer)]
     (if (su/error? params')
-      [:invalid (utils/response HttpServletResponse/SC_BAD_REQUEST (-> params' su/error-val format-failures))]
+      [:invalid (su/error-val params')]
       [:valid (assoc request :params params')])))
 
 (defn wrap-with-schema-validation
@@ -78,14 +81,14 @@
   The two-argument version includes a function used to wrap the bad request response;
   this is identity in the normal case (and is provided to support async processing)."
   ([handler]
-   (wrap-with-schema-validation handler identity))
-  ([handler wrap-invalid-response]
+   (wrap-with-schema-validation handler wrap-invalid-response))
+  ([handler failure-handler]
    (fn [request]
      (or
        (when-let [schema (-> request :rook :metadata :schema)]
          (let [[valid? data] (validate-against-schema request schema)]
            (case valid?
              :valid (handler data)
-             :invalid (wrap-invalid-response data))))
+             :invalid (failure-handler data))))
        (handler request)))))
 
