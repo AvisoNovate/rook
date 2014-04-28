@@ -145,6 +145,20 @@
                        :body
                        :message))))
 
+    (it "properly sends schema validation failures"
+        (let [handler (->
+                        (async/namespace-handler "/validating" 'validating)
+                        async/wrap-with-loopback
+                        async/async-handler->ring-handler)
+              response (-> (mock/request :post "/validating")
+                           handler)]
+          (should= HttpServletResponse/SC_BAD_REQUEST
+                   (:status response))
+          (should= "validation-error" (-> response :body :error))
+          ;; TODO: Not sure that's the exact format I want sent back to the client!
+          (should= "{:name missing-required-key}" (-> response :body :failures))))
+
+
     (it "returns a 500 response if a sync handler throws an error"
         (let [handler (->
                         (async/namespace-handler "/fail" 'failing)
