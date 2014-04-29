@@ -24,7 +24,9 @@
       ring.middleware.params/wrap-params))
 
 (defn mkrequest [method path namespace]
-  (let [handler (-> (wrap-namespace (-> identity wrap-with-function-arg-resolvers) namespace)
+  (let [handler (-> identity                                ; "handler" returns the request
+                    wrap-with-function-arg-resolvers
+                    (wrap-namespace namespace)
                     param-handling)]
     (handler (mock/request method path))))
 
@@ -127,8 +129,8 @@
     (it "should operate with all types of arg-resolvers"
         (let [test-mw (-> (wrap-namespace default-rook-pipeline 'rook-test)
                           (wrap-with-arg-resolvers
-                            (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
-                            (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request)))))
+                            (build-map-arg-resolver {:test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234})
+                            (build-fn-arg-resolver {:test4 (fn [request] (str "test$" (:uri request)))}))
                           param-handling)]
           (should= "test1=TEST!,id=123,test2=TEST@,test3=TEST#,test4=test$/123/activate,request=13,meth=:1234"
                    (->

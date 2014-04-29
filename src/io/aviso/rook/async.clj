@@ -250,7 +250,7 @@
      (let [arg-resolvers (-> request :rook :arg-resolvers)
            captured-request-data (select-keys request request-copy-properties)]
        (letfn [(handler' [nested-request]
-                         (let [wrapped (rook/wrap-with-arg-resolvers handler (rook/build-map-arg-resolver k handler'))
+                         (let [wrapped (rook/wrap-with-arg-resolvers handler (rook/build-map-arg-resolver {k handler'}))
                                request' (-> nested-request
                                             (assoc k handler')
                                             (assoc-in [:rook :arg-resolvers] arg-resolvers)

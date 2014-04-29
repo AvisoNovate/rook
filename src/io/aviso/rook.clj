@@ -17,21 +17,19 @@
   (concat coll2 coll1))
 
 (defn build-map-arg-resolver
-  "Builds a static argument resolver around the map of keys and values; the values are the extract resolved
+  "Builds a static argument resolver around the map of keys and values; the values are the exact resolved
   value for arguments matching the keys."
-  [& kvs]
-  (let [arg-map (apply hash-map kvs)]
-    (fn [arg request]
-      (get arg-map arg))))
+  [arg-map]
+  (fn [arg request]
+    (get arg-map arg)))
 
 (defn build-fn-arg-resolver
   "Builds dynamic argument resolvers that extract data from the request. The value for each key is a function;
   the function is invoked to resolve the argument matching the key. The function is passed the Ring request map."
-  [& kvs]
-  (let [arg-map (apply hash-map kvs)]
-    (fn [arg request]
-      (when-let [fun (get arg-map arg)]
-        (fun request)))))
+  [fn-map]
+  (fn [arg request]
+    (when-let [f (get fn-map arg)]
+      (f request))))
 
 (defn request-arg-resolver
   "A dynamic argument resolver that simply resolves the argument to the matching key in the request map."
@@ -106,10 +104,10 @@
                                (get-in request [:params kw])
                                (get-in request [:route-params kw])
                                (get-in request [:headers (name kw)])))
-                           (build-fn-arg-resolver :request identity
-                                                  :resource-uri resource-uri-arg-resolver
-                                                  :params :params
-                                                  :params* clojureized-params-arg-resolver)))
+                           (build-fn-arg-resolver {:request      identity
+                                                   :resource-uri resource-uri-arg-resolver
+                                                   :params       :params
+                                                   :params*      clojureized-params-arg-resolver})))
 
 (defn- get-compiled-paths
   [namespace-name]
