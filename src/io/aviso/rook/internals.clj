@@ -31,6 +31,14 @@
       (.replace \_ \-)
       keyword))
 
+(defn to-api-keyword
+  "Converts a keyword with embedded dashes into one with embedded underscores."
+  [kw]
+  (-> kw
+      name
+      (.replace \- \_)
+      keyword))
+
 (defn extract-argument-value
   "Uses the arg-resolvers to identify the resolved value for an argument. First a check for
   the keyword version of the argument (which is a symbol) takes place. If that resolves as nil,
@@ -41,12 +49,12 @@
                               :as
                               (or (throw (IllegalArgumentException. "map argument has no :as key")))
                               name)
-                          (name argument)))
-        api-kw (to-clojureized-keyword arg-kw)]
+                          (name argument)))]
     (or
       (some #(% arg-kw request) arg-resolvers)
-      (if (= arg-kw api-kw)
-        (some #(% api-kw request) arg-resolvers)))))
+      (let [api-kw (to-api-keyword arg-kw)]
+        (if-not (= arg-kw api-kw)
+          (some #(% api-kw request) arg-resolvers))))))
 
 (defn- is-var-a-function?
   "Checks if a var resolved from a namespace is actually a function."

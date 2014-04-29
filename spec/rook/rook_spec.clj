@@ -54,6 +54,21 @@
           :get "/?offset-100" 'rook-test2 :function #'rook-test2/index)))
 
   (describe "argment resolution"
+
+    (it "should search using the API key if the natural key does not exist"
+
+        (should= :by-api-keyword
+                 (extract-argument-value 'user-id
+                                         {:params {:user_id :by-api-keyword}}
+                                         [(fn [kw request] (get-in request [:params kw]))])))
+
+    (it "should favor the natural key over the API key"
+        (should= :by-natural-keyword
+                 (extract-argument-value 'user-id
+                                         {:params {:user-id :by-natural-keyword
+                                                   :user_id :by-api-keyword}}
+                                         [(fn [kw request] (get-in request [:params kw]))])))
+
     (it "should use :arg-resolvers to calculate argument values"
         (let [test-mw (-> (namespace-middleware default-rook-pipeline 'rook-test)
                           param-handling)]
