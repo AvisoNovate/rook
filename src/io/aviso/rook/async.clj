@@ -196,7 +196,7 @@
   ([path namespace-name]
    (namespace-handler path namespace-name default-rook-pipeline))
   ([path namespace-name handler]
-   (let [handler' (rook/namespace-middleware handler namespace-name)]
+   (let [handler' (rook/wrap-namespace handler namespace-name)]
      (if path
        (context path handler')
        handler'))))
@@ -224,7 +224,7 @@
   handler - delegate asynchronous handler, typically via namespace-handler and/or routes
   k - the keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default.
 
-  The loopback handler is exposed via arg-resolver-middleware: resource handler functions can gain access
+  The loopback handler is exposed via wrap-with-arg-resolvers: resource handler functions can gain access
   to the loopback by providing an argument with a matching name. The default Ring request key is :loopback-handler.
 
   The loopback handler will capture some request data when first invoked (in a non-loopback request); this information
@@ -250,7 +250,7 @@
      (let [arg-resolvers (-> request :rook :arg-resolvers)
            captured-request-data (select-keys request request-copy-properties)]
        (letfn [(handler' [nested-request]
-                         (let [wrapped (rook/arg-resolver-middleware handler (rook/build-map-arg-resolver k handler'))
+                         (let [wrapped (rook/wrap-with-arg-resolvers handler (rook/build-map-arg-resolver k handler'))
                                request' (-> nested-request
                                             (assoc k handler')
                                             (assoc-in [:rook :arg-resolvers] arg-resolvers)

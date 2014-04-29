@@ -39,7 +39,7 @@
   (get request arg))
 
 
-(defn arg-resolver-middleware
+(defn wrap-with-arg-resolvers
   "Middleware which adds the provided argument resolvers to the [:rook :arg-resolvers] collection.
   Argument resolvers are used to gain access to information in the request, or information that
   can be computed from the request, or static information that can be injected into resource handler
@@ -100,7 +100,7 @@
   or a route parameter (from :route-params)
   or an header."
   [handler]
-  (arg-resolver-middleware handler
+  (wrap-with-arg-resolvers handler
                            (fn [kw request]
                              (or
                                (get-in request [:params kw])
@@ -129,7 +129,7 @@
        (remove nil?)
        doall))
 
-(defn namespace-middleware
+(defn wrap-namespace
   "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
   either by metadata or by default mappings from function name - sets this functions metadata in request map.
 
@@ -149,7 +149,7 @@
 (defn rook-dispatcher
   "Ring request handler that uses information from :rook entry in the request map to invoke the previously
   identified function, after resolving the function's arguments. This function must always be wrapped
-  in namespace-middleware (which is what identifies the resource handler function to invoke).
+  in wrap-namespace (which is what identifies the resource handler function to invoke).
 
   This should always be wrapped with wrap-with-function-arg-resolvers, to ensure that function-specific
   argument resolvers are present in the [:rook :arg-resolvers] key."
@@ -191,7 +191,7 @@
   ([path namespace-name]
    (namespace-handler path namespace-name default-rook-pipeline))
   ([path namespace-name handler]
-   (let [handler' (namespace-middleware handler namespace-name)]
+   (let [handler' (wrap-namespace handler namespace-name)]
      (if path
        (compojure/context path [] handler')
        handler'))))

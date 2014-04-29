@@ -24,12 +24,12 @@
       ring.middleware.params/wrap-params))
 
 (defn mkrequest [method path namespace]
-  (let [handler (-> (namespace-middleware (-> identity wrap-with-function-arg-resolvers) namespace)
+  (let [handler (-> (wrap-namespace (-> identity wrap-with-function-arg-resolvers) namespace)
                     param-handling)]
     (handler (mock/request method path))))
 
 (describe "io.aviso.rook"
-  (describe "namespace-middleware"
+  (describe "wrap-namespace"
 
     (it "should match incoming URIs and methods to functions"
         (do-template [method path namespace-name rook-key expected-value]
@@ -70,7 +70,7 @@
                                          [(fn [kw request] (get-in request [:params kw]))])))
 
     (it "should use :arg-resolvers to calculate argument values"
-        (let [test-mw (-> (namespace-middleware default-rook-pipeline 'rook-test)
+        (let [test-mw (-> (wrap-namespace default-rook-pipeline 'rook-test)
                           param-handling)]
 
           (do-template [method path headers expected-result]
@@ -125,8 +125,8 @@
                             handler))))
 
     (it "should operate with all types of arg-resolvers"
-        (let [test-mw (-> (namespace-middleware default-rook-pipeline 'rook-test)
-                          (arg-resolver-middleware
+        (let [test-mw (-> (wrap-namespace default-rook-pipeline 'rook-test)
+                          (wrap-with-arg-resolvers
                             (build-map-arg-resolver :test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234)
                             (build-fn-arg-resolver :test4 (fn [request] (str "test$" (:uri request)))))
                           param-handling)]
@@ -143,13 +143,13 @@
 
     (it "should match URIs and methods to specific functions"
         (let [test-mw (-> (compojure/context "/merchant" []
-                                             (namespace-middleware
+                                             (wrap-namespace
                                                (compojure/routes
                                                  (compojure/context "/:id/activate" []
-                                                                    (namespace-middleware
+                                                                    (wrap-namespace
                                                                       (compojure/routes
                                                                         (compojure/context "/:key" []
-                                                                                           (namespace-middleware
+                                                                                           (wrap-namespace
                                                                                              default-rook-pipeline 'rook-test3))
                                                                         default-rook-pipeline)
                                                                       'rook-test2))
@@ -165,7 +165,7 @@
                                                                                            (namespace-handler "/:key" 'rook-test3)))))
                            param-handling)
               test-mw4 (-> (namespace-handler "/test4" 'rook-test4)
-                           (arg-resolver-middleware request-arg-resolver))]
+                           (wrap-with-arg-resolvers request-arg-resolver))]
           (do-template [handler method path expected-result]
             (should= expected-result
                      (handler (mock/request method path)))

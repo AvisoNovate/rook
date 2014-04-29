@@ -192,7 +192,7 @@ Argument resolvers can fulfill many purposes:
 Argument resolver functions can be specified as metadata directly on the resource handler function;
 the +:arg-resolvers+ metadata is a sequence of resolvers.
 
-Function {api}/io.aviso.rook.html#var-arg-resolver-middleware[+arg-resolver-middleware+] is used to specify additional functions for +:arg-resolvers+.
+Function {api}/io.aviso.rook.html#var-wrap-with-arg-resolvers[+wrap-with-arg-resolvers+] is used to specify additional functions for +:arg-resolvers+.
 Argument resolvers added later are considered more specific and so are checked first.
 
 Function {api}/io.aviso.rook.html#var-build-map-arg-resolver[+build-map-arg-resolver+] constructs an argument resolver function from a map; It simply returns values from
@@ -205,14 +205,13 @@ TIP: Remember that a keyword can act like a function when passed a map, such as 
 
 Function {api}/io.aviso.rook.html#var-request-arg-resolver[+request-arg-resolver+] is an argument resolver that resolves the argument keyword against the Ring request map itself.
 
-{api}/io.aviso.rook.html#var-arg-resolver-middleware[+arg-resolver-middleware+] accepts a handler and
-any number of argument resolvers, allowing them to be easily composed and
-contributed:
+For example, to allow the argument +conn-pool+ to be resolved as a specific object, and to allow any key from the request map
+itself to be resolved, the following function can be defined:
 
 ----
 (defn add-standard-resolvers
   [handler conn-pool]
-  (arg-resolver-middleware handler
+  (wrap-with-arg-resolvers handler
                            (build-map-arg-resolver {:conn-pool conn-pool})
                            request-arg-resolver))
 ----
@@ -222,7 +221,7 @@ contributed:
 A typical web service will expose some number of resources; under Rook this means mapping a number of namespaces.
 
 The {api}/io.aviso.rook.html#var-namespace-handler[+namespace-handler+] function is the easy way to do this mapping. It combines +compojure.core/context+ with Rook's
-+namespace-middleware+ (which identifies the function to be invoked within the namespace) and +default-rook-pipeline+.
++wrap-namespace+ (which identifies the function to be invoked within the namespace) and +default-rook-pipeline+.
 
 ----
 (routes
@@ -275,7 +274,7 @@ in an inner context, before being invoked.
 == Writing Rook Middleware
 
 Rook uses the +:rook+ key of the request to store information needed to process requests.
-With the exception of +:arg-resolvers+, the values are supplied by the the +namespace-middleware+ function.
+With the exception of +:arg-resolvers+, the values are supplied by the the +wrap-namespace+ function.
 
 +:arg-resolvers+::
 List of argument resolvers that apply to any invoked resource handler functions.
@@ -287,7 +286,7 @@ The matched function, which will be invoked by +default-rook-pipeline+.
 The metadata for the matched function. This is the merged metadata of the function and the namespace (if there
 are collisions, the function takes precedence).
 
-Rook middleware that fits between +namespace-middleware+ and +rook-dispatcher+ should check for nested request key +[:rook :function]+ to
+Rook middleware that fits between +wrap-namespace+ and +rook-dispatcher+ should check for nested request key +[:rook :function]+ to
 see if a function has been identified.
 
 == Validation
