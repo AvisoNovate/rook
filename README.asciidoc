@@ -368,8 +368,8 @@ Below is the minimal setup for a standard Jetty Ring server handling Rook resour
                         (routes
                           (namespace-handler "/:hotel-id/rooms" 'org.example.resources.rooms)
                           rook/default-rook-pipeline)))
-                    rook/wrap-with-standard-middleware)])
-      (jetty/run-jetty handler {:port port :join? false}))
+                    rook/wrap-with-standard-middleware)]
+        (jetty/run-jetty handler {:port port :join? false})))
 
 ----
 
