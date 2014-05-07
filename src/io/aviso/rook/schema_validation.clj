@@ -9,7 +9,7 @@
     [io.aviso.rook.utils :as utils])
   (:import (javax.servlet.http HttpServletResponse)
            (java.text SimpleDateFormat)
-           (java.util TimeZone Date)))
+           (java.util TimeZone Date UUID)))
 
 
 (defn format-failures
@@ -46,6 +46,7 @@
 ;;; but see https://github.com/Prismatic/schema/issues/82
 (def ^:private extra-coercions
   {s/Bool (coerce/safe #(Boolean/parseBoolean %))
+   s/Uuid (coerce/safe #(UUID/fromString %))
    s/Inst (coerce/safe #(parse-instant %))})
 
 (defn- string-coercion-matcher

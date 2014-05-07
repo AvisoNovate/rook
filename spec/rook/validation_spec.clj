@@ -1,6 +1,6 @@
 (ns rook.validation-spec
   (:import (javax.servlet.http HttpServletResponse)
-           (java.util Date TimeZone Calendar)
+           (java.util Date TimeZone Calendar UUID)
            (java.text SimpleDateFormat))
   (:use
     speclj.core
@@ -63,11 +63,18 @@
                            (validate-against-schema {:params {:languages ["english" "french"]}}
                                                     {:languages [(s/enum :english :french)]})))
 
-      (it "should coorce strings to Date"
+      (it "should cooerce strings to s/Inst"
           (let [now (current-instant)]
             (should-be-valid {:params {:date now}}
                              (validate-against-schema {:params {:date (format-instant now)}}
-                                                      {:date s/Inst}))))))
+                                                      {:date s/Inst}))))
+
+      (it "should cooerce strings to s/Uuid"
+          (let [uuid (UUID/randomUUID)]
+
+            (should-be-valid {:params {:id uuid}}
+                             (validate-against-schema {:params {:id (str uuid)}}
+                                                      {:id s/Uuid}))))))
 
   (describe "middleware"
 
