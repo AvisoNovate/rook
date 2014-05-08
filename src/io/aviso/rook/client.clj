@@ -12,7 +12,7 @@
   than JSON or EDN encoded strings)."
   (:refer-clojure :exclude [send])
   (:require
-    [clojure.core.async :refer [go <! chan alt!]]
+    [clojure.core.async :refer [go <! chan alt! take! put!]]
     [clojure.tools.logging :as l]
     [clojure.string :as str]
     [io.aviso.rook
@@ -127,7 +127,6 @@
               uuid
               (utils/summarize-request (:ring-request request))
               (utils/pretty-print-brief response))
-    ;; Invoke the callback; the result from the callback is the result of the go block.
     ;; In some cases, the response from upstream is returned exactly as is; for example, this
     ;; is the default behavior for a 401 status. However, downstream the content type will change
     ;; from Clojure data structures to either JSON or EDN, so the content type and length is not valid.
@@ -165,9 +164,12 @@
                     uuid
                     (utils/summarize-request ring-request')
                     (-> ring-request (dissoc :request-method :uri) utils/pretty-print))
-        response-ch (handler ring-request')]
-    (go
-      (process-async-response request uuid (<! response-ch)))))
+        response-ch (handler ring-request')
+        send-result-ch (chan 1)]
+    (take! response-ch
+           #(->> (process-async-response request uuid %)
+                 (put! send-result-ch)))
+    send-result-ch))
 
 (defn- make-body [symbol body]
   (cond
