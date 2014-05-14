@@ -2,6 +2,8 @@
 :api: http://howardlewisship.com/io.aviso/rook/io.aviso.rook.html#var-rook-dispatcher
 = Rook
 
+image:https://drone.io/github.com/AvisoNovate/rook/status.png[Build Status]
+
 Rook is a set of middleware and handlers to enable metadata-based routing for https://github.com/ring-clojure/ring[Ring] web applications.
 
 The intention is to expose a Clojure _namespace_ as a web service _resource_; there's a default mapping of HTTP verbs
