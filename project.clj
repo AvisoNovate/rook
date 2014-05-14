@@ -6,7 +6,7 @@
   ;; Normally we don't AOT compile; only when tracking down reflection warnings.
   :profiles {:dev
               {:dependencies [[ring-mock "0.1.5"]
-                              [io.aviso/pretty "0.1.10"]
+                              [io.aviso/pretty "0.1.11"]
                               [clj-http "0.9.1"]
                               [speclj "3.0.2"]
                               [log4j "1.2.17"]]}}
