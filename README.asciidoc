@@ -2,7 +2,7 @@
 :api: http://howardlewisship.com/io.aviso/rook/io.aviso.rook.html#var-rook-dispatcher
 = Rook
 
-image:https://www.codeship.io/projects/3e02e970-bda9-0131-6d01-4e3cfab7649c/status[Build Status]
+image:https://drone.io/github.com/AvisoNovate/rook/status.png[Build Status]
 
 Rook is a set of middleware and handlers to enable metadata-based routing for https://github.com/ring-clojure/ring[Ring] web applications.
 
