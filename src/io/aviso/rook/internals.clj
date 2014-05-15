@@ -147,3 +147,6 @@
   [request namespace-name compiled-paths]
   (some (partial match-request-to-compiled-path request namespace-name) compiled-paths))
 
+(defn to-message [^Throwable t]
+  (or (.getMessage t)
+      (-> t .getClass .getName)))

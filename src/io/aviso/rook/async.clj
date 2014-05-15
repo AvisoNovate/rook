@@ -32,10 +32,10 @@
      [format-params :as format-params]
      [format-response :as format-response]]
     [io.aviso.rook :as rook]
-    [io.aviso.rook.internal.exceptions :as exceptions]
     [io.aviso.rook
      [schema-validation :as sv]
-     [utils :as utils]]))
+     [utils :as utils]
+     [internals :as internals]]))
 
 (defmacro safety-first
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
@@ -52,7 +52,7 @@
                    (:request-id r# (or "<INCOMING>"))
                    (utils/summarize-request r#)))
        (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                       {:exception (exceptions/to-message t#)}))))
+                       {:exception (internals/to-message t#)}))))
 
 
 (defmacro safe-go
@@ -278,18 +278,18 @@
                   (catch Throwable t
                     (result->channel
                       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                                      {:exception (exceptions/to-message t)}))))
+                                      {:exception (internals/to-message t)}))))
                 (fn [handler-response]
                   (if handler-response
                     (put! response-ch
                           (->
-                           ;; We can't pass the asynchronous req-handler to w-r-r, it expects
-                           ;; a sync handler. Instead, we provide a "fake" sync handler
-                           ;; that returns the previously obtained handler response.
-                           (constantly handler-response)
-                           (format-response/wrap-restful-response :formats formats)
-                           ;; Capture and invoke the wrapped, fake handler
-                           (as-> f (f request))))
+                            ;; We can't pass the asynchronous req-handler to w-r-r, it expects
+                            ;; a sync handler. Instead, we provide a "fake" sync handler
+                            ;; that returns the previously obtained handler response.
+                            (constantly handler-response)
+                            (format-response/wrap-restful-response :formats formats)
+                            ;; Capture and invoke the wrapped, fake handler
+                            (as-> f (f request))))
                     (close! response-ch))))
          response-ch)))))
 
