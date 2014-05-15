@@ -29,15 +29,8 @@
                      <!!
                      :body))))
 
-    (it "returns false when all handlers return false"
-
-        (should= false
-                 (->
-                   (async/routing {} (fn [_] (thread false)))
-                   <!!)))
-
-    (it "returns false when there are no handlers"
-        (should= false
+    (it "returns nil when there are no handlers"
+        (should= nil
                  (->
                    (async/routing {})
                    <!!))))
@@ -47,13 +40,6 @@
     (it "returns most values normally"
         (should= :anything
                  (-> :anything
-                     async/result->channel
-                     <!!)))
-
-    (it "converts nil to false"
-
-        (should= false
-                 (-> nil
                      async/result->channel
                      <!!))))
 
@@ -66,15 +52,7 @@
                               (fn [_] (Thread/currentThread))
                               async/ring-handler->async-handler
                               invoke
-                              <!!)))
-
-    (it "converts nil to false"
-        (should= false
-                 (->
-                   (constantly nil)
-                   async/ring-handler->async-handler
-                   invoke
-                   <!!))))
+                              <!!))))
 
 
   (describe "namespace-handler"

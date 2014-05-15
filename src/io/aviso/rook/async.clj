@@ -6,8 +6,8 @@
   implemented as a core.async go block, and the return value is a channel that recieves the Ring response
   map.
 
-  Because nil is not a valid return value from a go block, the value false (wrapped in a channel)
-  is used when a request handler, or middleware, chooses not to process the request.
+  Because nil cannot be put on a channel, handlers that would like to
+  return nil should close! the associated channel.
 
   Async middleware comes in three categories.  Basic middleware, that simply adds or modifies
   the Ring request map works the same, and passes the result of the delegate handler through
@@ -24,7 +24,7 @@
   can be obtained without blocking."
   (:import (javax.servlet.http HttpServletResponse))
   (:require
-    [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take!]]
+    [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
     [clojure.tools.logging :as l]
     [clout.core :as clout]
     [ring.middleware
@@ -39,22 +39,20 @@
 
 (defmacro safety-first
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
-  is converted to a 500 response. Also, if the body evaluates to nil, it is converted to false.
+  is converted to a 500 response.
 
   The request is used when reporting the exception (it contains a :request-id
   key set by io.aviso.client/send)."
   [request & body]
-  `(or
-     (try
-       ~@body
-       (catch Throwable t#
-         (let [r# ~request]
-           (l/errorf t# "Exception processing request %s (%s)"
-                     (:request-id r# (or "<INCOMING>"))
-                     (utils/summarize-request r#)))
-         (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                         {:exception (exceptions/to-message t#)})))
-     false))
+  `(try
+     ~@body
+     (catch Throwable t#
+       (let [r# ~request]
+         (l/errorf t# "Exception processing request %s (%s)"
+                   (:request-id r# (or "<INCOMING>"))
+                   (utils/summarize-request r#)))
+       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                       {:exception (exceptions/to-message t#)}))))
 
 
 (defmacro safe-go
@@ -76,16 +74,18 @@
     (-> request async-handler <!!)))
 
 (defn result->channel
-  "Wraps the result from a synchronous handler into a channel. The result is put into the channel, though
-  nil is converted to false."
+  "Wraps the result from a synchronous handler into a channel. Non-nil results are put! on to the channel;
+  a nil result causes the channel to be closed."
   [result]
   (let [ch (chan 1)]
-    (put! ch (or result false))
+    (if result
+      (put! ch result)
+      (close! ch))
     ch))
 
 (defn ring-handler->async-handler
   "Wraps a syncronous Ring handler function as an asynchronous handler. The handler is invoked in another
-   thread, and a nil response is converted to false."
+   thread, and a nil response is converted to a close! action."
   [handler]
   (fn [request]
     (safe-thread request (handler request))))
@@ -93,9 +93,9 @@
 (defn- routing*
   [request response-ch handlers]
   (if (empty? handlers)
-    ;; Resolve to false when running out of handlers.
-    (put! response-ch false)
-    ;; Otherwise, see if the first handler will return a truthy value
+    ;; Close response channel upon running out of handlers.
+    (close! response-ch)
+    ;; Otherwise, see if the first handler will return a truthy value.
     (take! (safety-first request ((first handlers) request))
            (fn [handler-response]
              (if handler-response
@@ -104,7 +104,8 @@
 
 (defn routing
   "Routes a request to sequence of async handlers. Each handler should return a channel
-  that contains either a Ring response map or false (nil is not an allowed value over a channel). Handlers
+  that contains either a Ring response map or a closed channel
+  (nil is not an allowed value over a channel). Handlers
   are typically implemented using core.async go or thread blocks."
   [request & handlers]
   (let [response-ch (chan 1)]
@@ -125,21 +126,21 @@
 
   For an asynchronous handler (one implemented around a go or thread block),
   the function should return a channel that will receive the ultimate result.
-  The function may return false to allow the search for a handler to continue.
+  The function may close the channel to allow the search for a handler to continue.
 
   Asynchronous handler functions should be careful to return a 500 response if there is
   a failure (e.g., a thrown exception).  The safe-go and safe-thread macros
   are useful to easily ensure this.
 
   For a synchronous handler (which must have the :sync true meta-data), the function
-  is invoked in a thread, and its result wrapped in a channel (with nil converted to false).
+  is invoked in a thread, and its result wrapped in a channel (with nil converted to close! action).
   Exceptions thrown by a synchronous handler are automatically converted into a 500 response.
 
   If no resource handler function has been identified, this function
-  will return false (wrapped in a channel)."
+  will return a closed unbuffered channel."
   [{{meta-data :metadata f :function} :rook :as request}]
   (cond
-    (nil? f) (result->channel false)
+    (nil? f) (result->channel nil)
     (:sync meta-data) (safe-thread request
                                    (rook/rook-dispatcher request))
     :else (or
@@ -175,7 +176,7 @@
   (fn [request]
     (if-let [params (clout/route-matches route request)]
       (handler (assoc-route-params-alias request params))
-      (result->channel false))))
+      (result->channel nil))))
 
 (defmacro context
   "Give all routes in the form a common path prefix. A simplified version of Compojure's context."
@@ -276,15 +277,17 @@
                       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                                       {:exception (exceptions/to-message t)}))))
                 (fn [handler-response]
-                  (put! response-ch
-                        (->
-                          ;; We can't pass the asynchronous req-handler to w-r-r, it expects
-                          ;; a sync handler. Instead, we provide a "fake" sync handler
-                          ;; that returns the previously obtained handler response.
-                          (constantly handler-response)
-                          (format-response/wrap-restful-response :formats formats)
-                          ;; Capture and invoke the wrapped, fake handler
-                          (as-> f (f request))))))
+                  (if handler-response
+                    (put! response-ch
+                          (->
+                           ;; We can't pass the asynchronous req-handler to w-r-r, it expects
+                           ;; a sync handler. Instead, we provide a "fake" sync handler
+                           ;; that returns the previously obtained handler response.
+                           (constantly handler-response)
+                           (format-response/wrap-restful-response :formats formats)
+                           ;; Capture and invoke the wrapped, fake handler
+                           (as-> f (f request))))
+                    (close! response-ch))))
          response-ch)))))
 
 (defn wrap-with-standard-middleware
@@ -308,7 +311,7 @@
              request' (session/session-request request options')]
          (take! (handler request')
                 (fn [handler-response]
-                  (put! response-ch (if handler-response
-                                      (session/session-response handler-response request' options')
-                                      false))))
+                  (if handler-response
+                    (put! response-ch (session/session-response handler-response request' options'))
+                    (close! response-ch))))
          response-ch)))))

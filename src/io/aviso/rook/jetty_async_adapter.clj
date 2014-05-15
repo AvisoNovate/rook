@@ -65,13 +65,10 @@
 
         (take! response-ch
                (fn [response]
-                 (if (nil? response)
-                   (l/warnf "Handler for %s closed the channel without providing a response."
-                            (utils/summarize-request request))
-                   (when (compare-and-set! responded false true)
-                     (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
-                     (close! timeout-ch)
-                     (send-async-response continuation (or response {:status HttpServletResponse/SC_NOT_FOUND}))))))
+                 (when (compare-and-set! responded false true)
+                   (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
+                   (close! timeout-ch)
+                   (send-async-response continuation (or response {:status HttpServletResponse/SC_NOT_FOUND})))))
 
         (take! timeout-ch
                (fn [_]
