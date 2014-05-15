@@ -8,7 +8,7 @@
     [clojure.pprint :as pprint]))
 
 (defn new-uuid
-  "Generates a new UUID string, via UUIDrandomUUID."
+  "Generates a new UUID string, via UUID/randomUUID."
   []
   (-> (UUID/randomUUID) .toString))
 
@@ -38,7 +38,7 @@
                 :pretty true))
 
 (defn pretty-print-brief
-  "Prints the object more briefly, with limits on level and length."
+  "Like pretty-print, but prints the object more briefly, with limits on level and length."
   [object]
   (binding [*print-level* 4
             *print-length* 5] (pretty-print object)))
