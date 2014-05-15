@@ -78,7 +78,7 @@
   a nil result causes the channel to be closed."
   [result]
   (let [ch (chan 1)]
-    (if result
+    (if (some? result)
       (put! ch result)
       (close! ch))
     ch))

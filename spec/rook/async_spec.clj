@@ -17,13 +17,13 @@
 
   (describe "routing"
 
-    (it "return the first result that is not false"
+    (it "return the first result that isn't nil"
 
         (let [req {:uri "whatever"}]
           (should= req
                    (->
                      (async/routing req
-                                    (fn [_] (thread false))
+                                    (fn [_] (thread nil))
                                     (fn [request] (thread
                                                     (utils/response 200 request))))
                      <!!
