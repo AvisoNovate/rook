@@ -136,6 +136,9 @@
   is invoked in a thread, and its result wrapped in a channel (with nil converted to close! action).
   Exceptions thrown by a synchronous handler are automatically converted into a 500 response.
 
+  A synchronous handler may return false; this will close the channel and allow the handler
+  search to continue.
+
   If no resource handler function has been identified, this function
   will return a closed unbuffered channel."
   [{{meta-data :metadata f :function} :rook :as request}]
