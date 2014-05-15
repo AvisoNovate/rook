@@ -12,7 +12,7 @@
   than JSON or EDN encoded strings)."
   (:refer-clojure :exclude [send])
   (:require
-    [clojure.core.async :refer [go <! chan alt! take! put!]]
+    [clojure.core.async :refer [go <! chan alt! take! put! close!]]
     [clojure.tools.logging :as l]
     [clojure.string :as str]
     [io.aviso.rook
@@ -167,8 +167,9 @@
         response-ch (handler ring-request')
         send-result-ch (chan 1)]
     (take! response-ch
-           #(->> (process-async-response request uuid %)
-                 (put! send-result-ch)))
+           #(if-let [r (process-async-response request uuid %)]
+              (put! send-result-ch r)
+              (close! send-result-ch)))
     send-result-ch))
 
 (defn- make-body [symbol body]
