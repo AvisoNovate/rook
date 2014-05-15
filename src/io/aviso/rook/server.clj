@@ -5,7 +5,7 @@
     [clojure.tools.logging :as l]))
 
 (defn reloading-handler
-  "Wraps a handler creator function such that the root handler is create fresh on each request;
+  "Wraps a handler creator function such that the root handler is created fresh on each request;
   this is used when developing the application as it supports re-loading of code in a REPL."
   [creator]
   (fn [request]
