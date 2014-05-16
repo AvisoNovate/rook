@@ -15,7 +15,7 @@
                  [ring "1.2.2"]
                  [ring-middleware-format "0.3.2" :exclusions [cheshire
                                                               org.clojure/tools.reader]]
-                 [prismatic/schema "0.2.1" :exclusions [potemkin]]
+                 [prismatic/schema "0.2.2" :exclusions [potemkin]]
                  [compojure "1.1.6"]]
   :plugins [[speclj "3.0.2"]]
   :test-paths ["spec"]
