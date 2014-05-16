@@ -3,24 +3,26 @@
 
   Async handlers operate much the same as normal Ring handlers: they are passed a Ring request map,
   and they compute and return a Ring response. The difference is that the handler is typically
-  implemented as a core.async go block, and the return value is a channel that recieves the Ring response
+  implemented as a `clojure.core.async/go` block, and the return value is a channel that recieves the Ring response
   map.
 
   Because nil cannot be put on a channel, handlers that would like to
-  return nil should close! the associated channel.
+  return nil should `close!` the associated channel.
 
-  Async middleware comes in three categories.  Basic middleware, that simply adds or modifies
-  the Ring request map works the same, and passes the result of the delegate handler through
-  unchanged (but that result will be channel, not the actual Ring response).
+  Async middleware comes in three categories.
+
+  Basic middleware, which simply adds or modifies the Ring request map,
+  works the same as traditional synchronous middleware: it may modify the request map
+  before passing it to its delegate handler; the return value will be a channel, rather than a map.
 
   Intercepting middleware may perform an immediate (non-asynchronous) computation and return a value,
   or may proceed directly to the delegate asynchronous handler. The returned value must be wrapped
-  in a channel (using result->channel). An example of this is middleware that performs authentication
+  in a channel (using [result->channel](#var-result-.3Echannel)). An example of this is middleware that performs authentication
   or input validation.
 
   Complex middleware that operates on the return value from the delegated handler, or must
-  perform its own async operations, is more complex.
-  The delegated handler should be invoked inside a go block, so that the result from the handler
+  perform its own async operations, is more challenging.
+  The delegated handler should be invoked inside a `go` block, so that the result from the handler
   can be obtained without blocking."
   (:import (javax.servlet.http HttpServletResponse))
   (:require
@@ -41,8 +43,8 @@
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
   is converted to a 500 response.
 
-  The request is used when reporting the exception (it contains a :request-id
-  key set by io.aviso.client/send)."
+  The request is used when reporting the exception (it contains a `:request-id`
+  key set by `io.aviso.client/send`)."
   [request & body]
   `(try
      ~@body
@@ -56,26 +58,26 @@
 
 
 (defmacro safe-go
-  "Wraps the body in a safety-first block and then in a go block. The request is used by safety-first if it must
+  "Wraps the body in a [safety-first](#var-safety-first) block and then in a go block. The request is used by `safety-first` if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
   `(go (safety-first ~request ~expr ~@more)))
 
 (defmacro safe-thread
-  "Wraps the body in a safety-first block and then in a thread block. The request is used by safety-first if it must
+  "Wraps the body in a [safety-first](#var-safety-first) block and then in a thread block. The request is used by `safety-first` if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
   `(thread (safety-first ~request ~expr ~@more)))
 
 (defn async-handler->ring-handler
-  "Wraps an asynchronous handler function as a standard synchronous handler."
+  "Wraps an asynchronous handler function as a standard synchronous handler. The synchronous handler uses `<!!`, so it may block."
   [async-handler]
   (fn [request]
     (-> request async-handler <!!)))
 
 (defn result->channel
-  "Wraps the result from a synchronous handler into a channel. Non-nil results are put! on to the channel;
-  a nil result causes the channel to be closed."
+  "Wraps the result from a synchronous handler into a channel. Non-nil results are `put!` on to the channel;
+  a nil result causes the channel to be `close!`ed."
   [result]
   (let [ch (chan 1)]
     (if (some? result)
@@ -85,7 +87,7 @@
 
 (defn ring-handler->async-handler
   "Wraps a syncronous Ring handler function as an asynchronous handler. The handler is invoked in another
-   thread, and a nil response is converted to a close! action."
+   thread, and a nil response is converted to a `close!` action."
   [handler]
   (fn [request]
     (safe-thread request (handler request))))
@@ -106,14 +108,14 @@
   "Routes a request to sequence of async handlers. Each handler should return a channel
   that contains either a Ring response map or a closed channel
   (nil is not an allowed value over a channel). Handlers
-  are typically implemented using core.async go or thread blocks."
+  are typically implemented using `clojure.core.async` `go` or `thread` blocks."
   [request & handlers]
   (let [response-ch (chan 1)]
     (routing* request response-ch handlers)
     response-ch))
 
 (defn routes
-  "Creates an async handler that routes to a number of other async handlers."
+  "Creates an async handler that routes to a number of other async handlers, using [routing](#var-routing)."
   [& handlers]
   #(apply routing % handlers))
 
@@ -153,7 +155,7 @@
                      request)))))
 
 (defn wrap-with-schema-validation
-  "The asynchronous version of schema validation, triggered by the :schema meta-data attribute."
+  "The asynchronous version of schema validation, triggered by `:schema` metadata."
   [handler]
   (sv/wrap-with-schema-validation handler #(-> % sv/wrap-invalid-response result->channel)))
 
@@ -212,32 +214,36 @@
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
   This is essentially the whole point of of the asynchronous support: to allow individual resource handler functions
-  to interact with other resources as if via HTTP/HTTPs, but without the cost, in terms of processing time to
-  encode and decode requests, and in terms of blocking the limited number of request servicing threads.
+  to interact with other resources as if via HTTP/HTTPs, but without the normal cost. Here, cost is evaluated in
+  terms of the processing time to encode and decode requests, the time to perform HTTPs handshakes, and
+  the number of request servicing threads that are blocked. Using async and loopbacks, nearly all of those
+  costs disappear (though, of course, the use of core.async adds its own overheads).
 
   Request processing should be broken up into two phases: an initial phase (synchronous or
   asynchronous) that is largely concerned with standard protocol issues
   (such as converting the body from JSON or EDN text into Clojure data) and a later,
-  asynchronous phase (the routes provided to this function as handler).
+  asynchronous phase (the routes provided to this function as handler).  Alternately, the
+  `io.aviso.rook.jetty-async-adapter` namespace can be used to create a request processing pipeline that
+  is async end-to-end.
 
-  The loopback allows this later asynchronous phase to be re-entrant.
+  The loopback allows this asynchronous processing to be re-entrant.
 
-  The io.aviso.rook.client namespace is specifically designed to allow resources to communiate with each other
+  The `io.aviso.rook.client` namespace is specifically designed to allow resources to communiate with each other
   via the loopback.
 
-  handler - delegate asynchronous handler, typically via namespace-handler and/or routes
-  k - the keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default.
+  - handler - delegate asynchronous handler, typically via namespace-handler and/or routes
+  - k - the keyword added to the Ring request to identify the loopback handler function; `:loopback-handler` by default
 
-  The loopback handler is exposed via wrap-with-arg-resolvers: resource handler functions can gain access
-  to the loopback by providing an argument with a matching name. The default Ring request key is :loopback-handler.
+  The loopback handler is exposed via `wrap-with-arg-resolvers`: resource handler functions can gain access
+  to the loopback by providing an argument with a matching name.
 
   The loopback handler will capture some request data when first invoked (in a non-loopback request); this information
-  is merged into the request map provided to the handler. This includes :scheme, :server-port, :server-name,
+  is merged into the request map provided to the delegate handler. This includes `:scheme`, `:server-port`, `:server-name`,
   and several others.
 
-  :server-uri is captured, so that the :resource-uri argument can be calculated.
+  `:server-uri` is also captured, so that the `:resource-uri` argument can be resolved.
 
-  What's not captured: the :body, :params, :uri, :query-string, :headers, and all the various :*-params generated
+  What's not captured: the `:body`, `:params`, `:uri`, `:query-string`, `:headers`, and all the various `:*-params` generated
   by standard middleware. Essentially, enough information is captured and restored to allow the eventual
   handler to make determinations about the originating request, but not know the specific URI, query parameters,
   or posted data.
@@ -245,7 +251,7 @@
   Specifically, the client in a loopback will need to explicitly decide which, if any, headers are to
   be passed through the loopback.
 
-  In addition, the [:rook :arg-resolvers] key is captured, since often default argument resolvers are
+  In addition, the `[:rook :arg-resolvers]` key is captured, since often default argument resolvers are
   defined higher in the pipeline."
   ([handler]
    (wrap-with-loopback handler :loopback-handler))
@@ -264,8 +270,8 @@
 
 
 (defn wrap-restful-format
-  "Asychronous version of ring.middleware.format/wrap-restful-format; this implementation uses
-  go blocks and tricks to work inside an asynchronous pipeline."
+  "Asychronous version of `ring.middleware.format/wrap-restful-format`; this implementation uses
+  will work properly inside an asynchronous pipeline."
   ([handler]
    (wrap-restful-format handler [:json-kw :edn]))
   ([handler formats]
@@ -294,7 +300,7 @@
          response-ch)))))
 
 (defn wrap-with-standard-middleware
-  "Default asynchronous middleware."
+  "The equivalent of `io.aviso.rook/wrap-with-standard-middleware`, but for an asynchronous pipeline."
   [handler]
   (-> handler
       rook/wrap-with-default-arg-resolvers
@@ -303,7 +309,7 @@
       ring.middleware.params/wrap-params))
 
 (defn wrap-session
-  "The async version of ring.middleware.session/wrap-with-session.
+  "The async version of `ring.middleware.session/wrap-with-session`.
   Session handling is not part of the standard middleware, and must be
   added in explicitly."
   ([handler] (wrap-session handler {}))

@@ -12,7 +12,7 @@
     ((creator) request)))
 
 (defn wrap-log-request
-  "Logs incoming requests (via HTTPs). Note that loopback requests are not logged."
+  "Logs incoming requests. Note that this only logs requests that arrive via Jetty; async loopback requests are not logged."
   [handler]
   (fn [request]
     (l/info (utils/summarize-request request))
@@ -31,17 +31,17 @@
   to take advantage of code reloading, the creator will be invoked on each incoming request.
 
   To fully take advantage of REPL oriented development, you should pass the Var containing
-  the creator function, e.g. #'create-app-handler.
+  the creator function, e.g. `#'create-app-handler`.
 
   The optional creator-args are additional arguments to be passed to the creator function;
   these are usually configuration data or dependencies.
 
   The options map contains three flags:
-  :reload enables the above-described reloading of the handler.
-  :debug enables logging of each incoming request.
-  :log enables a summary of each incoming request (method and path) to be logged.
 
-  :log is implied if :debug is true.
+  - `:reload` - enables the above-described reloading of the handler.
+  - `:debug` - enables logging of each incoming request.
+  - `:log` - enables a summary of each incoming request (method and path) to be logged.
+    `:log` is implied if `:debug` is true.
 
   The extra logging and debugging middleware is added around the root handler (or the
   reloading handler that creates the root handler)."

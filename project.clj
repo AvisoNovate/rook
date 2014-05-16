@@ -3,7 +3,6 @@
   :url "https://github.com/AvisoNovate/rook"
   :license {:name "Apache Sofware License 2.0"
             :url  "http://www.apache.org/licenses/LICENSE-2.0.html"}
-  ;; Normally we don't AOT compile; only when tracking down reflection warnings.
   :profiles {:dev
               {:dependencies [[ring-mock "0.1.5"]
                               [io.aviso/pretty "0.1.11"]
@@ -19,4 +18,7 @@
                  [prismatic/schema "0.2.1" :exclusions [potemkin]]
                  [compojure "1.1.6"]]
   :plugins [[speclj "3.0.2"]]
-  :test-paths ["spec"])
+  :test-paths ["spec"]
+  :codox {:src-dir-uri               "https://github.com/AvisoNovate/rook/blob/master/"
+          :src-linenum-anchor-prefix "L"
+          :defaults                  {:doc/format :markdown}})

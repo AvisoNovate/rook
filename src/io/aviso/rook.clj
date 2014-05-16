@@ -38,7 +38,7 @@
 
 
 (defn wrap-with-arg-resolvers
-  "Middleware which adds the provided argument resolvers to the [:rook :arg-resolvers] collection.
+  "Middleware which adds the provided argument resolvers to the `[:rook :arg-resolvers]` collection.
   Argument resolvers are used to gain access to information in the request, or information that
   can be computed from the request, or static information that can be injected into resource handler
   functions."
@@ -55,11 +55,11 @@
 
 (defn resource-uri-arg-resolver
   "Calculates the URI for a resource (handy when creating a Location header, for example).
-  First, calculates the server URI, which is either the :server-uri key in the request OR
-  is calcualted from the request's :scheme, :server-name and :server-port.  It should be
+  First, calculates the server URI, which is either the `:server-uri` key in the request _or_
+  is calculated from the request's `:scheme`, `:server-name`, and `:server-port`.  It should be
   the address of the root of the server.
 
-  From there, the :context key (maintained by Compojure, when delving into nested contexts)
+  From there, the `:context` key (maintained by Compojure, when delving into nested contexts)
   is used to assemble the rest of the URI.
 
   The URI ends with a slash."
@@ -80,23 +80,27 @@
   latter being more idiomatic Clojure.
 
   For example, you could define a parameter as:
-    {:keys [user-id email new-password] :as params*}
 
-  Which will work, even if the actual keys in the :params map were :user_id, :email, and :new_password.
+      {:keys [user-id email new-password] :as params*}
 
-  This reflects the default configuration, where params* is mapped to this function."
+  Which will work, even if the actual keys in the `:params` map were `:user_id`, `:email`, and `:new_password`.
+
+  This reflects the default configuration, where `params*` is mapped to this function."
   [request]
   (-> request
       :params
       (utils/transform-keys internals/to-clojureized-keyword)))
 
 (defn wrap-with-default-arg-resolvers
-  "Adds a default set of argument resolvers, allowing for resolution of :request (as the request),
-  :params (the :params key of the request),
-  :resource-uri (via resource-uri-arg-resolver),
-  and for the argument as a parameter (from the :params map),
-  or a route parameter (from :route-params)
-  or an header."
+  "Adds a default set of argument resolvers, allowing for resolution of:
+
+   - `:request` - the Ring request map
+   - `:params`  - the `:params` key of the Ring request map
+   - `:params*`  - the `:params` key of the Ring request map, with keys _Clojurized_
+   - `:resource-uri` - via [resource-uri-arg-resolver](#var-resource-uri-arg-resolver)
+   - the argument as a parameter from the `:params` map
+   - the argument as a parameter from the `:route-params` map
+   - the argument as a header from the `:headers` map"
   [handler]
   (wrap-with-arg-resolvers handler
                            (fn [kw request]
@@ -131,8 +135,8 @@
   "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
   either by metadata or by default mappings from function name - sets this functions metadata in request map.
 
-  This does not invoke the function; that is the responsibility of the rook-dispatcher function. Several additional
-  middleware filters will typically sit between identifying the function and actually invoking it."
+  This does not invoke the function; that is the responsibility of the [rook-dispatcher](#var-rook-dispatcher)
+  function. Several additional middleware filters will typically sit between identifying the function and actually invoking it."
   [handler namespace-name]
   (let [compiled-paths (get-compiled-paths namespace-name)]
     (fn [request]
@@ -145,12 +149,12 @@
                  request)))))
 
 (defn rook-dispatcher
-  "Ring request handler that uses information from :rook entry in the request map to invoke the previously
+  "Ring request handler that uses information from `:rook` map (within the Ring request map) to invoke the previously
   identified function, after resolving the function's arguments. This function must always be wrapped
-  in wrap-namespace (which is what identifies the resource handler function to invoke).
+  in [wrap-namespace](#var-wrap-namespace) (which is what identifies the resource handler function to invoke).
 
-  This should always be wrapped with wrap-with-function-arg-resolvers, to ensure that function-specific
-  argument resolvers are present in the [:rook :arg-resolvers] key."
+  This should also always be wrapped with [wrap-with-function-arg-resolvers](#var-wrap-with-function-arg-resolvers),
+  to ensure that function-specific argument resolvers are present in the `[:rook :arg-resolvers]` key."
   [{{f :function metadata :metadata resolvers :arg-resolvers} :rook :as request}]
   (let [args (-> metadata :arglists first)
         argument-values (map #(internals/extract-argument-value % request resolvers) args)]
@@ -159,14 +163,15 @@
       (apply f argument-values))))
 
 (defn wrap-with-function-arg-resolvers
-  "Wraps the handler with a request that has the :arg-resolvers key extended with any
+  "Wraps the handler with a request that has the `:arg-resolvers` key extended with any
   function-specific arg-resolvers (from the function's meta-data)."
   [handler]
   (fn [request]
     (handler (update-in request [:rook :arg-resolvers] prefix-with (-> request :rook :metadata :arg-resolvers)))))
 
 (def default-rook-pipeline
-  "The default pipeline for invoking a resource handler function: wraps rook-dispatcher
+  "The default pipeline for invoking a resource handler function: wraps
+  [rook-dispatcher](#var-rook-dispatcher)
   to do the actual work with middleware to extend :args-resolvers with function-specific arg resolvers and
   schema validation."
   (-> rook-dispatcher
@@ -176,13 +181,13 @@
 (defn namespace-handler
   "Helper handler, which wraps rook-dispatcher in namespace middleware.
 
-  path - if not nil, then a Compojure context is created to contain the created middleware and handler.
-  The path should start with a slash, but not end with one.
-  namespace-name - the symbol identifying the namespace to scan, e.g., 'org.example.resources.users
-  handler - The handler to use; defaults to rook-dispatcher, but in many cases, you will want to wrap
-  default-rook-pipeline with additional middleware, or combine several handlers into a single Compojure route.
+  - path - if not nil, then a Compojure context is created to contain the created middleware and handler.
+    The path should start with a slash, but not end with one.
+  - namespace-name - the symbol identifying the namespace to scan, e.g., `'org.example.resources.users`
+  - handler - The handler to use; defaults to [default-rook-pipeline](#var-default-rook-pipeline), but in many cases, you will want to wrap
+    or replace `default-rook-pipeline` with additional middleware, or combine several handlers into a single Compojure route.
 
-  The advanced version also takes a path for compojure.core/context and the handler to invoke."
+  The advanced version also takes a path for `compojure.core/context` and the handler to invoke."
   ;; I'm thinking that handlers is wrong; the handlers should actually be middleware.
   ([namespace-name]
    (namespace-handler nil namespace-name))

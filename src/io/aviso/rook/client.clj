@@ -22,21 +22,25 @@
 (defn pass-headers
   "Useful in cases where the success handler is interested in the response headers, rather
   than the body of the response. For example, many responses return no body, but interesting headers (such
-  as a 201 (Created).  In that situation, the :success callback can be overridden to this function,
-  and the success clause of the `then` macro will receive the useful headers, rather than the empty body."
+  as a 201 (Created).  In that situation, the `:success` callback can be overridden to this function,
+  and the success clause of the [then](#var-then) macro will receive the useful headers, rather than the empty body."
   [response]
   [nil (:headers response)])
 
 (defn new-request
-  "New request through the handler.  A client request is a structure that stores a (partial) Ring request,
+  "Creates a new request that will utlimately become a Ring request passed to the
+  handler function.
+
+  A client request is a structure that stores a (partial) Ring request,
   a handler function (that will be passed the Ring request), and additional data used to handle
   the response from the handler.
 
   The API is fluid, with calls to various functions taking and returning the client request
-  as the first parameter; these can be assembled using the -> macro.
+  as the first parameter; these can be assembled using the `->` macro.
 
   The handler is passed the Ring request map and returns a core.async channel that will receive
-  the response. The handler is typically implemented using the core.async go or thread macros."
+  the Ring response map.
+  The handler is typically implemented using the `clojure.core.async` `go` or `thread` macros."
   [web-service-handler]
   {:pre [(some? web-service-handler)]}
   {:handler   web-service-handler
@@ -56,7 +60,7 @@
     (str element)))
 
 (defn to
-  "Targets the request with a method and a URI. The URI is composed from the path;
+  "Targets the request with a method (`:get`, `:post`, etc.) and a URI. The URI is composed from the path;
   each part is a keyword or a value that is converted to a string. The URI
   starts with a slash and each element in the path is seperated by a slash."
   [request method & path]
@@ -72,25 +76,27 @@
 
 (defn with-body-params
   "Stores a Clojure map as the body of the request (as if EDN content was parsed into Clojure data.
-  The :params key of the Ring request will be the merge of :query-params and :body-params."
+  The `:params` key of the Ring request will be the merge of `:query-params` and `:body-params`."
   [request params]
   (assert (map? params))
   (assoc-in request [:ring-request :body-params] params))
 
 (defn with-query-params
   "Adds parameters to the :query-params key using merge. The query parameters should use keywords for keys. The
-  :params key of the Ring request will be the merge of :query-params and :body-params."
+  `:params` key of the Ring request will be the merge of `:query-params` and `:body-params`."
   [request params]
   (update-in request [:ring-request :query-params] merge params))
 
 (defn with-headers
+  "Merges the provided headers into the `:headers` key of the Ring request. Keys should be lower-cased strings."
   [request headers]
   (update-in request [:ring-request :headers] merge headers))
 
 (defn with-callback
   "Adds or replaces a callback for the given status code. A callback of nil removes the callback.
-  Instead of a specific numeric code, the keywords :success (for any 2xx status) or :failure (for
-  any non-2xx status) can be provided ... but exact status code matches take precedence."
+  Instead of a specific numeric code, the keywords `:success` (for any 2xx status) or `:failure` (for
+  any non-2xx status) can be provided ... but exact status code matches take precedence.  The callbacks
+  are used by [send](#var-send)"
   [request status-code callback]
   (if callback
     (assoc-in request [:callbacks status-code] callback)
@@ -138,18 +144,19 @@
       callback)))
 
 (defn send
-  "Sends the request asynchronously, using the web-service-handler provided to new-request. Returns a channel
-  that will receive the result. When a response arrives from the handler, the correct callback is invoked.
+  "Sends the request asynchronously, using the web-service-handler provided to new-request.
+  Returns a channel that will receive the Ring result map.
+  When a response arrives from the handler, the correct callback is invoked.
   The value put into the result channel is the value of the response passed through the callback.
 
   The default callbacks produce a vector where the first value is the failure response (the entire Ring response map)
   and the second value is the body of the success response (in which case, the first value is nil).
 
-  The intent is to use destructuring to determine which case occured, and proceed accordingly.
+  The intent is to use vector destructuring to determine which case occured, and proceed accordingly.
 
-  The then macro is useful for working with this result directly.
+  The [then](#var-then) macro is useful for working with this result directly.
 
-  Each request is assigned a UUID to its :request-id key; this is to faciliate easier tracing of the request
+  Each request is assigned a UUID string to its :request-id key; this is to faciliate easier tracing of the request
   and response in any logged output."
   [request]
   (let [uuid (utils/new-uuid)
@@ -179,7 +186,7 @@
     :else (cons 'do body)))
 
 (defmacro then*
-  "Alternate version of the then macro, used when the vector returned by c/send is available."
+  "Alternate version of the [then](#var-then) macro, used when the vector returned by [send](#var-send) is available."
   ([result-vector success-clause]
    `(then* ~result-vector (failure#) ~success-clause))
   ([result-vector [failure & failure-body] [success & success-body]]
@@ -191,24 +198,25 @@
         ~(make-body success success-body)))))
 
 (defmacro then
-  "The send function returns a channel from which the eventual result can be taken; this macro makes it easy to respond
-  to either the normal success or failure cases, as determined by the default callbacks. then makes use of <! and can therefore
-  only be used inside a go block.
+  "The [send](#var-send) function returns a channel from which the eventual result can be taken; this macro makes it easy to respond
+  to either the normal success or failure cases, as determined by the default callbacks. `then` makes use of `<!` and can therefore
+  only be used inside a `go` block.
 
-  channel - the expression which produces the channel, e.g., the result of calling send
-  failure-clause - a symbol, followed by zero or more expression to be evaluated with the symbol bound to the failure response
+  channel - the expression which produces the channel, e.g., the result of invoking `send`
+  failure-clause - a symbol, followed by zero or more expressions to be evaluated with the symbol bound to the failure response
   success-clause - as with failure-clause, but with the symbol bound to the body of the success response
 
   The body of either failure-clause or success-clause can be omitted; it defaults to the symbol, meaning that the
   failure or success body is simply returned.
 
   Example:
-    (-> (c/new-request handler)
-        (c/to :get :endpoint)
-        (c/send)
-        (c/then (success
-                  (write-success-to-log success)
-                  success)))
+
+      (-> (c/new-request handler)
+          (c/to :get :endpoint)
+          (c/send)
+          (c/then (success
+                    (write-success-to-log success)
+                    success)))
 
   The entire failure clause can also be omitted (as in the example)."
   ([channel success-clause]

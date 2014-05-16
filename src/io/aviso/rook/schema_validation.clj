@@ -64,10 +64,11 @@
   Validation may either fail or succeed.  For a failure, an error response must be sent
   to the client. For success, the cooerced parameters must be passed to the next handler.
 
-  Rreturns a tuple:
-  On success, the tuple is [:valid request] (that is, an updated request with the params
-  re-written).
-  On failure, the tuple is [:invalid failures], where failures are an output from Schema validation."
+  Returns a tuple:
+
+  - on success, the tuple is `[:valid request]`; that is, an updated request with the `:params`
+  re-written
+  - on failure, the tuple is `[:invalid failures]`, where failures are as output from Schema validation"
   [request schema]
   (let [coercer (coerce/coercer schema string-coercion-matcher)
         params' (-> request :params coercer)]
@@ -76,7 +77,7 @@
       [:valid (assoc request :params params')])))
 
 (defn wrap-with-schema-validation
-  "Wraps a handler with validation, which is triggered by the [:rook :metadata :schema] key in the
+  "Wraps a handler with validation, which is triggered by the `[:rook :metadata :schema]` key in the
   request.
 
   The two-argument version includes a function used to wrap the bad request response;
