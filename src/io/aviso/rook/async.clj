@@ -17,7 +17,7 @@
 
   Intercepting middleware may perform an immediate (non-asynchronous) computation and return a value,
   or may proceed directly to the delegate asynchronous handler. The returned value must be wrapped
-  in a channel (using [result->channel](#var-result-.3Echannel)). An example of this is middleware that performs authentication
+  in a channel (using [[result->channel]]). An example of this is middleware that performs authentication
   or input validation.
 
   Complex middleware that operates on the return value from the delegated handler, or must
@@ -58,13 +58,13 @@
 
 
 (defmacro safe-go
-  "Wraps the body in a [safety-first](#var-safety-first) block and then in a go block. The request is used by `safety-first` if it must
+  "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by `safety-first` if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
   `(go (safety-first ~request ~expr ~@more)))
 
 (defmacro safe-thread
-  "Wraps the body in a [safety-first](#var-safety-first) block and then in a thread block. The request is used by `safety-first` if it must
+  "Wraps the body in a [[safety-first]] block and then in a thread block. The request is used by `safety-first` if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
   `(thread (safety-first ~request ~expr ~@more)))
@@ -115,7 +115,7 @@
     response-ch))
 
 (defn routes
-  "Creates an async handler that routes to a number of other async handlers, using [routing](#var-routing)."
+  "Creates an async handler that routes to a number of other async handlers, using [[routing]]."
   [& handlers]
   #(apply routing % handlers))
 

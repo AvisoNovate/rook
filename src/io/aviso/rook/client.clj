@@ -23,7 +23,7 @@
   "Useful in cases where the success handler is interested in the response headers, rather
   than the body of the response. For example, many responses return no body, but interesting headers (such
   as a 201 (Created).  In that situation, the `:success` callback can be overridden to this function,
-  and the success clause of the [then](#var-then) macro will receive the useful headers, rather than the empty body."
+  and the success clause of the [[then]] macro will receive the useful headers, rather than the empty body."
   [response]
   [nil (:headers response)])
 
@@ -96,7 +96,7 @@
   "Adds or replaces a callback for the given status code. A callback of nil removes the callback.
   Instead of a specific numeric code, the keywords `:success` (for any 2xx status) or `:failure` (for
   any non-2xx status) can be provided ... but exact status code matches take precedence.  The callbacks
-  are used by [send](#var-send)"
+  are used by [[send]]."
   [request status-code callback]
   (if callback
     (assoc-in request [:callbacks status-code] callback)
@@ -154,7 +154,7 @@
 
   The intent is to use vector destructuring to determine which case occured, and proceed accordingly.
 
-  The [then](#var-then) macro is useful for working with this result directly.
+  The [[then]] macro is useful for working with this result directly.
 
   Each request is assigned a UUID string to its :request-id key; this is to faciliate easier tracing of the request
   and response in any logged output."
@@ -186,7 +186,7 @@
     :else (cons 'do body)))
 
 (defmacro then*
-  "Alternate version of the [then](#var-then) macro, used when the vector returned by [send](#var-send) is available."
+  "Alternate version of the [[then]] macro, used when the vector returned by [[send]] is available."
   ([result-vector success-clause]
    `(then* ~result-vector (failure#) ~success-clause))
   ([result-vector [failure & failure-body] [success & success-body]]
@@ -198,8 +198,8 @@
         ~(make-body success success-body)))))
 
 (defmacro then
-  "The [send](#var-send) function returns a channel from which the eventual result can be taken; this macro makes it easy to respond
-  to either the normal success or failure cases, as determined by the default callbacks. `then` makes use of `<!` and can therefore
+  "The [[send]] function returns a channel from which the eventual result can be taken; this macro makes it easy to respond
+  to either the normal success or failure cases, as determined by the __default__ callbacks. `then` makes use of `<!` and can therefore
   only be used inside a `go` block.
 
   channel - the expression which produces the channel, e.g., the result of invoking `send`
