@@ -17,8 +17,8 @@
                      (s/optional-key :address) [s/Str]
                      (s/optional-key :city)    s/Str})
 
-(defn should-be-valid [expected-request [valid? actual-request]]
-  (should= :valid valid?)
+(defn should-be-valid [expected-request [failure actual-request]]
+  (should-be-nil failure)
   (should= expected-request actual-request))
 
 (defn current-instant
@@ -27,10 +27,9 @@
 
 (describe "io.aviso.rook.schema-validation"
 
-
   (describe "validate-against-schema"
 
-    (it "returns :valid if validation is successful"
+    (it "returns new-request if validation is successful"
         (let [request {:params {:name "Rook"}}]
           (should-be-valid request (validate-against-schema request example-schema))))
 
@@ -39,9 +38,9 @@
           (should-be-valid request (validate-against-schema request example-schema))))
 
     (it "returns a failure response if validation fails"
-        (let [[valid? failures] (validate-against-schema {:params {:user-name "Rook"}} example-schema)
+        (let [[failures new-request] (validate-against-schema {:params {:user-name "Rook"}} example-schema)
               response (wrap-invalid-response failures)]
-          (should= :invalid valid?)
+          (should-be-nil new-request)
           (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
           (should= "validation-error" (-> response :body :error))))
 

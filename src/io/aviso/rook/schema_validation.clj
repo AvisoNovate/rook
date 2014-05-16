@@ -66,15 +66,15 @@
 
   Returns a tuple:
 
-  - on success, the tuple is `[:valid request]`; that is, an updated request with the `:params`
+  - on success, the tuple is `[nil request]`; that is, an updated request with the `:params`
   re-written
-  - on failure, the tuple is `[:invalid failures]`, where failures are as output from Schema validation"
+  - on failure, the tuple is `[failures]`, where failures are as output from Schema validation"
   [request schema]
   (let [coercer (coerce/coercer schema string-coercion-matcher)
         params' (-> request :params coercer)]
     (if (su/error? params')
-      [:invalid (su/error-val params')]
-      [:valid (assoc request :params params')])))
+      [(su/error-val params')]
+      [nil (assoc request :params params')])))
 
 (defn wrap-with-schema-validation
   "Wraps a handler with validation, which is triggered by the `[:rook :metadata :schema]` key in the
@@ -83,14 +83,14 @@
   The two-argument version includes a function used to wrap the bad request response;
   this is identity in the normal case (and is provided to support async processing)."
   ([handler]
-   (wrap-with-schema-validation handler wrap-invalid-response))
-  ([handler failure-handler]
+   (wrap-with-schema-validation handler identity))
+  ([handler response-wrapper]
    (fn [request]
      (or
        (when-let [schema (-> request :rook :metadata :schema)]
-         (let [[valid? data] (validate-against-schema request schema)]
-           (case valid?
-             :valid (handler data)
-             :invalid (failure-handler data))))
+         (let [[failures new-request] (validate-against-schema request schema)]
+           (if failures
+             (-> failures wrap-invalid-response response-wrapper)
+             (handler new-request))))
        (handler request)))))
 
