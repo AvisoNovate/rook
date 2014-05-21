@@ -11,6 +11,7 @@
                               [log4j "1.2.17"]]}}
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
+                 [org.clojure/core.match "0.2.1"]
                  [org.clojure/tools.logging "0.2.6"]
                  [ring "1.2.2"]
                  [ring-middleware-format "0.3.2" :exclusions [cheshire
