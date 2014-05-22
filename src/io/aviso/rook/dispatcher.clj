@@ -146,12 +146,25 @@
             (match (preparse-request ~req)
               ~@(mapcat
                   (fn [[method pathvec verb-fn-sym middleware]]
-                    (let [metadata         (meta (resolve verb-fn-sym))
+                    (let [ns-metadata      (-> verb-fn-sym
+                                             namespace symbol the-ns meta)
+                          metadata         (merge (dissoc ns-metadata :doc)
+                                             (meta (resolve verb-fn-sym)))
                           sync?            (:sync metadata)
                           pathvec          (keywords->symbols pathvec)
                           route-params     (set (filter symbol? pathvec))
                           arglist          (first (:arglists metadata))
-                          non-route-params (remove route-params arglist)]
+                          non-route-params (remove route-params arglist)
+                          arg-resolvers    (:arg-resolvers metadata)
+                          add-resolvers    (if arg-resolvers
+                                             `(rook/wrap-with-arg-resolvers
+                                                ~@arg-resolvers))
+                          middleware       (if arg-resolvers
+                                             `(fn [handler#]
+                                                (-> handler#
+                                                  ~add-resolvers
+                                                  ~middleware))
+                                             middleware)]
                       [[method pathvec]
                        `(let [route-params# ~(zipmap
                                                (map keyword route-params)
