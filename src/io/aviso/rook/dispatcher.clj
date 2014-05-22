@@ -2,8 +2,9 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.string :as string]
             [clojure.pprint :as pp]
-            [io.aviso.rook.internals :as internals]
             [io.aviso.rook :as rook]
+            [io.aviso.rook.async :as async]
+            [io.aviso.rook.internals :as internals]
             [io.aviso.rook.schema-validation :as sv]))
 
 (def ^:private default-mappings
@@ -118,6 +119,15 @@
                   (-> ~request-sym :rook :arg-resolvers)))])
     arglist))
 
+(defn apply-middleware-sync [middleware sync? handler]
+  (middleware handler))
+
+(defn apply-middleware-async [middleware sync? handler]
+  (middleware
+    (if sync?
+      (async/ring-handler->async-handler handler)
+      handler)))
+
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.
 
@@ -128,13 +138,16 @@
   ([options dispatch-table]
      (let [dt  (unnest-dispatch-table dispatch-table)
            req (gensym "request__")
-           emit-fn (or (:emit-fn options) eval)]
+           emit-fn (:emit-fn options eval)
+           apply-middleware (:apply-middleware-fn options
+                                                  `apply-middleware-sync)]
        (emit-fn
          `(fn rook-dispatcher# [~req]
             (match (preparse-request ~req)
               ~@(mapcat
                   (fn [[method pathvec verb-fn-sym middleware]]
                     (let [metadata         (meta (resolve verb-fn-sym))
+                          sync?            (:sync metadata)
                           pathvec          (keywords->symbols pathvec)
                           route-params     (set (filter symbol? pathvec))
                           arglist          (first (:arglists metadata))
@@ -150,7 +163,7 @@
                                                    route-params
                                                    non-route-params)]
                                            (~verb-fn-sym ~@arglist)))]
-                          ((~middleware handler#)
+                          ((~apply-middleware ~middleware ~sync? handler#)
                            (assoc ~req
                              :route-params route-params#)))]))
                   dt)
