@@ -118,7 +118,10 @@
     arglist))
 
 (defn compile-dispatch-table
-  "Compiles the dispatch table into a Ring handler."
+  "Compiles the dispatch table into a Ring handler.
+
+  See the docstring of unnest-dispatch-table for a description of
+  dispatch table format."
   ([dispatch-table]
      (compile-dispatch-table {} dispatch-table))
   ([options dispatch-table]
