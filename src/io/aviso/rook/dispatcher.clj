@@ -48,7 +48,7 @@
   [request]
   [(:request-method request)
    (mapv #(java.net.URLDecoder/decode ^String % "UTF-8")
-     (next (string/split (:uri request) #"/" -1)))])
+     (next (string/split (:uri request) #"/" 0)))])
 
 (defn unnest-dispatch-table
   "Given a nested dispatch table:
