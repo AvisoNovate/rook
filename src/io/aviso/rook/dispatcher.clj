@@ -3,7 +3,7 @@
             [clojure.string :as string]
             [clojure.pprint :as pp]
             [io.aviso.rook :as rook]
-            [io.aviso.rook.async :as async]
+            [io.aviso.rook.async :as rook-async]
             [io.aviso.rook.internals :as internals]
             [io.aviso.rook.schema-validation :as sv]))
 
@@ -125,7 +125,7 @@
 (defn apply-middleware-async [middleware sync? handler]
   (middleware
     (if sync?
-      (async/ring-handler->async-handler handler)
+      (rook-async/ring-handler->async-handler handler)
       handler)))
 
 (defn compile-dispatch-table
