@@ -163,8 +163,42 @@
           (-> (mock/request :get "/fred")
             handler
             :body
-            :message))))
+            :message)))))
 
-    (it "should send schema validation failures")
+  (describe "handlers with schema attached"
 
-    (it "should return a 500 response if a sync handler throws an exception")))
+    (it "should respond appropriately given a valid request"
+      (let [middleware (fn [handler]
+                         (-> handler
+                           rook-async/wrap-with-schema-validation
+                           rook/wrap-with-default-arg-resolvers))
+            handler    (->> (dispatcher/namespace-dispatch-table
+                              ["validating"] 'validating middleware)
+                         (dispatcher/compile-dispatch-table
+                           {:apply-middleware-fn dispatcher/apply-middleware-async})
+                         rook-async/wrap-with-loopback
+                         rook-async/async-handler->ring-handler)
+            response   (-> (mock/request :post "/validating")
+                         (merge {:params {:name "Vincent"}})
+                         handler)]
+        (should= HttpServletResponse/SC_OK (:status response))
+        (should= [:name] (:body response))))
+
+    (it "should send schema validation failures"
+      (let [middleware (fn [handler]
+                         (-> handler
+                           rook-async/wrap-with-schema-validation
+                           ring.middleware.keyword-params/wrap-keyword-params
+                           ring.middleware.params/wrap-params))
+            handler    (->> (dispatcher/namespace-dispatch-table
+                              ["validating"] 'validating middleware)
+                         (dispatcher/compile-dispatch-table
+                           {:apply-middleware-fn dispatcher/apply-middleware-async})
+                         rook-async/wrap-with-loopback
+                         rook-async/async-handler->ring-handler)
+            response   (-> (mock/request :post "/validating")
+                         handler)]
+        (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
+        (should= "validation-error" (-> response :body :error))
+        ;; TODO: Not sure that's the exact format I want sent back to the client!
+        (should= "{:name missing-required-key}" (-> response :body :failures))))))
