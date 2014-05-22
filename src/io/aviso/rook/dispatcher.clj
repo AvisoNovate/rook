@@ -155,10 +155,6 @@
                   dt)
               :else nil))))))
 
-#_
-(defmacro define-dispatch-table [name & opts-and-entries]
-  (def ~name `(compile-dispatch-table ~@opts-and-entries)))
-
 (defn default-pipeline [handler]
   (-> handler
     rook/wrap-with-function-arg-resolvers
