@@ -173,7 +173,8 @@
      (namespace-dispatch-table context-pathvec ns-sym default-pipeline))
   ([context-pathvec ns-sym pipeline]
      (try
-       (require ns-sym)
+       (if-not (find-ns ns-sym)
+         (require ns-sym))
        (catch Exception e
          (throw (ex-info "failed to require ns in namespace-dispatch-table"
                   {:context-pathvec context-pathvec
