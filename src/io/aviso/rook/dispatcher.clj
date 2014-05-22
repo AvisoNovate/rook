@@ -114,7 +114,7 @@
              (if (contains? route-params param)
                `(get (:route-params ~request-sym) ~(keyword param))
                `(internals/extract-argument-value
-                  (keyword (quote ~param))
+                  ~(keyword param)
                   ~request-sym
                   (-> ~request-sym :rook :arg-resolvers)))])
     arglist))
@@ -164,7 +164,8 @@
                                                 (-> handler#
                                                   ~add-resolvers
                                                   ~middleware))
-                                             middleware)]
+                                             middleware)
+                          schema           (:schema metadata)]
                       [[method pathvec]
                        `(let [route-params# ~(zipmap
                                                (map keyword route-params)
@@ -177,8 +178,11 @@
                                                    non-route-params)]
                                            (~verb-fn-sym ~@arglist)))]
                           ((~apply-middleware ~middleware ~sync? handler#)
-                           (assoc ~req
-                             :route-params route-params#)))]))
+                           (-> ~req
+                             (assoc :route-params route-params#)
+                             ~@(if schema
+                                 [`(assoc-in [:rook :metadata :schema]
+                                     ~schema)]))))]))
                   dt)
               :else nil))))))
 
