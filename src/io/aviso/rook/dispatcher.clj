@@ -52,48 +52,49 @@
 (defn unnest-dispatch-table
   "Given a nested dispatch table:
 
-    [[method pathvec verb-fn pipeline
-      [method' pathvec' verb-fn' pipeline' ...]
+    [[method pathvec verb-fn middleware
+      [method' pathvec' verb-fn' middleware' ...]
       ...]
      ...]
 
   produces a dispatch table with no nesting:
 
-    [[method pathvec verb-fn pipeline]
-     [method' (into pathvec pathvec') verb-fn' pipeline']
+    [[method pathvec verb-fn middleware]
+     [method' (into pathvec pathvec') verb-fn' middleware']
      ...].
 
   Entries may also take the alternative form of
 
-    [pathvec pipeline? & entries],
+    [pathvec middleware? & entries],
 
-  In which case pathvec and pipeline? (if present) will provide a
-  context pathvec and a default pipeline for the nested entries
+  In which case pathvec and middleware? (if present) will provide a
+  context pathvec and default middleware for the nested entries
   without introducing a separate route."
   [dispatch-table]
-  (letfn [(unnest-entry [default-pipeline [x :as entry]]
+  (letfn [(unnest-entry [default-middleware [x :as entry]]
             (cond
               (keyword? x)
-              (let [[method pathvec verb-fn pipeline & nested-table] entry]
+              (let [[method pathvec verb-fn middleware & nested-table] entry]
                 (if nested-table
                   (into [[method pathvec verb-fn
-                          (or pipeline default-pipeline)]]
+                          (or middleware default-middleware)]]
                     (unnest-table pathvec nested-table))
                   (cond-> [entry]
-                    (nil? pipeline) (assoc-in [0 3] default-pipeline))))
+                    (nil? middleware) (assoc-in [0 3] default-middleware))))
 
               (vector? x)
-              (let [[context-pathvec & maybe-pipeline+entries] entry
-                    pipeline (if-not (vector? (first maybe-pipeline+entries))
-                               (first maybe-pipeline+entries))
-                    entries  (if pipeline
-                               (next maybe-pipeline+entries)
-                               maybe-pipeline+entries)]
-                (unnest-table context-pathvec pipeline entries))))
-          (unnest-table [context-pathvec default-pipeline entries]
+              (let [[context-pathvec & maybe-middleware+entries] entry
+                    middleware (if-not (vector?
+                                         (first maybe-middleware+entries))
+                                 (first maybe-middleware+entries))
+                    entries    (if middleware
+                                 (next maybe-middleware+entries)
+                                 maybe-middleware+entries)]
+                (unnest-table context-pathvec middleware entries))))
+          (unnest-table [context-pathvec default-middleware entries]
             (mapv (fn [[_ pathvec :as unnested-entry]]
                     (assoc unnested-entry 1 (into context-pathvec pathvec)))
-              (mapcat (partial unnest-entry default-pipeline) entries)))]
+              (mapcat (partial unnest-entry default-middleware) entries)))]
     (unnest-table [] nil dispatch-table)))
 
 (defn keywords->symbols
@@ -132,7 +133,7 @@
          `(fn rook-dispatcher# [~req]
             (match (preparse-request ~req)
               ~@(mapcat
-                  (fn [[method pathvec verb-fn-sym pipeline]]
+                  (fn [[method pathvec verb-fn-sym middleware]]
                     (let [metadata         (meta (resolve verb-fn-sym))
                           pathvec          (keywords->symbols pathvec)
                           route-params     (set (filter symbol? pathvec))
@@ -149,13 +150,13 @@
                                                    route-params
                                                    non-route-params)]
                                            (~verb-fn-sym ~@arglist)))]
-                          ((~pipeline handler#)
+                          ((~middleware handler#)
                            (assoc ~req
                              :route-params route-params#)))]))
                   dt)
               :else nil))))))
 
-(defn default-pipeline [handler]
+(defn default-middleware [handler]
   (-> handler
     rook/wrap-with-function-arg-resolvers
     sv/wrap-with-schema-validation))
@@ -166,8 +167,8 @@
   ([ns-sym]
      (namespace-dispatch-table [] ns-sym))
   ([context-pathvec ns-sym]
-     (namespace-dispatch-table context-pathvec ns-sym default-pipeline))
-  ([context-pathvec ns-sym pipeline]
+     (namespace-dispatch-table context-pathvec ns-sym default-middleware))
+  ([context-pathvec ns-sym middleware]
      (try
        (if-not (find-ns ns-sym)
          (require ns-sym))
@@ -175,7 +176,7 @@
          (throw (ex-info "failed to require ns in namespace-dispatch-table"
                   {:context-pathvec context-pathvec
                    :ns              ns-sym
-                   :pipeline        pipeline}
+                   :middleware      middleware}
                   e))))
      (let [context-pathvec ((fnil conj [])
                             context-pathvec
@@ -187,5 +188,5 @@
                     (if-let [route-spec (or (:route-spec (meta v))
                                             (get default-mappings k))]
                       (conj route-spec (symbol (name ns-sym) (name k)))))))
-          (list* context-pathvec pipeline)
+          (list* context-pathvec middleware)
           vec)])))

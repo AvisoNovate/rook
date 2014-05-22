@@ -16,12 +16,12 @@
            (defn create [x]
              (resp/response (str "Created " x))))))
 
-(def ^:dynamic *default-pipeline* identity)
+(def ^:dynamic *default-middleware* identity)
 
 (def simple-dispatch-table
-  [[:get  ["foo"]     'example.foo/index  `*default-pipeline*]
-   [:post ["foo"]     'example.foo/create `*default-pipeline*]
-   [:get  ["foo" :id] 'example.foo/show   `*default-pipeline*]])
+  [[:get  ["foo"]     'example.foo/index  `*default-middleware*]
+   [:post ["foo"]     'example.foo/create `*default-middleware*]
+   [:get  ["foo" :id] 'example.foo/show   `*default-middleware*]])
 
 (describe "io.aviso.rook.dispatcher"
 
@@ -32,28 +32,28 @@
       (should= simple-dispatch-table
         (dispatcher/unnest-dispatch-table simple-dispatch-table)))
 
-    (it "should correctly unnest DTs WITHOUT a default pipeline"
+    (it "should correctly unnest DTs WITHOUT default middleware"
 
       (let [dt [(into [["api"]] simple-dispatch-table)]]
-        (should= [[:get  ["api" "foo"]     'example.foo/index  `*default-pipeline*]
-                  [:post ["api" "foo"]     'example.foo/create `*default-pipeline*]
-                  [:get  ["api" "foo" :id] 'example.foo/show   `*default-pipeline*]]
+        (should= [[:get  ["api" "foo"]     'example.foo/index  `*default-middleware*]
+                  [:post ["api" "foo"]     'example.foo/create `*default-middleware*]
+                  [:get  ["api" "foo" :id] 'example.foo/show   `*default-middleware*]]
           (dispatcher/unnest-dispatch-table dt))))
 
-    (it "should correctly unnest DTs WITH a default pipeline and empty context pathvec"
+    (it "should correctly unnest DTs WITH default middleware and empty context pathvec"
 
-      (let [dt [(into [[] `*default-pipeline*]
+      (let [dt [(into [[] `*default-middleware*]
                   (mapv pop simple-dispatch-table))]]
         (should= simple-dispatch-table
           (dispatcher/unnest-dispatch-table dt))))
 
-    (it "should correctly unnest DTs WITH a default pipeline and non-empty context pathvec"
+    (it "should correctly unnest DTs WITH default middleware and non-empty context pathvec"
 
-      (let [dt [(into [["api"] `*default-pipeline*]
+      (let [dt [(into [["api"] `*default-middleware*]
                   (mapv pop simple-dispatch-table))]]
-        (should= [[:get  ["api" "foo"]     'example.foo/index  `*default-pipeline*]
-                  [:post ["api" "foo"]     'example.foo/create `*default-pipeline*]
-                  [:get  ["api" "foo" :id] 'example.foo/show   `*default-pipeline*]]
+        (should= [[:get  ["api" "foo"]     'example.foo/index  `*default-middleware*]
+                  [:post ["api" "foo"]     'example.foo/create `*default-middleware*]
+                  [:get  ["api" "foo" :id] 'example.foo/show   `*default-middleware*]]
           (dispatcher/unnest-dispatch-table dt)))))
 
   (describe "compile-dispatch-table"
@@ -68,14 +68,14 @@
         (should= {:status 200 :headers {} :body "Interesting id: 1"}
           show-response)))
 
-    (it "should inject the pipeline"
+    (it "should inject the middleware"
 
       (let [handler (dispatcher/compile-dispatch-table simple-dispatch-table)
             a (atom 0)]
-        (binding [*default-pipeline* (fn [handler]
-                                       (fn [request]
-                                         (swap! a inc)
-                                         (handler request)))]
+        (binding [*default-middleware* (fn [handler]
+                                         (fn [request]
+                                           (swap! a inc)
+                                           (handler request)))]
           (handler (mock/request :get "/foo"))
           (should= 1 @a)))))
 
@@ -85,5 +85,5 @@
 
       (let [dt (set (dispatcher/unnest-dispatch-table
                       (dispatcher/namespace-dispatch-table
-                        [] 'example.foo `*default-pipeline*)))]
+                        [] 'example.foo `*default-middleware*)))]
         (should= (set simple-dispatch-table) dt)))))
