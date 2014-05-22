@@ -55,7 +55,7 @@
 
           :get "/?offset-100" 'rook-test2 :function #'rook-test2/index)))
 
-  (describe "argment resolution"
+  (describe "argument resolution"
 
     (it "should search using the API key if the natural key does not exist"
 

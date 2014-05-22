@@ -3,4 +3,4 @@
 (defn index
   {:sync true}
   []
-  (throw (IllegalStateException. "Sync Handler Failiure")))
+  (throw (IllegalStateException. "Sync Handler Failure")))
