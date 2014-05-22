@@ -204,15 +204,12 @@
                    :ns              ns-sym
                    :middleware      middleware}
                   e))))
-     (let [context-pathvec ((fnil conj [])
-                            context-pathvec
-                            (peek (string/split (name ns-sym) #"\.")))]
-       [(->> ns-sym
-          ns-publics
-          (keep (fn [[k v]]
-                  (if (ifn? @v)
-                    (if-let [route-spec (or (:route-spec (meta v))
-                                            (get default-mappings k))]
-                      (conj route-spec (symbol (name ns-sym) (name k)))))))
-          (list* context-pathvec middleware)
-          vec)])))
+     [(->> ns-sym
+        ns-publics
+        (keep (fn [[k v]]
+                (if (ifn? @v)
+                  (if-let [route-spec (or (:route-spec (meta v))
+                                          (get default-mappings k))]
+                    (conj route-spec (symbol (name ns-sym) (name k)))))))
+        (list* context-pathvec middleware)
+        vec)]))
