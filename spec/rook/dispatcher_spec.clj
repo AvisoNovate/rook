@@ -6,7 +6,8 @@
             [io.aviso.rook.async :as rook-async]
             [io.aviso.rook :as rook]
             [ring.mock.request :as mock]
-            [clojure.core.async :as async]))
+            [clojure.core.async :as async])
+  (:import (javax.servlet.http HttpServletResponse)))
 
 
 (defn namespace-handler
@@ -137,7 +138,14 @@
             handler
             async/<!!
             :body
-            :params-arg)))))
+            :params-arg))))
+
+    (it "should return a 500 response if a sync handler throws an exception"
+      (let [handler (rook-async/async-handler->ring-handler
+                      (rook-async/wrap-with-loopback
+                        (namespace-handler ["fail"] 'failing rook-async/wrap-restful-format)))]
+          (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+            (-> (mock/request :get "/fail") handler :status)))))
 
   (describe "loopback-handler"
 
