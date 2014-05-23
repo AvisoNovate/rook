@@ -20,3 +20,12 @@
         c/send
         (c/then (response
                   (utils/response {:message (format "%s says `%s'" partner (:message response))}))))))
+
+(defn show [id loopback-handler partner]
+  (go
+    (->
+      (c/new-request loopback-handler)
+      (c/to :get partner 123)
+      c/send
+      (c/then (response
+                (utils/response {:message (format "%s says `%s'" partner (:message response))}))))))

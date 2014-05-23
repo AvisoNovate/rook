@@ -149,7 +149,7 @@
 
   (describe "loopback-handler"
 
-    (it "should allow resources to collaborate"
+    (it "should allow two resources to collaborate"
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
                         (dispatcher/compile-dispatch-table
@@ -163,7 +163,23 @@
           (-> (mock/request :get "/fred")
             handler
             :body
-            :message)))))
+            :message))))
+
+    (it "should allow three resources to collaborate"
+      (let [handler (rook-async/async-handler->ring-handler
+                      (rook-async/wrap-with-loopback
+                        (dispatcher/compile-dispatch-table
+                          {:apply-middleware-fn dispatcher/apply-middleware-async}
+                          (-> (dispatcher/namespace-dispatch-table
+                                ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
+                            (into
+                              (dispatcher/namespace-dispatch-table
+                                ["barney"] 'barney rook/wrap-with-default-arg-resolvers))
+                            (into
+                              (dispatcher/namespace-dispatch-table
+                                ["betty"] 'betty rook/wrap-with-default-arg-resolvers))))))]
+        (should= ":barney says `:betty says `123 is a very fine id!''"
+          (-> (mock/request :get "/fred/123") handler :body :message)))))
 
   (describe "handlers with schema attached"
 
