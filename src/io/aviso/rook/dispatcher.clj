@@ -146,7 +146,10 @@
             (match (preparse-request ~req)
               ~@(mapcat
                   (fn [[method pathvec verb-fn-sym middleware]]
-                    (let [ns-metadata      (-> verb-fn-sym
+                    (let [method           (if (identical? method :all)
+                                             '_
+                                             method)
+                          ns-metadata      (-> verb-fn-sym
                                              namespace symbol the-ns meta)
                           metadata         (merge (dissoc ns-metadata :doc)
                                              (meta (resolve verb-fn-sym)))
