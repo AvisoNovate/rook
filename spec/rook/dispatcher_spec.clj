@@ -1,12 +1,15 @@
 (ns rook.dispatcher-spec
-  (:use speclj.core)
+  (:use speclj.core
+        [clojure.template :only [do-template]])
   (:require [io.aviso.rook.dispatcher :as dispatcher]
             [io.aviso.rook.client :as client]
             [io.aviso.rook.utils :as utils]
             [io.aviso.rook.async :as rook-async]
             [io.aviso.rook :as rook]
             [ring.mock.request :as mock]
-            [clojure.core.async :as async])
+            [clojure.core.async :as async]
+            ring.middleware.params
+            ring.middleware.keyword-params)
   (:import (javax.servlet.http HttpServletResponse)))
 
 
@@ -26,6 +29,11 @@
        (dispatcher/namespace-dispatch-table context-pathvec ns-sym middleware))))
 
 
+(defn wrap-with-resolve-method [handler]
+  (rook/wrap-with-arg-resolvers handler
+    (fn [kw request]
+      (if (identical? kw :request-method)
+        (:request-method request)))))
 (create-ns 'example.foo)
 
 (binding [*ns* (the-ns 'example.foo)]
@@ -116,6 +124,40 @@
                       (dispatcher/namespace-dispatch-table
                         ["foo"] 'example.foo `*default-middleware*)))]
         (should= (set simple-dispatch-table) dt))))
+
+  (describe "compiled handlers"
+
+    (it "should return the expected responses"
+      (do-template [method path namespace-name extra-params expected-value]
+        (should= expected-value
+          (let [mw (fn [handler]
+                     (-> handler
+                       rook/wrap-with-default-arg-resolvers
+                       wrap-with-resolve-method
+                       ring.middleware.keyword-params/wrap-keyword-params
+                       ring.middleware.params/wrap-params))
+                dt (dispatcher/namespace-dispatch-table
+                     [] namespace-name mw)
+                handler (dispatcher/compile-dispatch-table dt)
+                body    #(:body % %)]
+            (-> (mock/request method path)
+              (update-in [:params] merge extra-params)
+              handler
+              ;; TODO: fix rook-spec and rook-test/activate (the
+              ;; latter should return a response map rather than a
+              ;; string) and switch back to :body
+              body)))
+
+        :get "/?limit=100"   'rook-test {} "limit=100"
+        :get "/"             'rook-test {} "limit="
+        :get "/123"          'rook-test {} "id=123"
+        :get "/123/activate" 'rook-test {} nil
+        :put "/"             'rook-test {} nil
+        :put "/123"          'rook-test {} nil
+
+        :post "/123/activate" 'rook-test
+        {:test1 "foo" :test2 "bar" :test3 "baz" :test4 "quux"}
+        "test1=foo,id=123,test2=bar,test3=baz,test4=quux,request=13,meth=:post")))
 
   (describe "async handlers"
 

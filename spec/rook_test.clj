@@ -9,7 +9,8 @@
    :body   (str "id=" id)})
 
 (defn activate
-  {:path-spec [:post "/:id/activate"]}
+  {:route-spec [:post [:id "activate"]]
+   :path-spec [:post "/:id/activate"]}
   [test1 id request test2 test3 test4 request-method]
   (str "test1=" test1
        ",id=" id
