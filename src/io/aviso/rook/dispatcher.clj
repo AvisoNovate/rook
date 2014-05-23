@@ -68,7 +68,7 @@
 
     [pathvec middleware? & entries],
 
-  In which case pathvec and middleware? (if present) will provide a
+  in which case pathvec and middleware? (if present) will provide a
   context pathvec and default middleware for the nested entries
   without introducing a separate route."
   [dispatch-table]
