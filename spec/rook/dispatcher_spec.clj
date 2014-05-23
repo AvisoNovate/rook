@@ -34,6 +34,8 @@
     (fn [kw request]
       (if (identical? kw :request-method)
         (:request-method request)))))
+
+
 (create-ns 'example.foo)
 
 (binding [*ns* (the-ns 'example.foo)]
