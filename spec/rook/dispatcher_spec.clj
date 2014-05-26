@@ -29,6 +29,23 @@
        (dispatcher/namespace-dispatch-table context-pathvec ns-sym middleware))))
 
 
+(defn wrap-with-pprint-request [handler]
+  (fn [request]
+    (dispatcher/pprint-code request)
+    (handler request)))
+
+(defn wrap-with-pprint-response [handler]
+  (fn [request]
+    (let [resp (handler request)]
+      (if (satisfies? clojure.core.async.impl.protocols/ReadPort resp)
+        (let [v (async/<!! resp)]
+          (async/>!! resp v)
+          (dispatcher/pprint-code v))
+        (dispatcher/pprint-code resp))
+      (prn)
+      resp)))
+
+
 (defn wrap-with-resolve-method [handler]
   (rook/wrap-with-arg-resolvers handler
     (fn [kw request]
