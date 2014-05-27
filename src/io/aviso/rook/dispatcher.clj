@@ -130,6 +130,41 @@
       (rook-async/ring-handler->async-handler handler)
       handler)))
 
+(defn compare-pathvecs [pathvec1 pathvec2]
+  (let [variable? (some-fn keyword? symbol?)]
+    (loop [pv1 (seq pathvec1)
+           pv2 (seq pathvec2)]
+      (cond
+        (nil? pv1) (if (nil? pv2) 0 -1)
+        (nil? pv2) 1
+        :else
+        (let [seg1 (first pv1)
+              seg2 (first pv2)]
+          (cond
+            (variable? seg1) (if (variable? seg2)
+                               (let [res (compare (name seg1) (name seg2))]
+                                 (if (zero? res)
+                                   (recur (next pv1) (next pv2))
+                                   res))
+                              -1)
+            (variable? seg2) 1
+            :else (let [res (compare seg1 seg2)]
+                    (if (zero? res)
+                      (recur (next pv1) (next pv2))
+                      res))))))))
+
+(defn compare-route-specs [[method1 pathvec1] [method2 pathvec2]]
+  (let [res (compare-pathvecs pathvec1 pathvec2)]
+    (if (zero? res)
+      (compare method1 method2)
+      res)))
+
+(defn sort-dispatch-table [dispatch-table]
+  (vec (sort compare-route-specs dispatch-table)))
+
+(defn sorted-routes [routes]
+  (into (sorted-map-by compare-route-specs) routes))
+
 (defn analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
   key :routes, a map of route-spec -> handler-map at key :handlers and
@@ -174,7 +209,7 @@
                       :sync?            sync?}
             handlers (assoc handlers handler-sym handler)]
         (recur routes handlers middleware (next entries)))
-      {:routes     routes
+      {:routes     (sorted-routes routes)
        :handlers   handlers
        :middleware (set/map-invert middleware)})))
 
