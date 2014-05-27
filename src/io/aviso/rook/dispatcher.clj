@@ -246,9 +246,38 @@
                    non-route-params)]
            (~verb-fn-sym ~@arglist))))))
 
+(defn build-pattern-matching-handler
+  [routes handlers middleware apply-middleware]
+  (let [req (gensym "request__")]
+    `(let [~@(apply concat middleware)
+           ~@(mapcat (fn [[handler-sym handler-map]]
+                       [handler-sym
+                        (handler-form
+                          apply-middleware req handler-sym handler-map)])
+               handlers)]
+       (fn rook-dispatcher# [~req]
+         (match (preparse-request ~req)
+           ~@(mapcat (fn [[route-spec handler-sym]]
+                       (let [{:keys [route-params schema]}
+                             (get handlers handler-sym)]
+                         [route-spec
+                          `(let [route-params#
+                                 ~(zipmap
+                                    (map keyword route-params)
+                                    route-params)]
+                             (~handler-sym
+                               (-> ~req
+                                 (assoc :route-params route-params#)
+                                 ~@(if schema
+                                     [`(assoc-in [:rook :metadata :schema]
+                                         ~schema)]))))]))
+               routes)
+           :else nil)))))
+
 (def dispatch-table-compilation-defaults
   {:emit-fn             eval
-   :apply-middleware-fn `apply-middleware-sync})
+   :apply-middleware-fn `apply-middleware-sync
+   :build-handler-fn    build-pattern-matching-handler})
 
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.
@@ -263,36 +292,12 @@
      (let [options          (merge dispatch-table-compilation-defaults options)
            emit-fn          (:emit-fn options)
            apply-middleware (:apply-middleware-fn options)
-
-           req (gensym "request__")
+           build-handler    (:build-handler-fn options)
 
            {:keys [routes handlers middleware]}
            (analyse-dispatch-table dispatch-table)]
        (emit-fn
-         `(let [~@(apply concat middleware)
-                ~@(mapcat (fn [[handler-sym handler-map]]
-                            [handler-sym
-                             (handler-form
-                               apply-middleware req handler-sym handler-map)])
-                    handlers)]
-            (fn rook-dispatcher# [~req]
-              (match (preparse-request ~req)
-                ~@(mapcat (fn [[route-spec handler-sym]]
-                            (let [{:keys [route-params schema]}
-                                  (get handlers handler-sym)]
-                              [route-spec
-                               `(let [route-params#
-                                      ~(zipmap
-                                         (map keyword route-params)
-                                         route-params)]
-                                  (~handler-sym
-                                    (-> ~req
-                                      (assoc :route-params route-params#)
-                                      ~@(if schema
-                                          [`(assoc-in [:rook :metadata :schema]
-                                              ~schema)]))))]))
-                    routes)
-                :else nil)))))))
+         (build-handler routes handlers middleware apply-middleware)))))
 
 #_
 (defn compile-dispatch-table
