@@ -53,6 +53,12 @@
         (:request-method request)))))
 
 
+(defn wrap-with-incrementer [handler atom]
+  (fn [request]
+    (swap! atom inc)
+    (handler request)))
+
+
 (create-ns 'example.foo)
 
 (binding [*ns* (the-ns 'example.foo)]
@@ -66,12 +72,12 @@
            (defn create [x]
              (resp/response (str "Created " x))))))
 
-(def ^:dynamic *default-middleware* identity)
+(def default-middleware identity)
 
 (def simple-dispatch-table
-  [[:get  ["foo"]     'example.foo/index  `*default-middleware*]
-   [:post ["foo"]     'example.foo/create `*default-middleware*]
-   [:get  ["foo" :id] 'example.foo/show   `*default-middleware*]])
+  [[:get  ["foo"]     'example.foo/index  `default-middleware]
+   [:post ["foo"]     'example.foo/create `default-middleware]
+   [:get  ["foo" :id] 'example.foo/show   `default-middleware]])
 
 (describe "io.aviso.rook.dispatcher"
 
@@ -85,25 +91,25 @@
     (it "should correctly unnest DTs WITHOUT default middleware"
 
       (let [dt [(into [["api"]] simple-dispatch-table)]]
-        (should= [[:get  ["api" "foo"]     'example.foo/index  `*default-middleware*]
-                  [:post ["api" "foo"]     'example.foo/create `*default-middleware*]
-                  [:get  ["api" "foo" :id] 'example.foo/show   `*default-middleware*]]
+        (should= [[:get  ["api" "foo"]     'example.foo/index  `default-middleware]
+                  [:post ["api" "foo"]     'example.foo/create `default-middleware]
+                  [:get  ["api" "foo" :id] 'example.foo/show   `default-middleware]]
           (dispatcher/unnest-dispatch-table dt))))
 
     (it "should correctly unnest DTs WITH default middleware and empty context pathvec"
 
-      (let [dt [(into [[] `*default-middleware*]
+      (let [dt [(into [[] `default-middleware]
                   (mapv pop simple-dispatch-table))]]
         (should= simple-dispatch-table
           (dispatcher/unnest-dispatch-table dt))))
 
     (it "should correctly unnest DTs WITH default middleware and non-empty context pathvec"
 
-      (let [dt [(into [["api"] `*default-middleware*]
+      (let [dt [(into [["api"] `default-middleware]
                   (mapv pop simple-dispatch-table))]]
-        (should= [[:get  ["api" "foo"]     'example.foo/index  `*default-middleware*]
-                  [:post ["api" "foo"]     'example.foo/create `*default-middleware*]
-                  [:get  ["api" "foo" :id] 'example.foo/show   `*default-middleware*]]
+        (should= [[:get  ["api" "foo"]     'example.foo/index  `default-middleware]
+                  [:post ["api" "foo"]     'example.foo/create `default-middleware]
+                  [:get  ["api" "foo" :id] 'example.foo/show   `default-middleware]]
           (dispatcher/unnest-dispatch-table dt)))))
 
   (describe "compile-dispatch-table"
@@ -126,14 +132,14 @@
 
     (it "should inject the middleware"
 
-      (let [handler (dispatcher/compile-dispatch-table simple-dispatch-table)
-            a (atom 0)]
-        (binding [*default-middleware* (fn [handler]
-                                         (fn [request]
-                                           (swap! a inc)
-                                           (handler request)))]
-          (handler (mock/request :get "/foo"))
-          (should= 1 @a)))))
+      (let [a (atom 0)]
+        (with-redefs [default-middleware (fn [handler]
+                                           (fn [request]
+                                             (swap! a inc)
+                                             (handler request)))]
+          (let [handler (dispatcher/compile-dispatch-table simple-dispatch-table)]
+            (handler (mock/request :get "/foo"))
+            (should= 1 @a))))))
 
   (describe "namespace-dispatch-table"
 
@@ -141,7 +147,7 @@
 
       (let [dt (set (dispatcher/unnest-dispatch-table
                       (dispatcher/namespace-dispatch-table
-                        ["foo"] 'example.foo `*default-middleware*)))]
+                        ["foo"] 'example.foo `default-middleware)))]
         (should= (set simple-dispatch-table) dt))))
 
   (describe "compiled handlers"
@@ -184,7 +190,7 @@
 
       (let [handler (namespace-handler
                       {:apply-middleware-fn dispatcher/apply-middleware-async}
-                      [] 'barney `*default-middleware*)]
+                      [] 'barney `default-middleware)]
         (should= {:message "ribs!"}
           (-> (mock/request :get "/") handler async/<!! :body))))
 
