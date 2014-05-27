@@ -59,6 +59,28 @@
     (handler request)))
 
 
+(defn generate-huge-resource-namespace [ns-name size]
+  (if-let [ns (find-ns ns-name)]
+    (throw
+      (ex-info
+        (str
+          "It so happens that we already have a namespace named "
+          ns-name
+          "; I probably shouldn't touch it.")
+        {:ns-name ns-name :ns ns})))
+  (let [ns (create-ns ns-name)]
+    (doseq [i (range size)
+            :let [foo (str "foo" i)]]
+      (intern ns
+        (with-meta (symbol foo)
+          {:route-spec [:get [foo :x]]
+           :arglists (list '[request x])})
+        (fn [request x]
+          {:status  200
+           :headers {}
+           :body    (str foo "/" x)})))))
+
+
 (create-ns 'example.foo)
 
 (binding [*ns* (the-ns 'example.foo)]
@@ -284,4 +306,21 @@
         (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
         (should= "validation-error" (-> response :body :error))
         ;; TODO: Not sure that's the exact format I want sent back to the client!
-        (should= "{:name missing-required-key}" (-> response :body :failures))))))
+        (should= "{:name missing-required-key}" (-> response :body :failures)))))
+
+  (describe "handlers with a large number of endpoints"
+
+    (it "should compile and handle requests as expected"
+      (should= {:status 200 :headers {} :body "foo0/123"}
+        ((let [size 100]
+           (remove-ns 'rook.example.huge)
+           (generate-huge-resource-namespace 'rook.example.huge size)
+           (dispatcher/compile-dispatch-table
+             (dispatcher/namespace-dispatch-table [] 'rook.example.huge)))
+         {:request-method :get
+          :uri "/foo0/123"
+          :server-name "127.0.0.1"
+          :port 8080
+          :remote-addr "127.0.0.1"
+          :scheme :http
+          :headers {}})))))
