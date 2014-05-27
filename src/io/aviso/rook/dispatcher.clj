@@ -2,6 +2,7 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.string :as string]
             [clojure.pprint :as pp]
+            [clojure.set :as set]
             [io.aviso.rook :as rook]
             [io.aviso.rook.async :as rook-async]
             [io.aviso.rook.internals :as internals]
@@ -77,9 +78,9 @@
               (keyword? x)
               (let [[method pathvec verb-fn middleware & nested-table] entry]
                 (if nested-table
-                  (into [[method pathvec verb-fn
-                          (or middleware default-middleware)]]
-                    (unnest-table pathvec nested-table))
+                  (let [mw (or middleware default-middleware)]
+                    (into [[method pathvec verb-fn mw]]
+                      (unnest-table pathvec mw nested-table)))
                   (cond-> [entry]
                     (nil? middleware) (assoc-in [0 3] default-middleware))))
 
@@ -107,17 +108,18 @@
     xs))
 
 (defn prepare-handler-bindings
-  "Used by compile-dispatch-table."
+  "Used by handler-form."
   [request-sym arglist route-params non-route-params]
-  (mapcat (fn [param]
-            [param
-             (if (contains? route-params param)
-               `(get (:route-params ~request-sym) ~(keyword param))
-               `(internals/extract-argument-value
-                  ~(keyword param)
-                  ~request-sym
-                  (-> ~request-sym :rook :arg-resolvers)))])
-    arglist))
+  (let [route-param? (set route-params)]
+    (mapcat (fn [param]
+              [param
+               (if (route-param? param)
+                 `(get (:route-params ~request-sym) ~(keyword param))
+                 `(internals/extract-argument-value
+                    ~(keyword param)
+                    ~request-sym
+                    (-> ~request-sym :rook :arg-resolvers)))])
+      arglist)))
 
 (defn apply-middleware-sync [middleware sync? handler]
   (middleware handler))
@@ -128,6 +130,136 @@
       (rook-async/ring-handler->async-handler handler)
       handler)))
 
+(defn analyse-dispatch-table
+  "Returns a map holding a map of route-spec* -> handler-sym at
+  key :routes, a map of route-spec -> handler-map at key :handlers and
+  a map of middleware-symbol -> middleware-spec at key :middleware.
+  The structure of handler-maps is as required by handler-form;
+  middleware-spec is the literal form specifying the middleware in the
+  dispatch table; a route-spec* is a route-spec with keywords replaced
+  by symbols in the pathvec."
+  [dispatch-table]
+  (loop [routes     {}
+         handlers   {}
+         middleware {}
+         entries    (seq (unnest-dispatch-table dispatch-table))]
+    (if-let [[method pathvec verb-fn-sym mw-spec] (first entries)]
+      (let [handler-sym (gensym "handler_sym__")
+            method      (if (identical? method :all) '_ method)
+            routes      (assoc routes
+                          [method (keywords->symbols pathvec)] handler-sym)
+            [middleware mw-sym]
+            (if (contains? middleware mw-spec)
+              [middleware (get middleware mw-spec)]
+              (let [mw-sym (gensym "mw_sym__")]
+                [(assoc middleware mw-spec mw-sym) mw-sym]))
+            ns-metadata      (-> verb-fn-sym namespace symbol the-ns meta)
+            metadata         (merge (dissoc ns-metadata :doc)
+                               (meta (resolve verb-fn-sym)))
+            sync?            (:sync metadata)
+            route-params     (mapv (comp symbol name)
+                               (filter keyword? pathvec))
+            pathvec          (keywords->symbols pathvec)
+            arglist          (first (:arglists metadata))
+            non-route-params (remove (set route-params) arglist)
+            arg-resolvers    (:arg-resolvers metadata)
+            schema           (:schema metadata)
+            handler  {:middleware-sym   mw-sym
+                      :route-params     route-params
+                      :non-route-params non-route-params
+                      :verb-fn-sym      verb-fn-sym
+                      :arglist          arglist
+                      :arg-resolvers    arg-resolvers
+                      :schema           schema
+                      :sync?            sync?}
+            handlers (assoc handlers handler-sym handler)]
+        (recur routes handlers middleware (next entries)))
+      {:routes     routes
+       :handlers   handlers
+       :middleware (set/map-invert middleware)})))
+
+(defn handler-form
+  "Returns a Clojure form evaluating to a handler wrapped in middleware.
+  The middleware stack includes the specified arg-resolvers, if any,
+  in the innermost position, and the middleware specified by
+  middleware-sym. The resulting handler calls the function named by
+  verb-fn-sym with arguments extracted from the request map."
+  [apply-middleware req handler-sym
+   {:keys [middleware-sym
+           route-params
+           non-route-params
+           verb-fn-sym
+           arglist
+           arg-resolvers
+           sync?]}]
+  (let [prewrap-handler-sym (gensym (str handler-sym "__prewrap_handler__"))
+        resolving-mw-sym    (gensym
+                              (str middleware-sym "__with_arg_resolvers__"))]
+    `(~apply-middleware
+       ~(if (seq arg-resolvers)
+          `(fn ~resolving-mw-sym [handler#]
+             (-> handler#
+               (rook/wrap-with-arg-resolvers ~@arg-resolvers)
+               ~middleware-sym))
+          middleware-sym)
+       ~sync?
+       (fn ~prewrap-handler-sym [~req]
+         (let [~@(prepare-handler-bindings
+                   req
+                   arglist
+                   route-params
+                   non-route-params)]
+           (~verb-fn-sym ~@arglist))))))
+
+(def dispatch-table-compilation-defaults
+  {:emit-fn             eval
+   :apply-middleware-fn `apply-middleware-sync})
+
+(defn compile-dispatch-table
+  "Compiles the dispatch table into a Ring handler.
+
+  See the docstring of unnest-dispatch-table for a description of
+  dispatch table format."
+  ([dispatch-table]
+     (compile-dispatch-table
+       dispatch-table-compilation-defaults
+       dispatch-table))
+  ([options dispatch-table]
+     (let [options          (merge dispatch-table-compilation-defaults options)
+           emit-fn          (:emit-fn options)
+           apply-middleware (:apply-middleware-fn options)
+
+           req (gensym "request__")
+
+           {:keys [routes handlers middleware]}
+           (analyse-dispatch-table dispatch-table)]
+       (emit-fn
+         `(let [~@(apply concat middleware)
+                ~@(mapcat (fn [[handler-sym handler-map]]
+                            [handler-sym
+                             (handler-form
+                               apply-middleware req handler-sym handler-map)])
+                    handlers)]
+            (fn rook-dispatcher# [~req]
+              (match (preparse-request ~req)
+                ~@(mapcat (fn [[route-spec handler-sym]]
+                            (let [{:keys [route-params schema]}
+                                  (get handlers handler-sym)]
+                              [route-spec
+                               `(let [route-params#
+                                      ~(zipmap
+                                         (map keyword route-params)
+                                         route-params)]
+                                  (~handler-sym
+                                    (-> ~req
+                                      (assoc :route-params route-params#)
+                                      ~@(if schema
+                                          [`(assoc-in [:rook :metadata :schema]
+                                              ~schema)]))))]))
+                    routes)
+                :else nil)))))))
+
+#_
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.
 
@@ -200,7 +332,7 @@
   ([ns-sym]
      (namespace-dispatch-table [] ns-sym))
   ([context-pathvec ns-sym]
-     (namespace-dispatch-table context-pathvec ns-sym default-middleware))
+     (namespace-dispatch-table context-pathvec ns-sym `default-middleware))
   ([context-pathvec ns-sym middleware]
      (try
        (if-not (find-ns ns-sym)
