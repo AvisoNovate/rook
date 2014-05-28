@@ -257,6 +257,8 @@
            (~verb-fn-sym ~@arglist))))))
 
 (defn build-pattern-matching-handler
+  "Returns a form evaluating to a Ring handler using pattern matching
+  on the request pathvec to select the appropriate endpoint function."
   [routes handlers middleware apply-middleware]
   (let [req (gensym "request__")]
     `(let [~@(apply concat middleware)
@@ -265,7 +267,7 @@
                         (handler-form
                           apply-middleware req handler-sym handler-map)])
                handlers)]
-       (fn rook-dispatcher# [~req]
+       (fn rook-pattern-matching-dispatcher# [~req]
          (match (preparse-request ~req)
            ~@(mapcat (fn [[route-spec handler-sym]]
                        (let [{:keys [route-params schema]}
@@ -279,6 +281,77 @@
                                (assoc ~req :route-params route-params#)))]))
                routes)
            :else nil)))))
+
+(defn build-map-traversal-handler
+  "Returns a form evaluating to a Ring handler that handles dispatch
+  by using the pathvec and method of the incoming request to look up
+  an endpoint function in a nested map."
+  [routes handlers middleware apply-middleware]
+  (let [req (gensym "request__")
+        tmp (gensym "tmp_var__")]
+    `(do
+       (def ~tmp
+         (atom {:dispatch-map {}
+                :endpoint-fns {}
+                :middleware   {}}))
+       ~@(map (fn [[mw-sym mw]]
+                `(swap! ~tmp assoc-in [:middleware '~mw-sym] ~mw))
+           middleware)
+       ~@(mapcat
+           (fn [[[method pathvec] handler-sym]]
+             (let [handler-map (get handlers handler-sym)
+                   mw-sym      (:middleware-sym handler-map)
+                   schema      (:schema handler-map)
+                   h `(let [~mw-sym (get-in @~tmp [:middleware '~mw-sym])]
+                        ~(handler-form
+                           apply-middleware req handler-sym handler-map))
+                   dispatch-path (conj
+                                   (mapv (fn [seg]
+                                           (if (variable? seg)
+                                             ::param-next
+                                             seg))
+                                     pathvec)
+                                   method)
+                   binding-names (filter variable? pathvec)
+                   binding-paths (keep-indexed
+                                   (fn [i seg]
+                                     (if (variable? seg)
+                                       (-> (subvec pathvec 0 i)
+                                         (into [])
+                                         (conj ::param-name))))
+                                   pathvec)]
+               `[(swap! ~tmp assoc-in [:endpoint-fns '~handler-sym] ~h)
+                 (swap! ~tmp assoc-in
+                   (into [:dispatch-map] ~dispatch-path)
+                   '~handler-sym)
+                 ~@(map (fn [name path]
+                          `(swap! ~tmp
+                             assoc-in
+                             (into [:dispatch-map] ~path) ~(keyword name)))
+                     binding-names
+                     binding-paths)]))
+           routes)
+       (let [dispatch-map# (:dispatch-map @~tmp)
+             endpoint-fns# (:endpoint-fns @~tmp)]
+         (ns-unmap *ns* '~tmp)
+         (fn rook-map-traversal-dispatcher# [~req]
+           [dispatch-map# endpoint-fns#]
+           (loop [pathvec#      (second (preparse-request ~req))
+                  dispatch#     dispatch-map#
+                  route-params# {}]
+             (if-let [seg# (first pathvec#)]
+               (if (contains? dispatch# seg#)
+                 (recur (next pathvec#) (get dispatch# seg#) route-params#)
+                 (if-let [v# (::param-name dispatch#)]
+                   (recur (next pathvec#) (::param-next dispatch#)
+                     (assoc route-params# v# seg#))
+                   ;; no match on path
+                   nil))
+               (if-let [h# (get endpoint-fns#
+                             (get dispatch# (:request-method ~req)))]
+                 (h# (assoc ~req :route-params route-params#))
+                 ;; unsupported method for path
+                 nil))))))))
 
 (def dispatch-table-compilation-defaults
   {:emit-fn             eval
