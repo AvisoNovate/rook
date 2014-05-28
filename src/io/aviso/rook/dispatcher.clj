@@ -378,68 +378,6 @@
        (emit-fn
          (build-handler routes handlers middleware apply-middleware)))))
 
-#_
-(defn compile-dispatch-table
-  "Compiles the dispatch table into a Ring handler.
-
-  See the docstring of unnest-dispatch-table for a description of
-  dispatch table format."
-  ([dispatch-table]
-     (compile-dispatch-table {} dispatch-table))
-  ([options dispatch-table]
-     (let [dt  (unnest-dispatch-table dispatch-table)
-           req (gensym "request__")
-           emit-fn (:emit-fn options eval)
-           apply-middleware (:apply-middleware-fn options
-                                                  `apply-middleware-sync)]
-       (emit-fn
-         `(fn rook-dispatcher# [~req]
-            (match (request-route-spec ~req)
-              ~@(mapcat
-                  (fn [[method pathvec verb-fn-sym middleware]]
-                    (let [method           (if (identical? method :all)
-                                             '_
-                                             method)
-                          ns-metadata      (-> verb-fn-sym
-                                             namespace symbol the-ns meta)
-                          metadata         (merge (dissoc ns-metadata :doc)
-                                             (meta (resolve verb-fn-sym)))
-                          sync?            (:sync metadata)
-                          pathvec          (keywords->symbols pathvec)
-                          route-params     (set (filter symbol? pathvec))
-                          arglist          (first (:arglists metadata))
-                          non-route-params (remove route-params arglist)
-                          arg-resolvers    (:arg-resolvers metadata)
-                          add-resolvers    (if arg-resolvers
-                                             `(rook/wrap-with-arg-resolvers
-                                                ~@arg-resolvers))
-                          middleware       (if arg-resolvers
-                                             `(fn [handler#]
-                                                (-> handler#
-                                                  ~add-resolvers
-                                                  ~middleware))
-                                             middleware)
-                          schema           (:schema metadata)]
-                      [[method pathvec]
-                       `(let [route-params# ~(zipmap
-                                               (map keyword route-params)
-                                               route-params)
-                              handler# (fn [~req]
-                                         (let [~@(prepare-handler-bindings
-                                                   req
-                                                   arglist
-                                                   route-params
-                                                   non-route-params)]
-                                           (~verb-fn-sym ~@arglist)))]
-                          ((~apply-middleware ~middleware ~sync? handler#)
-                           (-> ~req
-                             (assoc :route-params route-params#)
-                             ~@(if schema
-                                 [`(assoc-in [:rook :metadata :schema]
-                                     ~schema)]))))]))
-                  dt)
-              :else nil))))))
-
 (defn default-middleware [handler]
   (-> handler
     rook/wrap-with-function-arg-resolvers
