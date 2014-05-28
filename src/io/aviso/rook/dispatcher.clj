@@ -1,4 +1,33 @@
 (ns io.aviso.rook.dispatcher
+  "This namespace deals with dispatch tables mapping route specs of
+  the form
+
+    [method [path-segment ...]]
+
+  to endpoint functions. The recognized format is described at length
+  in the docstrings of the unnest-dispatch-table and
+  request-route-spec functions exported by this namespace.
+
+  The expected way to use this namespace is as follows:
+
+   - namespaces still correspond to resources;
+
+   - namespace-dispatch-table produces a dispatch table for a single
+     namespace;
+
+   - any number of such dispatch tables can be concatenated to form a
+     dispatch table for a collection of resources;
+
+   - such compound dispatch tables can be compiled using
+     compile-dispatch-table.
+
+  compile-dispatch-table takes several options; these are all
+  described in its docstring.
+
+  Also of note are the two built-in compilation strategies for use
+  with compile-dispatch-table's :build-handler-fn option:
+  build-pattern-matching-handler and build-map-traversal-handler. See
+  their own docstrings for details."
   (:require [clojure.core.match :refer [match]]
             [clojure.string :as string]
             [clojure.pprint :as pp]
