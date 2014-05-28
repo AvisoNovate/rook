@@ -14,7 +14,12 @@
 
 
 (defn namespace-handler
-  "Produces a handler based on the given namespace."
+  "Produces a handler based on the given namespace.
+
+  Defined here rather than in io.aviso.rook.dispatcher because this is
+  not, in general, the best way to use compile-dispatch-table;
+  instead, the dispatch tables for all resource namespaces should be
+  merged and the resulting table should be compiled."
   ([ns-sym]
      (dispatcher/compile-dispatch-table
        (dispatcher/namespace-dispatch-table ns-sym)))

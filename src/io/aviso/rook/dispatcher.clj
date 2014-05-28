@@ -122,10 +122,18 @@
                     (-> ~request-sym :rook :arg-resolvers)))])
       arglist)))
 
-(defn apply-middleware-sync [middleware sync? handler]
+(defn apply-middleware-sync
+  "Applies middleware to handler in a synchronous fashion. Ignores
+  sync?. Can be passed to compile-dispatch-table using
+  the :apply-middleware-fn option."
+  [middleware sync? handler]
   (middleware handler))
 
-(defn apply-middleware-async [middleware sync? handler]
+(defn apply-middleware-async
+  "Applies middleware to handler in a synchronous or asynchronous
+  fashion depending on whether sync? is truthy. Can be passed to
+  compile-dispatch-table using the :apply-middleware-fn option."
+  [middleware sync? handler]
   (middleware
     (if sync?
       (rook-async/ring-handler->async-handler handler)
@@ -134,7 +142,10 @@
 (defn variable? [x]
   (or (keyword? x) (symbol? x)))
 
-(defn compare-pathvecs [pathvec1 pathvec2]
+(defn compare-pathvecs
+  "Uses lexicographic order. Variables come before literal strings (so
+  that /foo/:id sorts before /foo/bar)."
+  [pathvec1 pathvec2]
   (loop [pv1 (seq pathvec1)
          pv2 (seq pathvec2)]
     (cond
@@ -156,7 +167,9 @@
                     (recur (next pv1) (next pv2))
                     res)))))))
 
-(defn compare-route-specs [[method1 pathvec1] [method2 pathvec2]]
+(defn compare-route-specs
+  "Uses compare-pathvecs first, breaking ties by comparing methods."
+  [[method1 pathvec1] [method2 pathvec2]]
   (let [res (compare-pathvecs pathvec1 pathvec2)]
     (if (zero? res)
       (compare method1 method2)
@@ -165,7 +178,9 @@
 (defn sort-dispatch-table [dispatch-table]
   (vec (sort compare-route-specs dispatch-table)))
 
-(defn sorted-routes [routes]
+(defn sorted-routes
+  "Converts the given map of route specs -> * to a sorted map."
+  [routes]
   (into (sorted-map-by compare-route-specs) routes))
 
 (defn analyse-dispatch-table
@@ -258,7 +273,10 @@
 
 (defn build-pattern-matching-handler
   "Returns a form evaluating to a Ring handler using pattern matching
-  on the request pathvec to select the appropriate endpoint function."
+  on the request pathvec to select the appropriate endpoint function.
+
+  Can be passed to compile-dispatch-table using the :build-handler-fn
+  option."
   [routes handlers middleware apply-middleware]
   (let [req (gensym "request__")]
     `(let [~@(apply concat middleware)
@@ -285,7 +303,10 @@
 (defn build-map-traversal-handler
   "Returns a form evaluating to a Ring handler that handles dispatch
   by using the pathvec and method of the incoming request to look up
-  an endpoint function in a nested map."
+  an endpoint function in a nested map.
+
+  Can be passed to compile-dispatch-table using the :build-handler-fn
+  option."
   [routes handlers middleware apply-middleware]
   (let [req (gensym "request__")
         tmp (gensym "tmp_var__")]
@@ -362,7 +383,28 @@
   "Compiles the dispatch table into a Ring handler.
 
   See the docstring of unnest-dispatch-table for a description of
-  dispatch table format."
+  dispatch table format.
+
+  Supported options and their default values:
+
+   - apply-middleware-fn (apply-middleware-sync):
+
+     Used to wrap middleware around endpoint handlers.
+     apply-middleware-async or a similar function should be used when
+     compiling async handlers.
+
+   - build-handler-fn (build-pattern-matching-handler):
+
+     Will be called with routes, handlers, middleware (see the
+     docstring of analyse-dispatch-table for a description of these)
+     and apply-middleware-fn. Should produce a value that can be
+     passed to emit-fn; normally this will be a Clojure form
+     evaluating to a Ring handler.
+
+   - emit-fn (eval):
+
+     Called with the output of build-handler-fn. Passing in
+     pprint-code instead of eval is useful for debugging purposes."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults
