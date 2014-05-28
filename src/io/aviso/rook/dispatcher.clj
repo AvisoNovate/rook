@@ -29,7 +29,8 @@
   )
 
 (defn pprint-code [form]
-  (pp/write form :dispatch pp/code-dispatch))
+  (pp/write form :dispatch pp/code-dispatch)
+  (prn))
 
 (defn preparse-request
   "Takes a Ring request map and returns [method pathvec], where method
