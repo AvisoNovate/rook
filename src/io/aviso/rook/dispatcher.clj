@@ -131,28 +131,30 @@
       (rook-async/ring-handler->async-handler handler)
       handler)))
 
+(defn variable? [x]
+  (or (keyword? x) (symbol? x)))
+
 (defn compare-pathvecs [pathvec1 pathvec2]
-  (let [variable? (some-fn keyword? symbol?)]
-    (loop [pv1 (seq pathvec1)
-           pv2 (seq pathvec2)]
-      (cond
-        (nil? pv1) (if (nil? pv2) 0 -1)
-        (nil? pv2) 1
-        :else
-        (let [seg1 (first pv1)
-              seg2 (first pv2)]
-          (cond
-            (variable? seg1) (if (variable? seg2)
-                               (let [res (compare (name seg1) (name seg2))]
-                                 (if (zero? res)
-                                   (recur (next pv1) (next pv2))
-                                   res))
-                              -1)
-            (variable? seg2) 1
-            :else (let [res (compare seg1 seg2)]
-                    (if (zero? res)
-                      (recur (next pv1) (next pv2))
-                      res))))))))
+  (loop [pv1 (seq pathvec1)
+         pv2 (seq pathvec2)]
+    (cond
+      (nil? pv1) (if (nil? pv2) 0 -1)
+      (nil? pv2) 1
+      :else
+      (let [seg1 (first pv1)
+            seg2 (first pv2)]
+        (cond
+          (variable? seg1) (if (variable? seg2)
+                             (let [res (compare (name seg1) (name seg2))]
+                               (if (zero? res)
+                                 (recur (next pv1) (next pv2))
+                                 res))
+                             -1)
+          (variable? seg2) 1
+          :else (let [res (compare seg1 seg2)]
+                  (if (zero? res)
+                    (recur (next pv1) (next pv2))
+                    res)))))))
 
 (defn compare-route-specs [[method1 pathvec1] [method2 pathvec2]]
   (let [res (compare-pathvecs pathvec1 pathvec2)]
