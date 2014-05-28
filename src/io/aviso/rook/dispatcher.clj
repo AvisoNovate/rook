@@ -32,7 +32,7 @@
   (pp/write form :dispatch pp/code-dispatch)
   (prn))
 
-(defn preparse-request
+(defn request-route-spec
   "Takes a Ring request map and returns [method pathvec], where method
   is a request method keyword and pathvec is a vector of path
   segments.
@@ -268,7 +268,7 @@
                           apply-middleware req handler-sym handler-map)])
                handlers)]
        (fn rook-pattern-matching-dispatcher# [~req]
-         (match (preparse-request ~req)
+         (match (request-route-spec ~req)
            ~@(mapcat (fn [[route-spec handler-sym]]
                        (let [{:keys [route-params schema]}
                              (get handlers handler-sym)]
@@ -336,7 +336,7 @@
          (ns-unmap *ns* '~tmp)
          (fn rook-map-traversal-dispatcher# [~req]
            [dispatch-map# endpoint-fns#]
-           (loop [pathvec#      (second (preparse-request ~req))
+           (loop [pathvec#      (second (request-route-spec ~req))
                   dispatch#     dispatch-map#
                   route-params# {}]
              (if-let [seg# (first pathvec#)]
@@ -394,7 +394,7 @@
                                                   `apply-middleware-sync)]
        (emit-fn
          `(fn rook-dispatcher# [~req]
-            (match (preparse-request ~req)
+            (match (request-route-spec ~req)
               ~@(mapcat
                   (fn [[method pathvec verb-fn-sym middleware]]
                     (let [method           (if (identical? method :all)
