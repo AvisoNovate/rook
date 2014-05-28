@@ -216,6 +216,10 @@
        :handlers   handlers
        :middleware (set/map-invert middleware)})))
 
+(defn wrap-with-schema [handler schema]
+  (fn [request]
+    (handler (assoc-in request [:rook :metadata :schema] schema))))
+
 (defn handler-form
   "Returns a Clojure form evaluating to a handler wrapped in middleware.
   The middleware stack includes the specified arg-resolvers, if any,
@@ -229,16 +233,19 @@
            verb-fn-sym
            arglist
            arg-resolvers
+           schema
            sync?]}]
   (let [prewrap-handler-sym (gensym (str handler-sym "__prewrap_handler__"))
-        resolving-mw-sym    (gensym
-                              (str middleware-sym "__with_arg_resolvers__"))]
+        wrapped-mw-sym      (gensym (str middleware-sym "__wrapped__"))]
     `(~apply-middleware
-       ~(if (seq arg-resolvers)
-          `(fn ~resolving-mw-sym [handler#]
+       ~(if (or (seq arg-resolvers) schema)
+          `(fn ~wrapped-mw-sym [handler#]
              (-> handler#
-               (rook/wrap-with-arg-resolvers ~@arg-resolvers)
-               ~middleware-sym))
+               ~@(if (seq arg-resolvers)
+                   [`(rook/wrap-with-arg-resolvers ~@arg-resolvers)])
+               ~middleware-sym
+               ~@(if schema
+                   [`(wrap-with-schema ~schema)])))
           middleware-sym)
        ~sync?
        (fn ~prewrap-handler-sym [~req]
@@ -269,11 +276,7 @@
                                     (map keyword route-params)
                                     route-params)]
                              (~handler-sym
-                               (-> ~req
-                                 (assoc :route-params route-params#)
-                                 ~@(if schema
-                                     [`(assoc-in [:rook :metadata :schema]
-                                         ~schema)]))))]))
+                               (assoc ~req :route-params route-params#)))]))
                routes)
            :else nil)))))
 
