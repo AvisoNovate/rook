@@ -2,32 +2,24 @@
   "This namespace deals with dispatch tables mapping route specs of
   the form
 
-    [method [path-segment ...]]
+      [method [path-segment ...]]
 
   to endpoint functions. The recognized format is described at length
-  in the docstrings of the unnest-dispatch-table and
-  request-route-spec functions exported by this namespace.
+  in in functions [[unnest-dispatch-table]] and [[request-route-spec]].
 
   The expected way to use this namespace is as follows:
 
-   - namespaces still correspond to resources;
+   - namespaces correspond to resources, including the default mapping
+     of requests to functions
 
-   - namespace-dispatch-table produces a dispatch table for a single
-     namespace;
+   - [[namespace-dispatch-table]] produces a dispatch table for a single
+     namespace
 
    - any number of such dispatch tables can be concatenated to form a
-     dispatch table for a collection of resources;
+     dispatch table for a collection of resources
 
    - such compound dispatch tables can be compiled using
-     compile-dispatch-table.
-
-  compile-dispatch-table takes several options; these are all
-  described in its docstring.
-
-  Also of note are the two built-in compilation strategies for use
-  with compile-dispatch-table's :build-handler-fn option:
-  build-pattern-matching-handler and build-map-traversal-handler. See
-  their own docstrings for details."
+     [[compile-dispatch-table]], which creates a request handler function"
   (:require [clojure.core.match :refer [match]]
             [clojure.string :as string]
             [clojure.pprint :as pp]
@@ -57,7 +49,9 @@
    }
   )
 
-(defn pprint-code [form]
+(defn pprint-code
+  "Useful when debugging [[compile-dispatch-table]], this writes out the result of compilation rather than evaluating it."
+  [form]
   (pp/write form :dispatch pp/code-dispatch)
   (prn))
 
@@ -68,11 +62,11 @@
 
   For example,
 
-    GET /foo/bar HTTP/1.1
+      GET /foo/bar HTTP/1.1
 
   becomes
 
-    [:get [\"foo\" \"bar\"]].
+      [:get [\"foo\" \"bar\"]].
 
   The individual path segments are URL decoded; UTF-8 encoding is
   assumed."
@@ -84,20 +78,20 @@
 (defn unnest-dispatch-table
   "Given a nested dispatch table:
 
-    [[method pathvec verb-fn middleware
-      [method' pathvec' verb-fn' middleware' ...]
-      ...]
-     ...]
+      [[method pathvec verb-fn middleware
+        [method' pathvec' verb-fn' middleware' ...]
+        ...]
+       ...]
 
   produces a dispatch table with no nesting:
 
-    [[method pathvec verb-fn middleware]
-     [method' (into pathvec pathvec') verb-fn' middleware']
-     ...].
+      [[method pathvec verb-fn middleware]
+       [method' (into pathvec pathvec') verb-fn' middleware']
+       ...]
 
   Entries may also take the alternative form of
 
-    [pathvec middleware? & entries],
+      [pathvec middleware? & entries],
 
   in which case pathvec and middleware? (if present) will provide a
   context pathvec and default middleware for the nested entries
@@ -153,15 +147,15 @@
 
 (defn apply-middleware-sync
   "Applies middleware to handler in a synchronous fashion. Ignores
-  sync?. Can be passed to compile-dispatch-table using
-  the :apply-middleware-fn option."
+  sync?. Can be passed to [[compile-dispatch-table]] using
+  the `:apply-middleware-fn` option."
   [middleware sync? handler]
   (middleware handler))
 
 (defn apply-middleware-async
   "Applies middleware to handler in a synchronous or asynchronous
   fashion depending on whether sync? is truthy. Can be passed to
-  compile-dispatch-table using the :apply-middleware-fn option."
+  [[compile-dispatch-table]] using the `:apply-middleware-fn` option."
   [middleware sync? handler]
   (middleware
     (if sync?
@@ -172,8 +166,8 @@
   (or (keyword? x) (symbol? x)))
 
 (defn compare-pathvecs
-  "Uses lexicographic order. Variables come before literal strings (so
-  that /foo/:id sorts before /foo/bar)."
+  "Uses lexicographic order. Variables come before literal strings, so
+  that `/foo/:id` sorts before `/foo/bar`."
   [pathvec1 pathvec2]
   (loop [pv1 (seq pathvec1)
          pv2 (seq pathvec2)]
@@ -197,7 +191,7 @@
                     res)))))))
 
 (defn compare-route-specs
-  "Uses compare-pathvecs first, breaking ties by comparing methods."
+  "Uses [[compare-pathvecs]] first, breaking ties by comparing methods."
   [[method1 pathvec1] [method2 pathvec2]]
   (let [res (compare-pathvecs pathvec1 pathvec2)]
     (if (zero? res)
@@ -214,9 +208,9 @@
 
 (defn analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
-  key :routes, a map of route-spec -> handler-map at key :handlers and
-  a map of middleware-symbol -> middleware-spec at key :middleware.
-  The structure of handler-maps is as required by handler-form;
+  key `:routes`, a map of route-spec -> handler-map at key `:handlers` and
+  a map of middleware-symbol -> middleware-spec at key `:middleware`.
+  The structure of handler-maps is as required by [[handler-form]];
   middleware-spec is the literal form specifying the middleware in the
   dispatch table; a route-spec* is a route-spec with keywords replaced
   by symbols in the pathvec."
@@ -304,7 +298,7 @@
   "Returns a form evaluating to a Ring handler using pattern matching
   on the request pathvec to select the appropriate endpoint function.
 
-  Can be passed to compile-dispatch-table using the :build-handler-fn
+  Can be passed to [[compile-dispatch-table]] using the `:build-handler-fn`
   option."
   [routes handlers middleware apply-middleware]
   (let [req (gensym "request__")]
@@ -334,7 +328,7 @@
   by using the pathvec and method of the incoming request to look up
   an endpoint function in a nested map.
 
-  Can be passed to compile-dispatch-table using the :build-handler-fn
+  Can be passed to [[compile-dispatch-table]] using the `:build-handler-fn`
   option."
   [routes handlers middleware apply-middleware]
   (let [req (gensym "request__")
@@ -409,31 +403,45 @@
    :build-handler-fn    build-pattern-matching-handler})
 
 (defn compile-dispatch-table
-  "Compiles the dispatch table into a Ring handler.
+  "Compiles a dispatch table into a Ring request handler. The handler will efficiently dispatch
+  to the correct handler function as defined by the table, or return nil if there is no match.
 
-  See the docstring of unnest-dispatch-table for a description of
+  See [[unnest-dispatch-table]] for a description of
   dispatch table format.
 
-  Supported options and their default values:
+  Part of constructing the handler is to \"bake in\" the middleware for any single function that may
+  be invoked. The `:apply-middleware-fn` is used to encompass the differences between
+  traditional syncronous Ring processing, and Rook's asynchronous processing.
 
-   - apply-middleware-fn (apply-middleware-sync):
+  Supported options:
 
-     Used to wrap middleware around endpoint handlers.
-     apply-middleware-async or a similar function should be used when
-     compiling async handlers.
+  `:apply-middleware-fn`
+  : (default [[apply-middleware-sync]])
 
-   - build-handler-fn (build-pattern-matching-handler):
+  : Used to wrap middleware around endpoint handlers.
+    [[apply-middleware-async]] or a similar function should be used when
+    compiling async handlers.
 
-     Will be called with routes, handlers, middleware (see the
-     docstring of analyse-dispatch-table for a description of these)
-     and apply-middleware-fn. Should produce a value that can be
-     passed to emit-fn; normally this will be a Clojure form
-     evaluating to a Ring handler.
+  `:build-handler-fn`
+  : (default [[build-pattern-matching-handler]])
 
-   - emit-fn (eval):
+  : Will be called with routes, handlers, middleware (see the
+    [[analyse-dispatch-table]] for a description of these)
+    and apply-middleware-fn. Should produce a value that can be
+    passed to `:emit-fn`; normally this will be a Clojure form
+    evaluating to a Ring handler.
 
-     Called with the output of build-handler-fn. Passing in
-     pprint-code instead of eval is useful for debugging purposes."
+  : For extremely large dispatch tables (hundreds of functions)
+    you may find that the default builder will hit Clojure's method
+    size limit, or that the alternate [[build-map-traversal-handler]]
+    implementation is simply faster.
+
+  `:emit-fn`
+
+  : (default `eval`)
+
+  : Called with the output of invoking `:build-handler-fn`. Passing in
+    [[pprint-code]] instead of `eval` is useful for debugging purposes."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults
@@ -456,7 +464,9 @@
 
 (defn namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
-  format intelligible to compile-dispatch-table."
+  format intelligible to [[compile-dispatch-table]]. This includes mapping
+  functions to path specs based on the naming convention, but also
+  on the presence of `:route-spec` meta data."
   ([ns-sym]
      (namespace-dispatch-table [] ns-sym))
   ([context-pathvec ns-sym]
