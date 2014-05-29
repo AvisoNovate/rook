@@ -329,6 +329,29 @@
                routes)
            :else nil)))))
 
+(defn map-traversal-dispatcher
+  "Returns a Ring handler using the given dispatch-map and
+  endpoint-fns to guide dispatch. Used by
+  build-map-traversal-handler."
+  [dispatch-map endpoint-fns]
+  (fn rook-map-traversal-dispatcher [request]
+    (loop [pathvec      (second (request-route-spec request))
+           dispatch     dispatch-map
+           route-params {}]
+      (if-let [seg (first pathvec)]
+        (if (contains? dispatch seg)
+          (recur (next pathvec) (get dispatch seg) route-params)
+          (if-let [v (::param-name dispatch)]
+            (recur (next pathvec) (::param-next dispatch)
+              (assoc route-params v seg))
+            ;; no match on path
+            nil))
+        (if-let [h (get endpoint-fns
+                     (get dispatch (:request-method request)))]
+          (h (assoc request :route-params route-params))
+          ;; unsupported method for path
+          nil)))))
+
 (defn build-map-traversal-handler
   "Returns a form evaluating to a Ring handler that handles dispatch
   by using the pathvec and method of the incoming request to look up
@@ -384,24 +407,7 @@
        (let [dispatch-map# (:dispatch-map @~tmp)
              endpoint-fns# (:endpoint-fns @~tmp)]
          (ns-unmap *ns* '~tmp)
-         (fn rook-map-traversal-dispatcher# [~req]
-           [dispatch-map# endpoint-fns#]
-           (loop [pathvec#      (second (request-route-spec ~req))
-                  dispatch#     dispatch-map#
-                  route-params# {}]
-             (if-let [seg# (first pathvec#)]
-               (if (contains? dispatch# seg#)
-                 (recur (next pathvec#) (get dispatch# seg#) route-params#)
-                 (if-let [v# (::param-name dispatch#)]
-                   (recur (next pathvec#) (::param-next dispatch#)
-                     (assoc route-params# v# seg#))
-                   ;; no match on path
-                   nil))
-               (if-let [h# (get endpoint-fns#
-                             (get dispatch# (:request-method ~req)))]
-                 (h# (assoc ~req :route-params route-params#))
-                 ;; unsupported method for path
-                 nil))))))))
+         (map-traversal-dispatcher dispatch-map# endpoint-fns#)))))
 
 (def dispatch-table-compilation-defaults
   {:emit-fn             eval
