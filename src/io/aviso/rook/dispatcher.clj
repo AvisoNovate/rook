@@ -330,10 +330,9 @@
            :else nil)))))
 
 (defn map-traversal-dispatcher
-  "Returns a Ring handler using the given dispatch-map and
-  endpoint-fns to guide dispatch. Used by
-  build-map-traversal-handler."
-  [dispatch-map endpoint-fns]
+  "Returns a Ring handler using the given dispatch-map to guide
+  dispatch. Used by build-map-traversal-handler."
+  [dispatch-map]
   (fn rook-map-traversal-dispatcher [request]
     (loop [pathvec      (second (request-route-spec request))
            dispatch     dispatch-map
@@ -346,17 +345,15 @@
               (assoc route-params v seg))
             ;; no match on path
             nil))
-        (if-let [h (get endpoint-fns
-                     (get dispatch (:request-method request)))]
+        (if-let [h (get dispatch (:request-method request))]
           (h (assoc request :route-params route-params))
           ;; unsupported method for path
           nil)))))
 
-(defn map-traversal-dispatch-guide
-  "Returns a vector of [dispatch-map endpoint-fns] for use with
-  map-traversal-dispatcher."
+(defn map-traversal-dispatch-map
+  "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]} apply-middleware]
-  (reduce (fn [[dispatch-map endpoint-fns] [[method pathvec] handler-sym]]
+  (reduce (fn [dispatch-map [[method pathvec] handler-sym]]
             (let [ensure-fn #(if (fn? %) % (eval %))
                   apply-middleware (ensure-fn apply-middleware)
 
@@ -415,12 +412,11 @@
                                         (into [])
                                         (conj ::param-name))))
                                   pathvec)]
-              [(reduce (fn [dispatch-map [name path]]
-                         (assoc-in dispatch-map path (keyword name)))
-                 (assoc-in dispatch-map dispatch-path handler-sym)
-                 (map vector binding-names binding-paths))
-               (assoc endpoint-fns handler-sym h)]))
-    [{} {}]
+              (reduce (fn [dispatch-map [name path]]
+                        (assoc-in dispatch-map path (keyword name)))
+                (assoc-in dispatch-map dispatch-path h)
+                (map vector binding-names binding-paths))))
+    {}
     routes))
 
 (defn build-map-traversal-handler
@@ -431,10 +427,9 @@
   Can be passed to compile-dispatch-table using the :build-handler-fn
   option."
   [analysed-dispatch-table apply-middleware]
-  (let [[dispatch-map endpoint-fns]
-        (map-traversal-dispatch-guide
-          analysed-dispatch-table apply-middleware)]
-    (map-traversal-dispatcher dispatch-map endpoint-fns)))
+  (let [dispatch-map (map-traversal-dispatch-map
+                       analysed-dispatch-table apply-middleware)]
+    (map-traversal-dispatcher dispatch-map)))
 
 (def dispatch-table-compilation-defaults
   {:emit-fn             eval
