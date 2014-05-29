@@ -306,7 +306,7 @@
 
   Can be passed to compile-dispatch-table using the :build-handler-fn
   option."
-  [routes handlers middleware apply-middleware]
+  [{:keys [routes handlers middleware]} apply-middleware]
   (let [req (gensym "request__")]
     `(let [~@(apply concat middleware)
            ~@(mapcat (fn [[handler-sym handler-map]]
@@ -352,6 +352,77 @@
           ;; unsupported method for path
           nil)))))
 
+(defn map-traversal-dispatch-guide
+  "Returns a vector of [dispatch-map endpoint-fns] for use with
+  map-traversal-dispatcher."
+  [{:keys [routes handlers middleware]} apply-middleware]
+  (reduce (fn [[dispatch-map endpoint-fns] [[method pathvec] handler-sym]]
+            (let [ensure-fn #(if (fn? %) % (eval %))
+                  apply-middleware (ensure-fn apply-middleware)
+
+                  {:keys [middleware-sym route-params non-route-params
+                          verb-fn-sym arglist arg-resolvers schema sync?]}
+                  (get handlers handler-sym)
+
+                  route-param-resolver
+                  (if (seq route-params)
+                    [(eval (let [req (gensym "request__")]
+                             `(fn [kw# ~req]
+                                (case kw#
+                                  ~@(mapcat
+                                      (fn [sym]
+                                        (let [k (keyword sym)]
+                                          [k `(-> ~req :route-params ~k)]))
+                                      route-params)
+                                  nil))))])
+
+                  mw (get middleware middleware-sym)
+                  mw (ensure-fn mw)
+                  mw (if (or route-param-resolver (seq arg-resolvers))
+                       (let [resolvers
+                             (mapv ensure-fn
+                               (concat route-param-resolver arg-resolvers))]
+                         (fn [handler]
+                           (mw (apply rook/wrap-with-arg-resolvers
+                                 handler resolvers))))
+                       mw)
+                  mw (if schema
+                       (fn [handler]
+                         (wrap-with-schema (mw handler) schema))
+                       mw)
+
+                  ef (ensure-fn verb-fn-sym)
+                  f  (fn wrapped-handler [request]
+                       (let [resolvers (get-in request [:rook :arg-resolvers])
+                             args (map #(internals/extract-argument-value
+                                          % request resolvers)
+                                    arglist)]
+                         (apply ef args)))
+                  h  (apply-middleware mw sync? f)
+
+                  dispatch-path (conj
+                                  (mapv (fn [seg]
+                                          (if (variable? seg)
+                                            ::param-next
+                                            seg))
+                                    pathvec)
+                                  method)
+                  binding-names (filter variable? pathvec)
+                  binding-paths (keep-indexed
+                                  (fn [i seg]
+                                    (if (variable? seg)
+                                      (-> (subvec pathvec 0 i)
+                                        (into [])
+                                        (conj ::param-name))))
+                                  pathvec)]
+              [(reduce (fn [dispatch-map [name path]]
+                         (assoc-in dispatch-map path (keyword name)))
+                 (assoc-in dispatch-map dispatch-path handler-sym)
+                 (map vector binding-names binding-paths))
+               (assoc endpoint-fns handler-sym h)]))
+    [{} {}]
+    routes))
+
 (defn build-map-traversal-handler
   "Returns a form evaluating to a Ring handler that handles dispatch
   by using the pathvec and method of the incoming request to look up
@@ -359,55 +430,11 @@
 
   Can be passed to compile-dispatch-table using the :build-handler-fn
   option."
-  [routes handlers middleware apply-middleware]
-  (let [req (gensym "request__")
-        tmp (gensym "tmp_var__")]
-    `(do
-       (def ~tmp
-         (atom {:dispatch-map {}
-                :endpoint-fns {}
-                :middleware   {}}))
-       ~@(map (fn [[mw-sym mw]]
-                `(swap! ~tmp assoc-in [:middleware '~mw-sym] ~mw))
-           middleware)
-       ~@(mapcat
-           (fn [[[method pathvec] handler-sym]]
-             (let [handler-map (get handlers handler-sym)
-                   mw-sym      (:middleware-sym handler-map)
-                   schema      (:schema handler-map)
-                   h `(let [~mw-sym (get-in @~tmp [:middleware '~mw-sym])]
-                        ~(handler-form
-                           apply-middleware req handler-sym handler-map))
-                   dispatch-path (conj
-                                   (mapv (fn [seg]
-                                           (if (variable? seg)
-                                             ::param-next
-                                             seg))
-                                     pathvec)
-                                   method)
-                   binding-names (filter variable? pathvec)
-                   binding-paths (keep-indexed
-                                   (fn [i seg]
-                                     (if (variable? seg)
-                                       (-> (subvec pathvec 0 i)
-                                         (into [])
-                                         (conj ::param-name))))
-                                   pathvec)]
-               `[(swap! ~tmp assoc-in [:endpoint-fns '~handler-sym] ~h)
-                 (swap! ~tmp assoc-in
-                   (into [:dispatch-map] ~dispatch-path)
-                   '~handler-sym)
-                 ~@(map (fn [name path]
-                          `(swap! ~tmp
-                             assoc-in
-                             (into [:dispatch-map] ~path) ~(keyword name)))
-                     binding-names
-                     binding-paths)]))
-           routes)
-       (let [dispatch-map# (:dispatch-map @~tmp)
-             endpoint-fns# (:endpoint-fns @~tmp)]
-         (ns-unmap *ns* '~tmp)
-         (map-traversal-dispatcher dispatch-map# endpoint-fns#)))))
+  [analysed-dispatch-table apply-middleware]
+  (let [[dispatch-map endpoint-fns]
+        (map-traversal-dispatch-guide
+          analysed-dispatch-table apply-middleware)]
+    (map-traversal-dispatcher dispatch-map endpoint-fns)))
 
 (def dispatch-table-compilation-defaults
   {:emit-fn             eval
@@ -450,10 +477,9 @@
            apply-middleware (:apply-middleware-fn options)
            build-handler    (:build-handler-fn options)
 
-           {:keys [routes handlers middleware]}
-           (analyse-dispatch-table dispatch-table)]
+           analysed-dispatch-table (analyse-dispatch-table dispatch-table)]
        (emit-fn
-         (build-handler routes handlers middleware apply-middleware)))))
+         (build-handler analysed-dispatch-table apply-middleware)))))
 
 (defn default-middleware [handler]
   (-> handler
