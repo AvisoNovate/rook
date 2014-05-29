@@ -350,6 +350,20 @@
           ;; unsupported method for path
           nil)))))
 
+(defn make-route-param-resolver
+  "Compiles a function that resolves the given route-params very
+  efficiently."
+  [route-params]
+  (eval (let [req (gensym "request__")]
+          `(fn [kw# ~req]
+             (case kw#
+               ~@(mapcat
+                   (fn [sym]
+                     (let [k (keyword sym)]
+                       [k `(-> ~req :route-params ~k)]))
+                   route-params)
+               nil)))))
+
 (defn map-traversal-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]} apply-middleware]
@@ -363,15 +377,7 @@
 
                   route-param-resolver
                   (if (seq route-params)
-                    [(eval (let [req (gensym "request__")]
-                             `(fn [kw# ~req]
-                                (case kw#
-                                  ~@(mapcat
-                                      (fn [sym]
-                                        (let [k (keyword sym)]
-                                          [k `(-> ~req :route-params ~k)]))
-                                      route-params)
-                                  nil))))])
+                    [(make-route-param-resolver route-params)])
 
                   mw (get middleware middleware-sym)
                   mw (ensure-fn mw)
