@@ -409,10 +409,6 @@
   See [[unnest-dispatch-table]] for a description of
   dispatch table format.
 
-  Part of constructing the handler is to \"bake in\" the middleware for any single function that may
-  be invoked. The `:apply-middleware-fn` is used to encompass the differences between
-  traditional syncronous Ring processing, and Rook's asynchronous processing.
-
   Supported options:
 
   `:apply-middleware-fn`
