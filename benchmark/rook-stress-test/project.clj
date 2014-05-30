@@ -5,8 +5,5 @@
             :url "http://www.apache.org/licenses/LICENSE-2.0.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [io.aviso/rook "0.1.10-SNAPSHOT"]
-                 [ring "1.2.2"]
-                 ;; exclusions...
-                 [prismatic/schema "0.2.2"]
-                 [cheshire "5.3.1"]]
+                 [ring "1.2.2"]]
   :jvm-opts ^:replace [])
