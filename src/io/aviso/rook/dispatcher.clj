@@ -467,7 +467,7 @@
    - emit-fn (eval):
 
      Called with the output of build-handler-fn. When using
-     build-handler-fns that return Clojure forms, Passing in
+     build-handler-fns that return Clojure forms, passing in
      pprint-code instead of eval is useful for debugging purposes."
   ([dispatch-table]
      (compile-dispatch-table
