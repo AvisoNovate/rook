@@ -308,13 +308,17 @@
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
 
+(def ^:private session-options
+  "Local shadow of session/session-options."
+  (-> 'ring.middleware.session ns-map (get 'session-options) deref))
+
 (defn wrap-session
   "The async version of `ring.middleware.session/wrap-with-session`.
   Session handling is not part of the standard middleware, and must be
   added in explicitly."
   ([handler] (wrap-session handler {}))
   ([handler options]
-   (let [options' (session/session-options options)]
+   (let [options' (session-options options)]
      (fn [request]
        (let [response-ch (chan 1)
              request' (session/session-request request options')]
