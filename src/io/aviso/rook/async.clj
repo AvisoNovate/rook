@@ -169,7 +169,8 @@
 ;;; Have to much about with some private functions in compojure.core ... at least, until we
 ;;; (perhaps) move Rook directly to clout.
 
-(defn- compojure-alias [symbol] (-> 'compojure.core ns-map (get symbol) deref))
+(defn- compojure-alias [symbol]
+  @(ns-resolve 'compojure.core symbol))
 
 (def wrap-context-alias (compojure-alias 'wrap-context))
 (def context-route-alias (compojure-alias 'context-route))

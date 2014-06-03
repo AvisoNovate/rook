@@ -28,7 +28,7 @@
 
 ;;; Monkey patch the private function. Yes, you can do this. No, you shouldn't have to.
 
-(let [proxy-handler-var (-> 'ring.adapter.jetty ns-map (get 'proxy-handler))]
+(let [proxy-handler-var #'ring.adapter.jetty/proxy-handler]
   (alter-var-root proxy-handler-var (constantly customized-proxy-handler)))
 
 ;;; Although we could move some of this code into customized-proxy-handler, that
