@@ -81,6 +81,19 @@
    (mapv #(java.net.URLDecoder/decode ^String % "UTF-8")
      (next (string/split (:uri request) #"/" 0)))])
 
+(defn path-spec->route-spec
+  "Takes a path-spec in the format [:method \"/path/:param\"] and
+  returns the equivalent route-spec in the format [:method
+  [\"path\" :param]]. If passed nil as input, returns nil."
+  [path-spec]
+  (if-not (nil? path-spec)
+    (let [[method path] path-spec
+          paramify (fn [seg]
+                     (if (.startsWith ^String seg ":")
+                       (keyword (subs seg 1))
+                       seg))]
+      [method (mapv paramify (next (string/split path #"/" 0)))])))
+
 (defn unnest-dispatch-table
   "Given a nested dispatch table:
 
@@ -506,6 +519,8 @@
         (keep (fn [[k v]]
                 (if (ifn? @v)
                   (if-let [route-spec (or (:route-spec (meta v))
+                                          (path-spec->route-spec
+                                            (:path-spec (meta v)))
                                           (get default-mappings k))]
                     (conj route-spec (symbol (name ns-sym) (name k)))))))
         (list* context-pathvec middleware)

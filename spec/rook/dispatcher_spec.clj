@@ -108,6 +108,12 @@
 
 (describe "io.aviso.rook.dispatcher"
 
+  (describe "path-spec->route-spec"
+
+    (it "should correctly convert path specs to route specs"
+      (should= [:get ["foo" :id]]
+        (dispatcher/path-spec->route-spec [:get "/foo/:id"]))))
+
   (describe "unnest-dispatch-table"
 
     (it "should leave tables with no nesting unchanged"
