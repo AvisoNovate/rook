@@ -403,18 +403,14 @@
                          (apply ef args)))
                   h  (apply-middleware mw sync? f)
 
-                  dispatch-path (conj
-                                  (mapv (fn [seg]
-                                          (if (variable? seg)
-                                            ::param-next
-                                            seg))
-                                    pathvec)
-                                  method)
+                  pathvec' (mapv #(if (variable? %) ::param-next %) pathvec)
+
+                  dispatch-path (conj pathvec' method)
                   binding-names (filter variable? pathvec)
                   binding-paths (keep-indexed
                                   (fn [i seg]
                                     (if (variable? seg)
-                                      (-> (subvec pathvec 0 i)
+                                      (-> (subvec pathvec' 0 i)
                                         (into [])
                                         (conj ::param-name))))
                                   pathvec)]
