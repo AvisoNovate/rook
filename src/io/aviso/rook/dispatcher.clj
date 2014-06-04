@@ -29,6 +29,7 @@
   build-pattern-matching-handler and build-map-traversal-handler. See
   their own docstrings for details."
   (:require [clojure.core.match :refer [match]]
+            [clojure.core.async :as async]
             [clojure.string :as string]
             [clojure.pprint :as pp]
             [clojure.set :as set]
@@ -345,24 +346,28 @@
 
 (defn map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
-  dispatch. Used by build-map-traversal-handler."
-  [dispatch-map]
-  (fn rook-map-traversal-dispatcher [request]
-    (loop [pathvec      (second (request-route-spec request))
-           dispatch     dispatch-map
-           route-params {}]
-      (if-let [seg (first pathvec)]
-        (if (contains? dispatch seg)
-          (recur (next pathvec) (get dispatch seg) route-params)
-          (if-let [v (::param-name dispatch)]
-            (recur (next pathvec) (::param-next dispatch)
-              (assoc route-params v seg))
-            ;; no match on path
-            nil))
-        (if-let [h (get dispatch (:request-method request))]
-          (h (assoc request :route-params route-params))
-          ;; unsupported method for path
-          nil)))))
+  dispatch. Used by build-map-traversal-handler. The optional
+  not-found-response argument defaults to nil; pass in a closed
+  channel for async operation."
+  ([dispatch-map]
+     (map-traversal-dispatcher dispatch-map nil))
+  ([dispatch-map not-found-response]
+     (fn rook-map-traversal-dispatcher [request]
+       (loop [pathvec      (second (request-route-spec request))
+              dispatch     dispatch-map
+              route-params {}]
+         (if-let [seg (first pathvec)]
+           (if (contains? dispatch seg)
+             (recur (next pathvec) (get dispatch seg) route-params)
+             (if-let [v (::param-name dispatch)]
+               (recur (next pathvec) (::param-next dispatch)
+                 (assoc route-params v seg))
+               ;; no match on path
+               not-found-response))
+           (if-let [h (get dispatch (:request-method request))]
+             (h (assoc request :route-params route-params))
+             ;; unsupported method for path
+             not-found-response))))))
 
 (defn make-route-param-resolver
   "Compiles a function that resolves the given route-params very
@@ -450,7 +455,10 @@
   [analysed-dispatch-table apply-middleware]
   (let [dispatch-map (map-traversal-dispatch-map
                        analysed-dispatch-table apply-middleware)]
-    (map-traversal-dispatcher dispatch-map)))
+    ;; TODO: switch to :async?
+    (if (identical? apply-middleware apply-middleware-async)
+      (map-traversal-dispatcher dispatch-map (doto (async/chan) (async/close!)))
+      (map-traversal-dispatcher dispatch-map))))
 
 (def dispatch-table-compilation-defaults
   {:emit-fn             eval

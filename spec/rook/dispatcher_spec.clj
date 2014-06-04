@@ -8,10 +8,12 @@
             [io.aviso.rook :as rook]
             [io.aviso.rook.jetty-async-adapter :as jetty]
             [clj-http.client :as http]
+            [clj-http.cookies :as cookies]
             [ring.mock.request :as mock]
             [clojure.core.async :as async]
             ring.middleware.params
-            ring.middleware.keyword-params)
+            ring.middleware.keyword-params
+            [clojure.edn :as edn])
   (:import (javax.servlet.http HttpServletResponse)))
 
 
@@ -525,5 +527,44 @@
           (-> response :headers (get "Content-Type")))
         (should= "{\"message\":\":barney says `ribs!'\"}" (:body response))))
 
+    (it "will respond with a failure if the content is not valid"
+      (let [response (http/post "http://localhost:9988/fred"
+                       {:accept           :edn
+                        :content-type     :edn
+                        :body             "{not valid edn"
+                        :as               :clojure
+                        :throw-exceptions false})]
+        ;; this is actually client error, but we don't guard against it
+        (should= 500 (:status response))
+        (should= {:exception "EOF while reading"} (:body response))))
+
+    (it "can manage server-side session state"
+      (let [k     (utils/new-uuid)
+            v     (utils/new-uuid)
+            uri   "http://localhost:9988/sessions/"
+            store (cookies/cookie-store)
+
+            response  (http/post (str uri k "/" v)
+                        {:accept :edn
+                         :cookie-store store})
+            response' (http/get (str uri k)
+                        {:accept :edn
+                         :cookie-store store
+                         :throw-exceptions false})]
+        (should= 200 (:status response))
+        (should= (pr-str {:result :ok}) (:body response))
+        (should= 200 (:status response'))
+        (should= v (-> response' :body edn/read-string :result))))
+
+    (it "handles a slow handler timeout"
+      (let [response (http/get "http://localhost:9988/slow"
+                       {:accept :json
+                        :throw-exceptions false})]
+        (should= HttpServletResponse/SC_GATEWAY_TIMEOUT (:status response))))
+
+    (it "responds with 404 if no handler can be found"
+      (let [response (http/get "http://localhost:9988/wilma"
+                       {:throw-exceptions false})]
+        (should= HttpServletResponse/SC_NOT_FOUND (:status response))))
     (after-all
       (.stop @server))))
