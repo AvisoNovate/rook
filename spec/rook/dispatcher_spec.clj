@@ -6,6 +6,8 @@
             [io.aviso.rook.utils :as utils]
             [io.aviso.rook.async :as rook-async]
             [io.aviso.rook :as rook]
+            [io.aviso.rook.jetty-async-adapter :as jetty]
+            [clj-http.client :as http]
             [ring.mock.request :as mock]
             [clojure.core.async :as async]
             ring.middleware.params
@@ -476,4 +478,52 @@
           :port 8080
           :remote-addr "127.0.0.1"
           :scheme :http
-          :headers {}})))))
+          :headers {}}))))
+
+  (describe "running inside jetty-async-adapter"
+
+    (with-all server
+      (let [middleware (fn [handler]
+                         (-> handler
+                           rook/wrap-with-function-arg-resolvers
+                           rook-async/wrap-with-schema-validation))
+            handler (->
+                      (dispatcher/compile-dispatch-table
+                        {:build-handler-fn dispatcher/build-map-traversal-handler
+                         :apply-middleware-fn dispatcher/apply-middleware-async}
+                        (-> (dispatcher/namespace-dispatch-table
+                              ["fred"] 'fred middleware)
+                          (into
+                            (dispatcher/namespace-dispatch-table
+                              ["barney"] 'barney middleware))
+                          (into
+                            (dispatcher/namespace-dispatch-table
+                              ["slow"] 'slow middleware))
+                          (into
+                            (dispatcher/namespace-dispatch-table
+                              ["sessions"] 'sessions middleware))
+                          (into
+                            (dispatcher/namespace-dispatch-table
+                              ["creator"] 'creator middleware))
+                          (into
+                            (dispatcher/namespace-dispatch-table
+                              ["creator-loopback"] 'creator-loopback middleware))))
+                      rook-async/wrap-with-loopback
+                      rook-async/wrap-session
+                      rook-async/wrap-with-standard-middleware)]
+        (jetty/run-async-jetty handler
+          {:host "localhost" :port 9988 :join? false :async-timeout 100})))
+
+    (it "initializes the server successfully"
+      (should-not-be-nil @server))
+
+    (it "can process requests and return responses"
+      (let [response (http/get "http://localhost:9988/fred" {:accept :json})]
+        (should= HttpServletResponse/SC_OK
+          (:status response))
+        (should= "application/json; charset=utf-8"
+          (-> response :headers (get "Content-Type")))
+        (should= "{\"message\":\":barney says `ribs!'\"}" (:body response))))
+
+    (after-all
+      (.stop @server))))
