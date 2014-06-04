@@ -566,5 +566,13 @@
       (let [response (http/get "http://localhost:9988/wilma"
                        {:throw-exceptions false})]
         (should= HttpServletResponse/SC_NOT_FOUND (:status response))))
+
+    ;; FIXME: this passes, but needs more thought; see FIXME in dispatcher
+    (xit "can calculate :resource-uri after a loopback"
+      (let [response (http/post "http://localhost:9988/creator-loopback"
+                       {:throw-exceptions false})]
+        (should= "http://localhost:9988/creator/<ID>"
+          (get-in response [:headers "Location"]))))
+
     (after-all
       (.stop @server))))

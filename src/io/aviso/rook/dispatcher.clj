@@ -260,15 +260,16 @@
             non-route-params (remove (set route-params) arglist)
             arg-resolvers    (:arg-resolvers metadata)
             schema           (:schema metadata)
-            handler  {:middleware-sym   mw-sym
-                      :route-params     route-params
-                      :non-route-params non-route-params
-                      :verb-fn-sym      verb-fn-sym
-                      :arglist          arglist
-                      :arg-resolvers    arg-resolvers
-                      :schema           schema
-                      :sync?            sync?
-                      :metadata         metadata}
+            handler {:middleware-sym   mw-sym
+                     :route-params     route-params
+                     :non-route-params non-route-params
+                     :verb-fn-sym      verb-fn-sym
+                     :arglist          arglist
+                     :arg-resolvers    arg-resolvers
+                     :schema           schema
+                     :sync?            sync?
+                     :metadata         metadata
+                     :location         (string/join "/" (cons "" pathvec))}
             handlers (assoc handlers handler-sym handler)]
         (recur routes handlers middleware (next entries)))
       {:routes     (sorted-routes routes)
@@ -392,7 +393,7 @@
 
                   {:keys [middleware-sym route-params non-route-params
                           verb-fn-sym arglist arg-resolvers schema sync?
-                          metadata]}
+                          metadata location]}
                   (get handlers handler-sym)
 
                   route-param-resolver
@@ -424,8 +425,11 @@
                          (apply ef args)))
                   h  (apply-middleware mw sync? f)
                   h  (fn wrapped-with-rook-metadata [request]
-                       (h (update-in request [:rook :metadata]
-                            merge (dissoc metadata :arg-resolvers))))
+                       (h (-> request
+                            (update-in [:rook :metadata]
+                              merge (dissoc metadata :arg-resolvers))
+                            ;; FIXME
+                            (assoc-in [:context] location))))
 
                   pathvec' (mapv #(if (variable? %) ::param-next %) pathvec)
 
