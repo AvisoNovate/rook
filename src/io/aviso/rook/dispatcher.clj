@@ -266,7 +266,8 @@
                       :arglist          arglist
                       :arg-resolvers    arg-resolvers
                       :schema           schema
-                      :sync?            sync?}
+                      :sync?            sync?
+                      :metadata         metadata}
             handlers (assoc handlers handler-sym handler)]
         (recur routes handlers middleware (next entries)))
       {:routes     (sorted-routes routes)
@@ -385,7 +386,8 @@
                   apply-middleware (ensure-fn apply-middleware)
 
                   {:keys [middleware-sym route-params non-route-params
-                          verb-fn-sym arglist arg-resolvers schema sync?]}
+                          verb-fn-sym arglist arg-resolvers schema sync?
+                          metadata]}
                   (get handlers handler-sym)
 
                   route-param-resolver
@@ -399,9 +401,10 @@
                              (mapv ensure-fn
                                (concat route-param-resolver arg-resolvers))]
                          (fn [handler]
-                           (mw (apply rook/wrap-with-arg-resolvers
-                                 handler resolvers))))
+                           (apply rook/wrap-with-arg-resolvers
+                             (mw handler) resolvers)))
                        mw)
+                  #_#_
                   mw (if schema
                        (fn [handler]
                          (wrap-with-schema (mw handler) schema))
@@ -415,6 +418,9 @@
                                     arglist)]
                          (apply ef args)))
                   h  (apply-middleware mw sync? f)
+                  h  (fn wrapped-with-rook-metadata [request]
+                       (h (update-in request [:rook :metadata]
+                            merge (dissoc metadata :arg-resolvers))))
 
                   pathvec' (mapv #(if (variable? %) ::param-next %) pathvec)
 
