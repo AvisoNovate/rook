@@ -220,7 +220,7 @@
 
         :post "/123/activate" 'rook-test
         {:test1 "foo" :test2 "bar" :test3 "baz" :test4 "quux"}
-        "test1=foo,id=123,test2=bar,test3=baz,test4=quux,request=13,meth=:post")))
+        "test1=foo,id=123,test2=bar,test3=baz,test4=quux,meth=:post")))
 
   (describe "compiled handlers using map traversal"
 
@@ -257,7 +257,7 @@
 
         :post "/123/activate" 'rook-test
         {:test1 "foo" :test2 "bar" :test3 "baz" :test4 "quux"}
-        "test1=foo,id=123,test2=bar,test3=baz,test4=quux,request=13,meth=:post")))
+        "test1=foo,id=123,test2=bar,test3=baz,test4=quux,meth=:post")))
 
   (describe "async handlers"
 

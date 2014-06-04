@@ -85,7 +85,7 @@
 
             :get "/123" nil {:status 200 :body "id=123"}
 
-            :post "/123/activate?test1=1test" nil "test1=1test,id=123,test2=,test3=,test4=,request=13,meth="
+            :post "/123/activate?test1=1test" nil "test1=1test,id=123,test2=,test3=,test4=,meth="
 
             :get "/123/activate" nil nil
 
@@ -132,7 +132,7 @@
                             (build-map-arg-resolver {:test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234})
                             (build-fn-arg-resolver {:test4 (fn [request] (str "test$" (:uri request)))}))
                           param-handling)]
-          (should= "test1=TEST!,id=123,test2=TEST@,test3=TEST#,test4=test$/123/activate,request=13,meth=:1234"
+          (should= "test1=TEST!,id=123,test2=TEST@,test3=TEST#,test4=test$/123/activate,meth=:1234"
                    (->
                      ;; So we've set up a specific conflict for test1 ... is it the query parameter value "1test"
                      ;; or is it the arg-resolver value "TEST!". The correct answer is "TEST!" because
