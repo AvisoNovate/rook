@@ -71,7 +71,7 @@
   - on failure, the tuple is `[failures]`, where failures are as output from Schema validation"
   [request schema]
   (let [coercer (coerce/coercer schema string-coercion-matcher)
-        params' (-> request :params coercer)]
+        params' (-> request :params (or {}) coercer)]
     (if (su/error? params')
       [(su/error-val params')]
       [nil (assoc request :params params')])))
