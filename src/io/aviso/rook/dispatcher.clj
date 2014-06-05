@@ -139,7 +139,10 @@
                 (unnest-table context-pathvec middleware entries))))
           (unnest-table [context-pathvec default-middleware entries]
             (mapv (fn [[_ pathvec :as unnested-entry]]
-                    (assoc unnested-entry 1 (into context-pathvec pathvec)))
+                    (assoc unnested-entry 1
+                           (with-meta (into context-pathvec pathvec)
+                             {:context (into context-pathvec
+                                         (:context (meta pathvec)))})))
               (mapcat (partial unnest-entry default-middleware) entries)))]
     (unnest-table [] nil dispatch-table)))
 
@@ -249,27 +252,37 @@
               [middleware (get middleware mw-spec)]
               (let [mw-sym (gensym "mw_sym__")]
                 [(assoc middleware mw-spec mw-sym) mw-sym]))
-            ns-metadata      (-> verb-fn-sym namespace symbol the-ns meta)
-            metadata         (merge (dissoc ns-metadata :doc)
+            ns               (-> verb-fn-sym namespace symbol the-ns)
+            ns-metadata      (meta ns)
+            metadata         (merge (reduce-kv (fn [out k v]
+                                                 (assoc out
+                                                   k (if (symbol? v)
+                                                       @(ns-resolve ns v)
+                                                       v)))
+                                      {}
+                                      (dissoc ns-metadata :doc))
                                (meta (resolve verb-fn-sym)))
             sync?            (:sync metadata)
             route-params     (mapv (comp symbol name)
                                (filter keyword? pathvec))
+            context          (:context (meta pathvec))
             pathvec          (keywords->symbols pathvec)
             arglist          (first (:arglists metadata))
             non-route-params (remove (set route-params) arglist)
             arg-resolvers    (:arg-resolvers metadata)
             schema           (:schema metadata)
-            handler {:middleware-sym   mw-sym
-                     :route-params     route-params
-                     :non-route-params non-route-params
-                     :verb-fn-sym      verb-fn-sym
-                     :arglist          arglist
-                     :arg-resolvers    arg-resolvers
-                     :schema           schema
-                     :sync?            sync?
-                     :metadata         metadata
-                     :location         (string/join "/" (cons "" pathvec))}
+            handler (cond->
+                      {:middleware-sym   mw-sym
+                       :route-params     route-params
+                       :non-route-params non-route-params
+                       :verb-fn-sym      verb-fn-sym
+                       :arglist          arglist
+                       :arg-resolvers    arg-resolvers
+                       :schema           schema
+                       :sync?            sync?
+                       :metadata         metadata}
+                      context
+                      (assoc :context (string/join "/" (cons "" context))))
             handlers (assoc handlers handler-sym handler)]
         (recur routes handlers middleware (next entries)))
       {:routes     (sorted-routes routes)
@@ -393,7 +406,7 @@
 
                   {:keys [middleware-sym route-params non-route-params
                           verb-fn-sym arglist arg-resolvers schema sync?
-                          metadata location]}
+                          metadata context]}
                   (get handlers handler-sym)
 
                   route-param-resolver
@@ -429,7 +442,8 @@
                             (update-in [:rook :metadata]
                               merge (dissoc metadata :arg-resolvers))
                             ;; FIXME
-                            (update-in [:context] str location))))
+                            (cond-> context
+                              (update-in [:context] str context)))))
 
                   pathvec' (mapv #(if (variable? %) ::param-next %) pathvec)
 
