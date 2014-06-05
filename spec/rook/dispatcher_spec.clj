@@ -500,6 +500,9 @@
                               ["barney"] 'barney middleware))
                           (into
                             (dispatcher/namespace-dispatch-table
+                              ["betty"] 'betty middleware))
+                          (into
+                            (dispatcher/namespace-dispatch-table
                               ["slow"] 'slow middleware))
                           (into
                             (dispatcher/namespace-dispatch-table
@@ -568,11 +571,18 @@
         (should= HttpServletResponse/SC_NOT_FOUND (:status response))))
 
     ;; FIXME: this passes, but needs more thought; see FIXME in dispatcher
-    (xit "can calculate :resource-uri after a loopback"
+    (it "can calculate :resource-uri after a loopback"
       (let [response (http/post "http://localhost:9988/creator-loopback"
                        {:throw-exceptions false})]
         (should= "http://localhost:9988/creator/<ID>"
           (get-in response [:headers "Location"]))))
+
+    (it "should allow three resources to collaborate"
+      (let [response (http/get "http://localhost:9988/fred/123"
+                       {:accept :edn
+                        :throw-exceptions true})]
+        (should= ":barney says `:betty says `123 is a very fine id!''"
+          (-> response :body edn/read-string :message))))
 
     (after-all
       (.stop @server))))
