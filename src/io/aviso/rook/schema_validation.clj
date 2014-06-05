@@ -16,7 +16,7 @@
   [failures]
   {:error    "validation-error"
    ;; This needs work; it won't transfer very well to the client for starters.
-   :failures (str failures)})
+   :failures (pr-str failures)})
 
 ;; Borrowed from clojure.instant:
 (def ^:private thread-local-utc-date-format
