@@ -429,7 +429,7 @@
                             (update-in [:rook :metadata]
                               merge (dissoc metadata :arg-resolvers))
                             ;; FIXME
-                            (assoc-in [:context] location))))
+                            (update-in [:context] str location))))
 
                   pathvec' (mapv #(if (variable? %) ::param-next %) pathvec)
 
