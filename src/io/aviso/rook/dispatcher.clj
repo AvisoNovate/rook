@@ -335,8 +335,12 @@
 
   Can be passed to compile-dispatch-table using the :build-handler-fn
   option."
-  [{:keys [routes handlers middleware]} apply-middleware]
-  (let [req (gensym "request__")]
+  [{:keys [routes handlers middleware]}
+   {:keys [async?]}]
+  (let [req (gensym "request__")
+        apply-middleware (if async?
+                           `apply-middleware-async
+                           `apply-middleware-sync)]
     `(let [~@(apply concat middleware)
            ~@(mapcat (fn [[handler-sym handler-map]]
                        [handler-sym
@@ -399,10 +403,13 @@
 
 (defn map-traversal-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
-  [{:keys [routes handlers middleware]} apply-middleware]
+  [{:keys [routes handlers middleware]}
+   {:keys [async?]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-sym]]
             (let [ensure-fn #(if (fn? %) % (eval %))
-                  apply-middleware (ensure-fn apply-middleware)
+                  apply-middleware (if async?
+                                     apply-middleware-async
+                                     apply-middleware-sync)
 
                   {:keys [middleware-sym route-params non-route-params
                           verb-fn-sym arglist arg-resolvers schema sync?
@@ -470,18 +477,17 @@
 
   Can be passed to compile-dispatch-table using the :build-handler-fn
   option."
-  [analysed-dispatch-table apply-middleware]
+  [analysed-dispatch-table opts]
   (let [dispatch-map (map-traversal-dispatch-map
-                       analysed-dispatch-table apply-middleware)]
-    ;; TODO: switch to :async?
-    (if (identical? apply-middleware apply-middleware-async)
+                       analysed-dispatch-table opts)]
+    (if (:async? opts)
       (map-traversal-dispatcher dispatch-map (doto (async/chan) (async/close!)))
       (map-traversal-dispatcher dispatch-map))))
 
 (def dispatch-table-compilation-defaults
-  {:emit-fn             eval
-   :apply-middleware-fn `apply-middleware-sync
-   :build-handler-fn    build-map-traversal-handler})
+  {:async?              false
+   :build-handler-fn    build-map-traversal-handler
+   :emit-fn             eval})
 
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.
@@ -491,11 +497,10 @@
 
   Supported options and their default values:
 
-   - apply-middleware-fn (apply-middleware-sync):
+   - async? (false):
 
-     Used to wrap middleware around endpoint handlers.
-     apply-middleware-async or a similar function should be used when
-     compiling async handlers.
+     Determines the way in which middleware is applied to the terminal
+     handler. Pass in true when compiling async handlers.
 
    - build-handler-fn (build-map-traversal-handler):
 
@@ -517,12 +522,12 @@
   ([options dispatch-table]
      (let [options          (merge dispatch-table-compilation-defaults options)
            emit-fn          (:emit-fn options)
-           apply-middleware (:apply-middleware-fn options)
            build-handler    (:build-handler-fn options)
 
            analysed-dispatch-table (analyse-dispatch-table dispatch-table)]
        (emit-fn
-         (build-handler analysed-dispatch-table apply-middleware)))))
+         (build-handler analysed-dispatch-table
+           (select-keys options [:async?]))))))
 
 (defn default-middleware [handler]
   (-> handler

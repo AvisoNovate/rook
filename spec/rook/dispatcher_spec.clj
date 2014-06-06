@@ -266,11 +266,11 @@
     (it "should return a channel with the correct response"
 
       (let [handler1 (namespace-handler
-                       {:apply-middleware-fn dispatcher/apply-middleware-async
+                       {:async? true
                         :build-handler-fn dispatcher/build-pattern-matching-handler}
                        [] 'barney `default-middleware)
             handler2 (namespace-handler
-                       {:apply-middleware-fn dispatcher/apply-middleware-async
+                       {:async? true
                         :build-handler-fn dispatcher/build-map-traversal-handler}
                        [] 'barney `default-middleware)]
         (should= {:message "ribs!"}
@@ -280,11 +280,11 @@
 
     (it "should expose the request's :params key as an argument"
       (let [handler1 (namespace-handler
-                       {:apply-middleware-fn dispatcher/apply-middleware-async
+                       {:async? true
                         :build-handler-fn dispatcher/build-pattern-matching-handler}
                        [] 'echo-params rook/wrap-with-default-arg-resolvers)
             handler2 (namespace-handler
-                       {:apply-middleware-fn dispatcher/apply-middleware-async
+                       {:async? true
                         :build-handler-fn dispatcher/build-map-traversal-handler}
                        [] 'echo-params rook/wrap-with-default-arg-resolvers)
             params {:foo :bar}]
@@ -325,7 +325,7 @@
       (let [handler1 (rook-async/async-handler->ring-handler
                        (rook-async/wrap-with-loopback
                          (dispatcher/compile-dispatch-table
-                           {:apply-middleware-fn dispatcher/apply-middleware-async
+                           {:async? true
                             :build-handler-fn dispatcher/build-pattern-matching-handler}
                            (into
                              (dispatcher/namespace-dispatch-table
@@ -335,7 +335,7 @@
             handler2 (rook-async/async-handler->ring-handler
                        (rook-async/wrap-with-loopback
                          (dispatcher/compile-dispatch-table
-                           {:apply-middleware-fn dispatcher/apply-middleware-async
+                           {:async? true
                             :build-handler-fn dispatcher/build-map-traversal-handler}
                            (into
                              (dispatcher/namespace-dispatch-table
@@ -358,7 +358,7 @@
                        (rook-async/wrap-with-loopback
                          (dispatcher/compile-dispatch-table
                            {:build-handler-fn dispatcher/build-pattern-matching-handler
-                            :apply-middleware-fn dispatcher/apply-middleware-async}
+                            :async? true}
                            (-> (dispatcher/namespace-dispatch-table
                                  ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
                              (into
@@ -371,7 +371,7 @@
                        (rook-async/wrap-with-loopback
                          (dispatcher/compile-dispatch-table
                            {:build-handler-fn dispatcher/build-map-traversal-handler
-                            :apply-middleware-fn dispatcher/apply-middleware-async}
+                            :async? true}
                            (-> (dispatcher/namespace-dispatch-table
                                  ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
                              (into
@@ -396,14 +396,14 @@
                               ["validating"] 'validating middleware)
                          (dispatcher/compile-dispatch-table
                            {:build-handler-fn dispatcher/build-pattern-matching-handler
-                            :apply-middleware-fn dispatcher/apply-middleware-async})
+                            :async? true})
                          rook-async/wrap-with-loopback
                          rook-async/async-handler->ring-handler)
             handler2   (->> (dispatcher/namespace-dispatch-table
                               ["validating"] 'validating middleware)
                          (dispatcher/compile-dispatch-table
                            {:build-handler-fn dispatcher/build-map-traversal-handler
-                            :apply-middleware-fn dispatcher/apply-middleware-async})
+                            :async? true})
                          rook-async/wrap-with-loopback
                          rook-async/async-handler->ring-handler)
             response1  (-> (mock/request :post "/validating")
@@ -427,14 +427,14 @@
                               ["validating"] 'validating middleware)
                          (dispatcher/compile-dispatch-table
                            {:build-handler-fn dispatcher/build-pattern-matching-handler
-                            :apply-middleware-fn dispatcher/apply-middleware-async})
+                            :async? true})
                          rook-async/wrap-with-loopback
                          rook-async/async-handler->ring-handler)
             handler2   (->> (dispatcher/namespace-dispatch-table
                               ["validating"] 'validating middleware)
                          (dispatcher/compile-dispatch-table
                            {:build-handler-fn dispatcher/build-map-traversal-handler
-                            :apply-middleware-fn dispatcher/apply-middleware-async})
+                            :async? true})
                          rook-async/wrap-with-loopback
                          rook-async/async-handler->ring-handler)
             response1  (-> (mock/request :post "/validating")
@@ -492,7 +492,7 @@
             handler (->
                       (dispatcher/compile-dispatch-table
                         {:build-handler-fn dispatcher/build-map-traversal-handler
-                         :apply-middleware-fn dispatcher/apply-middleware-async}
+                         :async? true}
                         (-> (dispatcher/namespace-dispatch-table
                               ["fred"] 'fred middleware)
                           (into
@@ -570,8 +570,8 @@
                        {:throw-exceptions false})]
         (should= HttpServletResponse/SC_NOT_FOUND (:status response))))
 
-    ;; FIXME: this passes, but needs more thought; see FIXME in dispatcher
-    (it "can calculate :resource-uri after a loopback"
+    ;; TODO: this passes, but context handling needs more thought
+    (it "can calculate :resource-uri after loopback"
       (let [response (http/post "http://localhost:9988/creator-loopback"
                        {:throw-exceptions false})]
         (should= "http://localhost:9988/creator/<ID>"
