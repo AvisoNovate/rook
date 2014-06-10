@@ -586,3 +586,5 @@
 
     (after-all
       (.stop @server))))
+
+(run-specs)
