@@ -59,20 +59,25 @@
     (name element)
     (str element)))
 
+(defn to*
+  "Same as [[to]], but the paths are provided as a seq, not varargs."
+  [request method paths]
+  {:pre [(#{:put :post :get :delete :head :options} method)]}
+  (-> request
+      (assoc-in [:ring-request :request-method] method)
+      (assoc-in [:ring-request :uri]
+                (->>
+                  paths
+                  (map element-to-string)
+                  (str/join "/")
+                  (str "/")))))
+
 (defn to
   "Targets the request with a method (`:get`, `:post`, etc.) and a URI. The URI is composed from the path;
   each part is a keyword or a value that is converted to a string. The URI
   starts with a slash and each element in the path is seperated by a slash."
   [request method & path]
-  (assert (#{:put :post :get :delete :head :options} method) "Unknown method.")
-  (-> request
-      (assoc-in [:ring-request :request-method] method)
-      (assoc-in [:ring-request :uri]
-                (->>
-                  path
-                  (map element-to-string)
-                  (str/join "/")
-                  (str "/")))))
+  (to* request method path))
 
 (defn with-body-params
   "Stores a Clojure map as the body of the request (as if EDN content was parsed into Clojure data.
