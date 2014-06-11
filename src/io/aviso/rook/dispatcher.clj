@@ -489,9 +489,8 @@
        dispatch-table-compilation-defaults
        dispatch-table))
   ([options dispatch-table]
-     (let [options          (merge dispatch-table-compilation-defaults options)
-           build-handler    (:build-handler-fn options)
-
+     (let [options       (merge dispatch-table-compilation-defaults options)
+           build-handler (:build-handler-fn options)
            analysed-dispatch-table (analyse-dispatch-table dispatch-table)]
        (build-handler analysed-dispatch-table
          (select-keys options [:async?])))))
