@@ -476,9 +476,7 @@
 
      Will be called with routes, handlers, middleware (see the
      docstring of analyse-dispatch-table for a description of these)
-     and apply-middleware-fn. Should produce a value that can be
-     passed to emit-fn; this might be a Ring handler or a Clojure form
-     evaluating to a Ring handler."
+     and apply-middleware-fn. Should produce a Ring handler."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults
