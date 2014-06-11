@@ -461,9 +461,8 @@
       (map-traversal-dispatcher dispatch-map))))
 
 (def dispatch-table-compilation-defaults
-  {:async?              false
-   :build-handler-fn    build-map-traversal-handler
-   :emit-fn             eval})
+  {:async?           false
+   :build-handler-fn build-map-traversal-handler})
 
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.
@@ -484,26 +483,18 @@
      docstring of analyse-dispatch-table for a description of these)
      and apply-middleware-fn. Should produce a value that can be
      passed to emit-fn; this might be a Ring handler or a Clojure form
-     evaluating to a Ring handler.
-
-   - emit-fn (eval):
-
-     Called with the output of build-handler-fn. When using
-     build-handler-fns that return Clojure forms, passing in
-     pprint-code instead of eval is useful for debugging purposes."
+     evaluating to a Ring handler."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults
        dispatch-table))
   ([options dispatch-table]
      (let [options          (merge dispatch-table-compilation-defaults options)
-           emit-fn          (:emit-fn options)
            build-handler    (:build-handler-fn options)
 
            analysed-dispatch-table (analyse-dispatch-table dispatch-table)]
-       (emit-fn
-         (build-handler analysed-dispatch-table
-           (select-keys options [:async?]))))))
+       (build-handler analysed-dispatch-table
+         (select-keys options [:async?])))))
 
 (defn default-middleware [handler]
   (-> handler
