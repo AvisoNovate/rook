@@ -366,7 +366,10 @@
                               ["creator"] 'creator middleware))
                           (into
                             (dispatcher/namespace-dispatch-table
-                              ["creator-loopback"] 'creator-loopback middleware))))
+                              ["creator-loopback"] 'creator-loopback middleware))
+                          (into
+                            (dispatcher/namespace-dispatch-table
+                              ["static"] 'static identity))))
                       rook-async/wrap-with-loopback
                       rook-async/wrap-session
                       rook-async/wrap-with-standard-middleware)]
@@ -437,6 +440,12 @@
                         :throw-exceptions true})]
         (should= ":barney says `:betty says `123 is a very fine id!''"
           (-> response :body edn/read-string :message))))
+
+    (it "should resolve arguments statically given appropriate metadata"
+      (let [response (http/get "http://localhost:9988/static"
+                       {:accept :edn})]
+        (should= "Server localhost has received a request for some application/edn."
+          (:body response))))
 
     (after-all
       (.stop @server))))

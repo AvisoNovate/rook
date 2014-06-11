@@ -303,6 +303,86 @@
              ;; unsupported method for path
              not-found-response))))))
 
+(defn header-arg-resolver [sym]
+  (fn [request]
+    (-> request :headers (get (name sym)))))
+
+(defn param-arg-resolver [sym]
+  (let [kw (keyword sym)]
+    (fn [request]
+      (-> request :params kw))))
+
+(defn request-key-resolver [sym]
+  (let [kw (keyword sym)]
+    (fn [request]
+      (kw request))))
+
+(defn route-param-resolver [sym]
+  (let [kw (keyword sym)]
+    (fn [request]
+      (-> request :route-params kw))))
+
+(defn default-resolver [sym]
+  (fn [request]
+    (internals/extract-argument-value
+      sym request (-> request :rook :arg-resolvers))))
+
+(def standard-resolvers
+  "A map of keyword -> (function of symbol returning a function of
+  request)."
+  {:request (constantly identity)
+   :request-key request-key-resolver
+   :header      header-arg-resolver
+   :param       param-arg-resolver})
+
+(def standard-resolver-keywords
+  (set (keys standard-resolvers)))
+
+(defn arglist-resolver [arglist resolvers route-params]
+  (let [route-params (set route-params)
+        resolvers    (map (fn [arg]
+                            (condp contains? arg
+                              route-params (route-param-resolver arg)
+                              resolvers    (get resolvers arg)
+                              (default-resolver arg)))
+                       arglist)]
+    (if (seq resolvers)
+      (apply juxt resolvers)
+      (constantly ()))))
+
+(defn resolver-entry [arg resolver]
+  (if (keyword? resolver)
+    (if-let [f (get standard-resolvers resolver)]
+      [arg (f arg)]
+      (throw (ex-info (str "unknown resolver keyword: " resolver)
+               {:arg arg :resolver resolver})))
+    (if (ifn? resolver)
+      [arg resolver]
+      (throw (ex-info (str "non-keyword, non-ifn resolver: " resolver)
+               {:arg arg :resolver resolver})))))
+
+(defn maybe-resolver-by-tag [arg]
+  (let [meta-ks     (keys (meta arg))
+        resolver-ks (filterv standard-resolver-keywords meta-ks)]
+    (case (count resolver-ks)
+      0 nil
+      1 (resolver-entry arg (first resolver-ks))
+      (throw (ex-info (str "ambiguously tagged formal parameter: " arg)
+               {:arg arg :resolver-tags resolver-ks})))))
+
+(defn resolvers-for [arglist resolvers-meta]
+  (into {}
+    (keep (fn [arg]
+            (cond
+              (contains? resolvers-meta arg)
+              (let [resolver (get resolvers-meta arg)]
+                (resolver-entry arg resolver))
+              (contains? (meta arg) :io.aviso.rook/resolver)
+              (resolver-entry arg (:io.aviso.rook/resolver (meta arg)))
+              :else
+              (maybe-resolver-by-tag arg)))
+      arglist)))
+
 (defn make-route-param-resolver
   "Compiles a function that resolves the given route-params very
   efficiently."
@@ -332,16 +412,22 @@
                           metadata context]}
                   (get handlers handler-sym)
 
+                  resolve-args (arglist-resolver
+                                 arglist
+                                 (resolvers-for arglist (:resolvers metadata))
+                                 route-params)
+
+                  #_#_
                   route-param-resolver
                   (if (seq route-params)
                     [(make-route-param-resolver route-params)])
 
                   mw (get middleware middleware-sym)
                   mw (ensure-fn mw)
-                  mw (if (or route-param-resolver (seq arg-resolvers))
+                  mw (if (or #_route-param-resolver (seq arg-resolvers))
                        (let [resolvers
                              (mapv ensure-fn
-                               (concat route-param-resolver arg-resolvers))]
+                               (concat #_route-param-resolver arg-resolvers))]
                          (fn [handler]
                            (apply rook/wrap-with-arg-resolvers
                              (mw handler) resolvers)))
@@ -354,6 +440,8 @@
 
                   ef (ensure-fn verb-fn-sym)
                   f  (fn wrapped-handler [request]
+                       (apply ef (resolve-args request))
+                       #_
                        (let [resolvers (get-in request [:rook :arg-resolvers])
                              args (map #(internals/extract-argument-value
                                           % request resolvers)
