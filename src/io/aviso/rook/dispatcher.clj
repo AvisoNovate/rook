@@ -383,20 +383,6 @@
               (maybe-resolver-by-tag arg)))
       arglist)))
 
-(defn make-route-param-resolver
-  "Compiles a function that resolves the given route-params very
-  efficiently."
-  [route-params]
-  (eval (let [req (gensym "request__")]
-          `(fn [kw# ~req]
-             (case kw#
-               ~@(mapcat
-                   (fn [sym]
-                     (let [k (keyword sym)]
-                       [k `(-> ~req :route-params ~k)]))
-                   route-params)
-               nil)))))
-
 (defn build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
@@ -417,11 +403,6 @@
                                  (resolvers-for arglist (:resolvers metadata))
                                  route-params)
 
-                  #_#_
-                  route-param-resolver
-                  (if (seq route-params)
-                    [(make-route-param-resolver route-params)])
-
                   mw (get middleware middleware-sym)
                   mw (ensure-fn mw)
                   mw (if (or #_route-param-resolver (seq arg-resolvers))
@@ -432,21 +413,10 @@
                            (apply rook/wrap-with-arg-resolvers
                              (mw handler) resolvers)))
                        mw)
-                  #_#_
-                  mw (if schema
-                       (fn [handler]
-                         (wrap-with-schema (mw handler) schema))
-                       mw)
 
                   ef (ensure-fn verb-fn-sym)
                   f  (fn wrapped-handler [request]
-                       (apply ef (resolve-args request))
-                       #_
-                       (let [resolvers (get-in request [:rook :arg-resolvers])
-                             args (map #(internals/extract-argument-value
-                                          % request resolvers)
-                                    arglist)]
-                         (apply ef args)))
+                       (apply ef (resolve-args request)))
                   h  (apply-middleware mw sync? f)
                   h  (fn wrapped-with-rook-metadata [request]
                        (h (-> request
