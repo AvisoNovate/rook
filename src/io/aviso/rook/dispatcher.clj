@@ -383,13 +383,37 @@
               (maybe-resolver-by-tag arg)))
       arglist)))
 
+(defn add-dispatch-entries [dispatch-map method pathvec handler]
+  (let [pathvec'      (mapv #(if (variable? %) ::param-next %) pathvec)
+        dispatch-path (conj pathvec' method)
+        binding-names (filter variable? pathvec)
+        binding-paths (keep-indexed
+                        (fn [i seg]
+                          (if (variable? seg)
+                            (-> (subvec pathvec' 0 i)
+                              (into [])
+                              (conj ::param-name))))
+                        pathvec)]
+    (reduce (fn [dispatch-map [name path]]
+              (assoc-in dispatch-map path (keyword name)))
+      (assoc-in dispatch-map dispatch-path handler)
+      (map vector binding-names binding-paths))))
+
+(defn applicable-middleware [specified-middleware arg-resolvers]
+  (let [mw (eval specified-middleware)]
+    (if (seq arg-resolvers)
+      (let [resolvers (mapv eval arg-resolvers)]
+        (fn [handler]
+          (apply rook/wrap-with-arg-resolvers
+            (mw handler) resolvers)))
+      mw)))
+
 (defn build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
    {:keys [async?]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-sym]]
-            (let [ensure-fn #(if (fn? %) % (eval %))
-                  apply-middleware (if async?
+            (let [apply-middleware (if async?
                                      apply-middleware-async
                                      apply-middleware-sync)
 
@@ -403,20 +427,14 @@
                                  (resolvers-for arglist (:resolvers metadata))
                                  route-params)
 
-                  mw (get middleware middleware-sym)
-                  mw (ensure-fn mw)
-                  mw (if (or #_route-param-resolver (seq arg-resolvers))
-                       (let [resolvers
-                             (mapv ensure-fn
-                               (concat #_route-param-resolver arg-resolvers))]
-                         (fn [handler]
-                           (apply rook/wrap-with-arg-resolvers
-                             (mw handler) resolvers)))
-                       mw)
+                  mw (applicable-middleware
+                       (get middleware middleware-sym)
+                       arg-resolvers)
 
-                  ef (ensure-fn verb-fn-sym)
-                  f  (fn wrapped-handler [request]
-                       (apply ef (resolve-args request)))
+                  f  (let [ef (eval verb-fn-sym)]
+                       (fn wrapped-handler [request]
+                         (apply ef (resolve-args request))))
+
                   h  (apply-middleware mw sync? f)
                   h  (fn wrapped-with-rook-metadata [request]
                        (h (-> request
@@ -424,23 +442,8 @@
                               merge (dissoc metadata :arg-resolvers))
                             ;; FIXME
                             (cond-> context
-                              (update-in [:context] str context)))))
-
-                  pathvec' (mapv #(if (variable? %) ::param-next %) pathvec)
-
-                  dispatch-path (conj pathvec' method)
-                  binding-names (filter variable? pathvec)
-                  binding-paths (keep-indexed
-                                  (fn [i seg]
-                                    (if (variable? seg)
-                                      (-> (subvec pathvec' 0 i)
-                                        (into [])
-                                        (conj ::param-name))))
-                                  pathvec)]
-              (reduce (fn [dispatch-map [name path]]
-                        (assoc-in dispatch-map path (keyword name)))
-                (assoc-in dispatch-map dispatch-path h)
-                (map vector binding-names binding-paths))))
+                              (update-in [:context] str context)))))]
+              (add-dispatch-entries dispatch-map method pathvec h)))
     {}
     routes))
 
