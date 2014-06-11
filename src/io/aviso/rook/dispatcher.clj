@@ -22,12 +22,7 @@
      compile-dispatch-table.
 
   compile-dispatch-table takes several options; these are all
-  described in its docstring.
-
-  Also of note are the two built-in compilation strategies for use
-  with compile-dispatch-table's :build-handler-fn option:
-  build-pattern-matching-handler and build-map-traversal-handler. See
-  their own docstrings for details."
+  described in its docstring."
   (:require [clojure.core.async :as async]
             [clojure.string :as string]
             [clojure.pprint :as pp]
