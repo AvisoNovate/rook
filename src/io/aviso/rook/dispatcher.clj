@@ -28,8 +28,7 @@
   with compile-dispatch-table's :build-handler-fn option:
   build-pattern-matching-handler and build-map-traversal-handler. See
   their own docstrings for details."
-  (:require [clojure.core.match :refer [match]]
-            [clojure.core.async :as async]
+  (:require [clojure.core.async :as async]
             [clojure.string :as string]
             [clojure.pprint :as pp]
             [clojure.set :as set]
@@ -153,20 +152,6 @@
            (symbol (name %))
            %)
     xs))
-
-(defn prepare-handler-bindings
-  "Used by handler-form."
-  [request-sym arglist route-params non-route-params]
-  (let [route-param? (set route-params)]
-    (mapcat (fn [param]
-              [param
-               (if (route-param? param)
-                 `(get (:route-params ~request-sym) ~(keyword param))
-                 `(internals/extract-argument-value
-                    ~(keyword param)
-                    ~request-sym
-                    (-> ~request-sym :rook :arg-resolvers)))])
-      arglist)))
 
 (defn apply-middleware-sync
   "Applies middleware to handler in a synchronous fashion. Ignores
@@ -293,75 +278,6 @@
   (fn [request]
     (handler (assoc-in request [:rook :metadata :schema] schema))))
 
-(defn handler-form
-  "Returns a Clojure form evaluating to a handler wrapped in middleware.
-  The middleware stack includes the specified arg-resolvers, if any,
-  in the innermost position, and the middleware specified by
-  middleware-sym. The resulting handler calls the function named by
-  verb-fn-sym with arguments extracted from the request map."
-  [apply-middleware req handler-sym
-   {:keys [middleware-sym
-           route-params
-           non-route-params
-           verb-fn-sym
-           arglist
-           arg-resolvers
-           schema
-           sync?]}]
-  (let [prewrap-handler-sym (gensym (str handler-sym "__prewrap_handler__"))
-        wrapped-mw-sym      (gensym (str middleware-sym "__wrapped__"))]
-    `(~apply-middleware
-       ~(if (or (seq arg-resolvers) schema)
-          `(fn ~wrapped-mw-sym [handler#]
-             (-> handler#
-               ~@(if (seq arg-resolvers)
-                   [`(rook/wrap-with-arg-resolvers ~@arg-resolvers)])
-               ~middleware-sym
-               ~@(if schema
-                   [`(wrap-with-schema ~schema)])))
-          middleware-sym)
-       ~sync?
-       (fn ~prewrap-handler-sym [~req]
-         (let [~@(prepare-handler-bindings
-                   req
-                   arglist
-                   route-params
-                   non-route-params)]
-           (~verb-fn-sym ~@arglist))))))
-
-(defn build-pattern-matching-handler
-  "Returns a form evaluating to a Ring handler using pattern matching
-  on the request pathvec to select the appropriate endpoint function.
-
-  Can be passed to compile-dispatch-table using the :build-handler-fn
-  option."
-  [{:keys [routes handlers middleware]}
-   {:keys [async?]}]
-  (let [req (gensym "request__")
-        apply-middleware (if async?
-                           `apply-middleware-async
-                           `apply-middleware-sync)]
-    `(let [~@(apply concat middleware)
-           ~@(mapcat (fn [[handler-sym handler-map]]
-                       [handler-sym
-                        (handler-form
-                          apply-middleware req handler-sym handler-map)])
-               handlers)]
-       (fn rook-pattern-matching-dispatcher# [~req]
-         (match (request-route-spec ~req)
-           ~@(mapcat (fn [[route-spec handler-sym]]
-                       (let [{:keys [route-params schema]}
-                             (get handlers handler-sym)]
-                         [route-spec
-                          `(let [route-params#
-                                 ~(zipmap
-                                    (map keyword route-params)
-                                    route-params)]
-                             (~handler-sym
-                               (assoc ~req :route-params route-params#)))]))
-               routes)
-           :else nil)))))
-
 (defn map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
   dispatch. Used by build-map-traversal-handler. The optional
@@ -401,7 +317,7 @@
                    route-params)
                nil)))))
 
-(defn map-traversal-dispatch-map
+(defn build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
    {:keys [async?]}]
@@ -478,8 +394,7 @@
   Can be passed to compile-dispatch-table using the :build-handler-fn
   option."
   [analysed-dispatch-table opts]
-  (let [dispatch-map (map-traversal-dispatch-map
-                       analysed-dispatch-table opts)]
+  (let [dispatch-map (build-dispatch-map analysed-dispatch-table opts)]
     (if (:async? opts)
       (map-traversal-dispatcher dispatch-map (doto (async/chan) (async/close!)))
       (map-traversal-dispatcher dispatch-map))))

@@ -187,43 +187,6 @@
                         ["foo"] 'example.foo `default-middleware)))]
         (should= (set simple-dispatch-table) dt))))
 
-  (describe "compiled handlers using pattern dispatch"
-
-    (it "should return the expected responses"
-      (do-template [method path namespace-name extra-params expected-value]
-        (do
-          (should= expected-value
-            (let [mw (fn [handler]
-                       (-> handler
-                         rook/wrap-with-default-arg-resolvers
-                         wrap-with-resolve-method
-                         ring.middleware.keyword-params/wrap-keyword-params
-                         ring.middleware.params/wrap-params))
-                  dt (dispatcher/namespace-dispatch-table
-                       [] namespace-name mw)
-                  handler (dispatcher/compile-dispatch-table
-                            {:build-handler-fn dispatcher/build-pattern-matching-handler}
-                            dt)
-                  body    #(:body % %)]
-              (-> (mock/request method path)
-                (update-in [:params] merge extra-params)
-                handler
-                ;; TODO: fix rook-spec and rook-test/activate (the
-                ;; latter should return a response map rather than a
-                ;; string) and switch back to :body
-                body))))
-
-        :get "/?limit=100"   'rook-test {} "limit=100"
-        :get "/"             'rook-test {} "limit="
-        :get "/123"          'rook-test {} "id=123"
-        :get "/123/activate" 'rook-test {} nil
-        :put "/"             'rook-test {} nil
-        :put "/123"          'rook-test {} nil
-
-        :post "/123/activate" 'rook-test
-        {:test1 "foo" :test2 "bar" :test3 "baz" :test4 "quux"}
-        "test1=foo,id=123,test2=bar,test3=baz,test4=quux,meth=:post")))
-
   (describe "compiled handlers using map traversal"
 
     (it "should return the expected responses"
@@ -265,125 +228,62 @@
 
     (it "should return a channel with the correct response"
 
-      (let [handler1 (namespace-handler
-                       {:async? true
-                        :build-handler-fn dispatcher/build-pattern-matching-handler}
-                       [] 'barney `default-middleware)
-            handler2 (namespace-handler
-                       {:async? true
-                        :build-handler-fn dispatcher/build-map-traversal-handler}
-                       [] 'barney `default-middleware)]
+      (let [handler (namespace-handler {:async? true}
+                      [] 'barney `default-middleware)]
         (should= {:message "ribs!"}
-          (-> (mock/request :get "/") handler1 async/<!! :body))
-        (should= {:message "ribs!"}
-          (-> (mock/request :get "/") handler2 async/<!! :body))))
+          (-> (mock/request :get "/") handler async/<!! :body))))
 
     (it "should expose the request's :params key as an argument"
-      (let [handler1 (namespace-handler
-                       {:async? true
-                        :build-handler-fn dispatcher/build-pattern-matching-handler}
-                       [] 'echo-params rook/wrap-with-default-arg-resolvers)
-            handler2 (namespace-handler
-                       {:async? true
-                        :build-handler-fn dispatcher/build-map-traversal-handler}
-                       [] 'echo-params rook/wrap-with-default-arg-resolvers)
+      (let [handler (namespace-handler {:async? true}
+                      [] 'echo-params rook/wrap-with-default-arg-resolvers)
             params {:foo :bar}]
         (should-be-same params
           (-> (mock/request :get "/")
             (assoc :params params)
-            handler1
-            async/<!!
-            :body
-            :params-arg))
-        (should-be-same params
-          (-> (mock/request :get "/")
-            (assoc :params params)
-            handler2
+            handler
             async/<!!
             :body
             :params-arg))))
 
     (it "should return a 500 response if a sync handler throws an exception"
-      (let [handler1 (rook-async/async-handler->ring-handler
+      (let [handler (rook-async/async-handler->ring-handler
                        (rook-async/wrap-with-loopback
                          (namespace-handler
-                           {:build-handler-fn dispatcher/build-pattern-matching-handler}
-                           ["fail"] 'failing rook-async/wrap-restful-format)))
-            handler2 (rook-async/async-handler->ring-handler
-                       (rook-async/wrap-with-loopback
-                         (namespace-handler
-                           {:build-handler-fn dispatcher/build-map-traversal-handler}
                            ["fail"] 'failing rook-async/wrap-restful-format)))]
         (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-          (-> (mock/request :get "/fail") handler1 :status))
-        (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-          (-> (mock/request :get "/fail") handler2 :status)))))
+          (-> (mock/request :get "/fail") handler :status)))))
 
   (describe "loopback-handler"
 
     (it "should allow two resources to collaborate"
-      (let [handler1 (rook-async/async-handler->ring-handler
-                       (rook-async/wrap-with-loopback
-                         (dispatcher/compile-dispatch-table
-                           {:async? true
-                            :build-handler-fn dispatcher/build-pattern-matching-handler}
-                           (into
-                             (dispatcher/namespace-dispatch-table
-                               ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
-                             (dispatcher/namespace-dispatch-table
-                               ["barney"] 'barney rook/wrap-with-default-arg-resolvers)))))
-            handler2 (rook-async/async-handler->ring-handler
-                       (rook-async/wrap-with-loopback
-                         (dispatcher/compile-dispatch-table
-                           {:async? true
-                            :build-handler-fn dispatcher/build-map-traversal-handler}
-                           (into
-                             (dispatcher/namespace-dispatch-table
-                               ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
-                             (dispatcher/namespace-dispatch-table
-                               ["barney"] 'barney rook/wrap-with-default-arg-resolvers)))))]
+      (let [handler (rook-async/async-handler->ring-handler
+                      (rook-async/wrap-with-loopback
+                        (dispatcher/compile-dispatch-table {:async? true}
+                          (into
+                            (dispatcher/namespace-dispatch-table
+                              ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
+                            (dispatcher/namespace-dispatch-table
+                              ["barney"] 'barney rook/wrap-with-default-arg-resolvers)))))]
         (should= ":barney says `ribs!'"
           (-> (mock/request :get "/fred")
-            handler1
-            :body
-            :message))
-        (should= ":barney says `ribs!'"
-          (-> (mock/request :get "/fred")
-            handler2
+            handler
             :body
             :message))))
 
     (it "should allow three resources to collaborate"
-      (let [handler1 (rook-async/async-handler->ring-handler
-                       (rook-async/wrap-with-loopback
-                         (dispatcher/compile-dispatch-table
-                           {:build-handler-fn dispatcher/build-pattern-matching-handler
-                            :async? true}
-                           (-> (dispatcher/namespace-dispatch-table
-                                 ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
-                             (into
-                               (dispatcher/namespace-dispatch-table
-                                 ["barney"] 'barney rook/wrap-with-default-arg-resolvers))
-                             (into
-                               (dispatcher/namespace-dispatch-table
-                                 ["betty"] 'betty rook/wrap-with-default-arg-resolvers))))))
-            handler2 (rook-async/async-handler->ring-handler
-                       (rook-async/wrap-with-loopback
-                         (dispatcher/compile-dispatch-table
-                           {:build-handler-fn dispatcher/build-map-traversal-handler
-                            :async? true}
-                           (-> (dispatcher/namespace-dispatch-table
-                                 ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
-                             (into
-                               (dispatcher/namespace-dispatch-table
-                                 ["barney"] 'barney rook/wrap-with-default-arg-resolvers))
-                             (into
-                               (dispatcher/namespace-dispatch-table
-                                 ["betty"] 'betty rook/wrap-with-default-arg-resolvers))))))]
+      (let [handler (rook-async/async-handler->ring-handler
+                      (rook-async/wrap-with-loopback
+                        (dispatcher/compile-dispatch-table {:async? true}
+                          (-> (dispatcher/namespace-dispatch-table
+                                ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
+                            (into
+                              (dispatcher/namespace-dispatch-table
+                                ["barney"] 'barney rook/wrap-with-default-arg-resolvers))
+                            (into
+                              (dispatcher/namespace-dispatch-table
+                                ["betty"] 'betty rook/wrap-with-default-arg-resolvers))))))]
         (should= ":barney says `:betty says `123 is a very fine id!''"
-          (-> (mock/request :get "/fred/123") handler1 :body :message))
-        (should= ":barney says `:betty says `123 is a very fine id!''"
-          (-> (mock/request :get "/fred/123") handler2 :body :message)))))
+          (-> (mock/request :get "/fred/123") handler :body :message)))))
 
   (describe "handlers with schema attached"
 
@@ -392,30 +292,16 @@
                          (-> handler
                            rook-async/wrap-with-schema-validation
                            rook/wrap-with-default-arg-resolvers))
-            handler1   (->> (dispatcher/namespace-dispatch-table
+            handler    (->> (dispatcher/namespace-dispatch-table
                               ["validating"] 'validating middleware)
-                         (dispatcher/compile-dispatch-table
-                           {:build-handler-fn dispatcher/build-pattern-matching-handler
-                            :async? true})
+                         (dispatcher/compile-dispatch-table {:async? true})
                          rook-async/wrap-with-loopback
                          rook-async/async-handler->ring-handler)
-            handler2   (->> (dispatcher/namespace-dispatch-table
-                              ["validating"] 'validating middleware)
-                         (dispatcher/compile-dispatch-table
-                           {:build-handler-fn dispatcher/build-map-traversal-handler
-                            :async? true})
-                         rook-async/wrap-with-loopback
-                         rook-async/async-handler->ring-handler)
-            response1  (-> (mock/request :post "/validating")
+            response   (-> (mock/request :post "/validating")
                          (merge {:params {:name "Vincent"}})
-                         handler1)
-            response2  (-> (mock/request :post "/validating")
-                         (merge {:params {:name "Vincent"}})
-                         handler2)]
-        (should= HttpServletResponse/SC_OK (:status response1))
-        (should= HttpServletResponse/SC_OK (:status response2))
-        (should= [:name] (:body response1))
-        (should= [:name] (:body response2))))
+                         handler)]
+        (should= HttpServletResponse/SC_OK (:status response))
+        (should= [:name] (:body response))))
 
     (it "should send schema validation failures"
       (let [middleware (fn [handler]
@@ -423,48 +309,19 @@
                            rook-async/wrap-with-schema-validation
                            ring.middleware.keyword-params/wrap-keyword-params
                            ring.middleware.params/wrap-params))
-            handler1   (->> (dispatcher/namespace-dispatch-table
+            handler    (->> (dispatcher/namespace-dispatch-table
                               ["validating"] 'validating middleware)
-                         (dispatcher/compile-dispatch-table
-                           {:build-handler-fn dispatcher/build-pattern-matching-handler
-                            :async? true})
+                         (dispatcher/compile-dispatch-table {:async? true})
                          rook-async/wrap-with-loopback
                          rook-async/async-handler->ring-handler)
-            handler2   (->> (dispatcher/namespace-dispatch-table
-                              ["validating"] 'validating middleware)
-                         (dispatcher/compile-dispatch-table
-                           {:build-handler-fn dispatcher/build-map-traversal-handler
-                            :async? true})
-                         rook-async/wrap-with-loopback
-                         rook-async/async-handler->ring-handler)
-            response1  (-> (mock/request :post "/validating")
-                         handler1)
-            response2  (-> (mock/request :post "/validating")
-                         handler2)]
-        (should= HttpServletResponse/SC_BAD_REQUEST (:status response1))
-        (should= HttpServletResponse/SC_BAD_REQUEST (:status response2))
-        (should= "validation-error" (-> response1 :body :error))
-        (should= "validation-error" (-> response2 :body :error))
+            response   (-> (mock/request :post "/validating")
+                         handler)]
+        (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
+        (should= "validation-error" (-> response :body :error))
         ;; TODO: Not sure that's the exact format I want sent back to the client!
-        (should= "{:name missing-required-key}" (-> response1 :body :failures))
-        (should= "{:name missing-required-key}" (-> response2 :body :failures)))))
+        (should= "{:name missing-required-key}" (-> response :body :failures)))))
 
   (describe "handlers with a large number of endpoints"
-
-    (it "should compile and handle requests as expected using pattern matching"
-      (should= {:status 200 :headers {} :body "foo0/123"}
-        ((let [size 100]
-           (remove-ns 'rook.example.huge)
-           (generate-huge-resource-namespace 'rook.example.huge size)
-           (dispatcher/compile-dispatch-table
-             (dispatcher/namespace-dispatch-table [] 'rook.example.huge)))
-         {:request-method :get
-          :uri "/foo0/123"
-          :server-name "127.0.0.1"
-          :port 8080
-          :remote-addr "127.0.0.1"
-          :scheme :http
-          :headers {}})))
 
     (it "should compile and handle requests as expected using map traversal"
       (should= {:status 200 :headers {} :body "foo0/123"}
@@ -472,7 +329,6 @@
            (remove-ns 'rook.example.huge)
            (generate-huge-resource-namespace 'rook.example.huge size)
            (dispatcher/compile-dispatch-table
-             {:build-handler-fn dispatcher/build-map-traversal-handler}
              (dispatcher/namespace-dispatch-table [] 'rook.example.huge)))
          {:request-method :get
           :uri "/foo0/123"
@@ -490,9 +346,7 @@
                            rook/wrap-with-function-arg-resolvers
                            rook-async/wrap-with-schema-validation))
             handler (->
-                      (dispatcher/compile-dispatch-table
-                        {:build-handler-fn dispatcher/build-map-traversal-handler
-                         :async? true}
+                      (dispatcher/compile-dispatch-table {:async? true}
                         (-> (dispatcher/namespace-dispatch-table
                               ["fred"] 'fred middleware)
                           (into
