@@ -571,7 +571,6 @@
   such as
 
     [:get [\"api\" \"foo\"] 'example.foo/index identity]."
-
   [options? & [[context-pathvec? ns-sym middleware?] & more :as ns-specs]]
   (let [default-opts {:context-pathvec    []
                       :default-middleware identity}
