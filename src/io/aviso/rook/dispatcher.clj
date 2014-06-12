@@ -21,9 +21,6 @@
    - such compound dispatch tables can be compiled using
      [[compile-dispatch-table]].
 
-  compile-dispatch-table takes several options; these are all
-  described in its docstring.
-
   The individual _resource handler functions_ (functions defined by a namespace
   and either conforming to the naming convention, or defining :route-spec metadata)
   are expected to support a single
