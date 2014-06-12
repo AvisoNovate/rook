@@ -494,18 +494,13 @@
        (build-handler analysed-dispatch-table
          (select-keys options [:async?])))))
 
-(defn default-middleware [handler]
-  (-> handler
-    rook/wrap-with-function-arg-resolvers
-    sv/wrap-with-schema-validation))
-
 (defn namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
   format intelligible to compile-dispatch-table."
   ([ns-sym]
      (namespace-dispatch-table [] ns-sym))
   ([context-pathvec ns-sym]
-     (namespace-dispatch-table context-pathvec ns-sym `default-middleware))
+     (namespace-dispatch-table context-pathvec ns-sym identity))
   ([context-pathvec ns-sym middleware]
      (try
        (if-not (find-ns ns-sym)
