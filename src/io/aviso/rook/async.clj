@@ -58,13 +58,13 @@
 
 
 (defmacro safe-go
-  "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by `safety-first` if it must
+  "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by [[safety-first]] if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
   `(go (safety-first ~request ~expr ~@more)))
 
 (defmacro safe-thread
-  "Wraps the body in a [[safety-first]] block and then in a thread block. The request is used by `safety-first` if it must
+  "Wraps the body in a [[safety-first]] block and then in a thread block. The request is used by [[safety-first]] if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
   `(thread (safety-first ~request ~expr ~@more)))
@@ -232,8 +232,12 @@
   The `io.aviso.rook.client` namespace is specifically designed to allow resources to communiate with each other
   via the loopback.
 
-  - handler - delegate asynchronous handler, typically via namespace-handler and/or routes
-  - k - the keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default
+  handler
+  : delegate asynchronous handler, typically via namespace-handler and/or routes
+
+  k
+  : _Default: :loopback-handler_
+  : The keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default
 
   The loopback handler is exposed via `wrap-with-arg-resolvers`: resource handler functions can gain access
   to the loopback by providing an argument with a matching name.

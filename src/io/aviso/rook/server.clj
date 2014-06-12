@@ -38,10 +38,14 @@
 
   The options map contains three flags:
 
-  - :reload - enables the above-described reloading of the handler.
-  - :debug - enables logging of each incoming request.
-  - :log - enables a summary of each incoming request (method and path) to be logged.
-    :log is implied if :debug is true.
+  :reload
+  : enables the above-described reloading of the handler.
+
+  :debug
+  : enables logging of each incoming request.
+
+  :log
+  : enables a summary of each incoming request (method and path) to be logged. :log is implied if :debug is true.
 
   The extra logging and debugging middleware is added around the root handler (or the
   reloading handler that creates the root handler)."
