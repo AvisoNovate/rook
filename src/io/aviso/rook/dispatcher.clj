@@ -494,13 +494,13 @@
        (build-handler analysed-dispatch-table
          (select-keys options [:async?])))))
 
-(defn namespace-dispatch-table
+(defn simple-namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
   format intelligible to compile-dispatch-table."
   ([ns-sym]
-     (namespace-dispatch-table [] ns-sym))
+     (simple-namespace-dispatch-table [] ns-sym))
   ([context-pathvec ns-sym]
-     (namespace-dispatch-table context-pathvec ns-sym identity))
+     (simple-namespace-dispatch-table context-pathvec ns-sym identity))
   ([context-pathvec ns-sym middleware]
      (try
        (if-not (find-ns ns-sym)
@@ -522,3 +522,83 @@
                     (conj route-spec (symbol (name ns-sym) (name k)))))))
         (list* context-pathvec middleware)
         vec)]))
+
+(defn namespace-dispatch-table
+  "Examines the given namespaces and produces a dispatch table in a
+  format intelligible to compile-dispatch-table.
+
+  The individual namespaces are specified as vectors of the following
+  shape:
+
+    [context-pathvec? ns-sym middleware?]
+
+  The optional fragments are interpreted as below (defaults listed in
+  brackets):
+
+   - context-pathvec? ([]):
+
+     A context pathvec to be prepended to pathvecs for all entries
+     emitted for this namespace.
+
+   - middleware? (clojure.core/identity or as supplied in options?):
+
+     Middleware to be applied to terminal handlers found in this
+     namespace.
+
+  The options map, if supplied, can include the following keys (listed
+  below with their default values):
+
+   - :context-pathvec ([]):
+
+     Top-level context-pathvec that will be prepended to
+     context-pathvecs for the individual namespaces.
+
+   - :default-middleware (clojure.core/identity):
+
+     Default middleware used for namespaces for which no middleware
+     was specified.
+
+  Example call:
+
+    (namespace-dispatch-table
+      {:context-pathvec    [\"api\"]
+       :default-middleware basic-middleware}
+      ;; foo & bar use basic middleware:
+      [[\"foo\"]  'example.foo]
+      [[\"bar\"]  'example.bar]
+      ;; quux has special requirements:
+      [[\"quux\"] 'example.quux special-middleware])
+
+  The resulting namespace in its unnested form will include entries
+  such as
+
+    [:get [\"api\" \"foo\"] 'example.foo/index identity]."
+
+  [options? & [[context-pathvec? ns-sym middleware?] & more :as ns-specs]]
+  (let [default-opts {:context-pathvec    []
+                      :default-middleware identity}
+        opts         (if (map? options?)
+                       (merge default-opts options?))
+        ns-specs     (if opts
+                       ns-specs
+                       (cons options? ns-specs))
+        {outer-context-pathvec :context-pathvec
+         default-middleware    :default-middleware}
+        (or opts default-opts)]
+    [(reduce into [outer-context-pathvec default-middleware]
+       (map (fn [[context-pathvec? ns-sym middleware?]]
+              (let [context-pathvec (if (vector? context-pathvec?)
+                                      context-pathvec?)
+                    ns-sym          (if context-pathvec
+                                      ns-sym
+                                      context-pathvec?)
+                    middleware      (if context-pathvec
+                                      middleware?
+                                      ns-sym)]
+                (assert (symbol? ns-sym)
+                  "Malformed ns-spec passed to namespace-dispatch-table")
+                (simple-namespace-dispatch-table
+                  (or context-pathvec [])
+                  ns-sym
+                  (or middleware default-middleware))))
+         ns-specs))]))

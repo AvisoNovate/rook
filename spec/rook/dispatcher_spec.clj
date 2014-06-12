@@ -26,16 +26,16 @@
   merged and the resulting table should be compiled."
   ([ns-sym]
      (dispatcher/compile-dispatch-table
-       (dispatcher/namespace-dispatch-table ns-sym)))
+       (dispatcher/namespace-dispatch-table [ns-sym])))
   ([context-pathvec ns-sym]
      (dispatcher/compile-dispatch-table
-       (dispatcher/namespace-dispatch-table context-pathvec ns-sym)))
+       (dispatcher/namespace-dispatch-table [context-pathvec ns-sym])))
   ([context-pathvec ns-sym middleware]
      (dispatcher/compile-dispatch-table
-       (dispatcher/namespace-dispatch-table context-pathvec ns-sym middleware)))
+       (dispatcher/namespace-dispatch-table [context-pathvec ns-sym middleware])))
   ([options context-pathvec ns-sym middleware]
      (dispatcher/compile-dispatch-table options
-       (dispatcher/namespace-dispatch-table context-pathvec ns-sym middleware))))
+       (dispatcher/namespace-dispatch-table [context-pathvec ns-sym middleware]))))
 
 
 (defn wrap-with-pprint-request [handler]
@@ -102,6 +102,20 @@
              (resp/response (str "Interesting id: " id)))
            (defn create [x]
              (resp/response (str "Created " x))))))
+
+(create-ns 'example.bar)
+
+(binding [*ns* (the-ns 'example.bar)]
+  (eval '(do
+           (clojure.core/refer-clojure)
+           (require '[ring.util.response :as resp])
+           (defn index []
+             (resp/response "Hello!"))
+           (defn show [id]
+             (resp/response (str "Interesting id: " id)))
+           (defn create [x]
+             (resp/response (str "Created " x))))))
+
 
 (def default-middleware identity)
 
@@ -184,8 +198,45 @@
 
       (let [dt (set (dispatcher/unnest-dispatch-table
                       (dispatcher/namespace-dispatch-table
-                        ["foo"] 'example.foo `default-middleware)))]
-        (should= (set simple-dispatch-table) dt))))
+                        [["foo"] 'example.foo `default-middleware])))]
+        (should= (set simple-dispatch-table) dt)))
+
+    (it "should respect the :context-pathvec option"
+
+      (let [dt (set (dispatcher/unnest-dispatch-table
+                      (dispatcher/namespace-dispatch-table
+                        {:context-pathvec ["api"]}
+                        [["foo"] 'example.foo `default-middleware])))]
+        (should= (set (map (fn [[_ pathvec :as entry]]
+                             (update-in entry [1] #(into ["api"] %)))
+                        simple-dispatch-table))
+          dt)))
+
+    (it "should respect the :default-middleware option"
+
+      (let [dt (dispatcher/unnest-dispatch-table
+                 (dispatcher/namespace-dispatch-table
+                   {:default-middleware 'very-strange-middleware}
+                   [["foo"] 'example.foo]))]
+        (should (every? #{'very-strange-middleware} (map peek dt)))))
+
+    (it "should only use :default-middleware in absence of explicit middleware"
+
+      (let [dt   (dispatcher/unnest-dispatch-table
+                   (dispatcher/namespace-dispatch-table
+                     {:default-middleware 'very-strange-middleware}
+                     [["foo"] 'example.foo]
+                     [["bar"] 'example.bar 'completely-regular-middleware]))
+            foos (filter (fn [[_ [seg] & _]] (= seg "foo")) dt)
+            bars (filter (fn [[_ [seg] & _]] (= seg "bar")) dt)]
+        (should= 3 (count foos))
+        (should= 3 (count bars))
+        (should= #{'very-strange-middleware 'completely-regular-middleware}
+          (set (map peek dt)))
+        (should= #{'very-strange-middleware}
+          (set (map peek foos)))
+        (should= #{'completely-regular-middleware}
+          (set (map peek bars))))))
 
   (describe "compiled handlers using map traversal"
 
@@ -200,7 +251,7 @@
                          ring.middleware.keyword-params/wrap-keyword-params
                          ring.middleware.params/wrap-params))
                   dt (dispatcher/namespace-dispatch-table
-                       [] namespace-name mw)
+                       [[] namespace-name mw])
                   handler (dispatcher/compile-dispatch-table
                             {:build-handler-fn dispatcher/build-map-traversal-handler}
                             dt)
@@ -247,9 +298,9 @@
 
     (it "should return a 500 response if a sync handler throws an exception"
       (let [handler (rook-async/async-handler->ring-handler
-                       (rook-async/wrap-with-loopback
-                         (namespace-handler
-                           ["fail"] 'failing rook-async/wrap-restful-format)))]
+                      (rook-async/wrap-with-loopback
+                        (namespace-handler
+                          ["fail"] 'failing rook-async/wrap-restful-format)))]
         (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
           (-> (mock/request :get "/fail") handler :status)))))
 
@@ -259,11 +310,9 @@
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
                         (dispatcher/compile-dispatch-table {:async? true}
-                          (into
-                            (dispatcher/namespace-dispatch-table
-                              ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
-                            (dispatcher/namespace-dispatch-table
-                              ["barney"] 'barney rook/wrap-with-default-arg-resolvers)))))]
+                          (dispatcher/namespace-dispatch-table
+                            [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
+                            [["barney"] 'barney rook/wrap-with-default-arg-resolvers]))))]
         (should= ":barney says `ribs!'"
           (-> (mock/request :get "/fred")
             handler
@@ -274,14 +323,10 @@
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
                         (dispatcher/compile-dispatch-table {:async? true}
-                          (-> (dispatcher/namespace-dispatch-table
-                                ["fred"] 'fred rook/wrap-with-default-arg-resolvers)
-                            (into
-                              (dispatcher/namespace-dispatch-table
-                                ["barney"] 'barney rook/wrap-with-default-arg-resolvers))
-                            (into
-                              (dispatcher/namespace-dispatch-table
-                                ["betty"] 'betty rook/wrap-with-default-arg-resolvers))))))]
+                          (dispatcher/namespace-dispatch-table
+                            [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
+                            [["barney"] 'barney rook/wrap-with-default-arg-resolvers]
+                            [["betty"] 'betty rook/wrap-with-default-arg-resolvers]))))]
         (should= ":barney says `:betty says `123 is a very fine id!''"
           (-> (mock/request :get "/fred/123") handler :body :message)))))
 
@@ -293,7 +338,7 @@
                            rook-async/wrap-with-schema-validation
                            rook/wrap-with-default-arg-resolvers))
             handler    (->> (dispatcher/namespace-dispatch-table
-                              ["validating"] 'validating middleware)
+                              [["validating"] 'validating middleware])
                          (dispatcher/compile-dispatch-table {:async? true})
                          rook-async/wrap-with-loopback
                          rook-async/async-handler->ring-handler)
@@ -310,7 +355,7 @@
                            ring.middleware.keyword-params/wrap-keyword-params
                            ring.middleware.params/wrap-params))
             handler    (->> (dispatcher/namespace-dispatch-table
-                              ["validating"] 'validating middleware)
+                              [["validating"] 'validating middleware])
                          (dispatcher/compile-dispatch-table {:async? true})
                          rook-async/wrap-with-loopback
                          rook-async/async-handler->ring-handler)
@@ -329,7 +374,7 @@
            (remove-ns 'rook.example.huge)
            (generate-huge-resource-namespace 'rook.example.huge size)
            (dispatcher/compile-dispatch-table
-             (dispatcher/namespace-dispatch-table [] 'rook.example.huge)))
+             (dispatcher/namespace-dispatch-table [[] 'rook.example.huge])))
          {:request-method :get
           :uri "/foo0/123"
           :server-name "127.0.0.1"
@@ -348,28 +393,14 @@
             handler (->
                       (dispatcher/compile-dispatch-table {:async? true}
                         (-> (dispatcher/namespace-dispatch-table
-                              ["fred"] 'fred middleware)
-                          (into
-                            (dispatcher/namespace-dispatch-table
-                              ["barney"] 'barney middleware))
-                          (into
-                            (dispatcher/namespace-dispatch-table
-                              ["betty"] 'betty middleware))
-                          (into
-                            (dispatcher/namespace-dispatch-table
-                              ["slow"] 'slow middleware))
-                          (into
-                            (dispatcher/namespace-dispatch-table
-                              ["sessions"] 'sessions middleware))
-                          (into
-                            (dispatcher/namespace-dispatch-table
-                              ["creator"] 'creator middleware))
-                          (into
-                            (dispatcher/namespace-dispatch-table
-                              ["creator-loopback"] 'creator-loopback middleware))
-                          (into
-                            (dispatcher/namespace-dispatch-table
-                              ["static"] 'static identity))))
+                              [["fred"] 'fred middleware]
+                              [["barney"] 'barney middleware]
+                              [["betty"] 'betty middleware]
+                              [["slow"] 'slow middleware]
+                              [["sessions"] 'sessions middleware]
+                              [["creator"] 'creator middleware]
+                              [["creator-loopback"] 'creator-loopback middleware]
+                              [["static"] 'static identity])))
                       rook-async/wrap-with-loopback
                       rook-async/wrap-session
                       rook-async/wrap-with-standard-middleware)]
