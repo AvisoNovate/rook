@@ -567,8 +567,8 @@
       ;; quux has special requirements:
       [[\"quux\"] 'example.quux special-middleware])
 
-  The resulting namespace in its unnested form will include entries
-  such as
+  The resulting dispatch table in its unnested form will include
+  entries such as
 
     [:get [\"api\" \"foo\"] 'example.foo/index identity]."
   [options? & [[context-pathvec? ns-sym middleware?] & more :as ns-specs]]
