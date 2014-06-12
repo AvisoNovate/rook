@@ -2,41 +2,43 @@
   "This namespace deals with dispatch tables mapping route specs of
   the form
 
-    [method [path-segment ...]]
+      [method [path-segment ...]]
 
   to endpoint functions. The recognized format is described at length
-  in the docstrings of the unnest-dispatch-table and
-  request-route-spec functions exported by this namespace.
+  in the docstrings of the [[unnest-dispatch-table]] and
+  [[request-route-spec]] functions exported by this namespace.
 
   The expected way to use this namespace is as follows:
 
    - namespaces correspond to resources;
 
-   - namespace-dispatch-table produces a dispatch table for a single
-     namespace;
+   - [[namespace-dispatch-table]] produces a dispatch table for a single
+     namespace
 
    - any number of such dispatch tables can be concatenated to form a
-     dispatch table for a collection of resources;
+     dispatch table for a collection of resources
 
    - such compound dispatch tables can be compiled using
-     compile-dispatch-table.
+     [[compile-dispatch-table]].
 
   compile-dispatch-table takes several options; these are all
   described in its docstring.
 
-  The individual \"terminal handlers\" -- functions held in Vars with
-  path or route specs attached -- are expected to support a single
+  The individual _resource handler functions_ (functions defined by a namespace
+  and either conforming to the naming convention, or defining `:route-spec` metadata)
+  are expected to support a single
   arity only. The arglist for that arity and the metadata on the
-  terminal handler Var will be examined to determine the correct
+  request handler function will be examined to determine the correct
   argument resolution strategy at dispatch table compilation time."
   (:require [clojure.core.async :as async]
             [clojure.string :as string]
-            [clojure.pprint :as pp]
             [clojure.set :as set]
             [io.aviso.rook :as rook]
             [io.aviso.rook.async :as rook-async]
             [io.aviso.rook.internals :as internals]
             [io.aviso.rook.schema-validation :as sv]))
+
+;; TODO: Move functions exposed just for tests to an internal namespace
 
 (def ^:private default-mappings
 
@@ -58,22 +60,18 @@
    }
   )
 
-(defn pprint-code [form]
-  (pp/write form :dispatch pp/code-dispatch)
-  (prn))
-
-(defn request-route-spec
-  "Takes a Ring request map and returns [method pathvec], where method
+(defn- request-route-spec
+  "Takes a Ring request map and returns `[method pathvec]`, where method
   is a request method keyword and pathvec is a vector of path
   segments.
 
   For example,
 
-    GET /foo/bar HTTP/1.1
+      GET /foo/bar HTTP/1.1
 
-  becomes
+  become:
 
-    [:get [\"foo\" \"bar\"]].
+      [:get [\"foo\" \"bar\"]]
 
   The individual path segments are URL decoded; UTF-8 encoding is
   assumed."
@@ -83,9 +81,9 @@
      (next (string/split (:uri request) #"/" 0)))])
 
 (defn path-spec->route-spec
-  "Takes a path-spec in the format [:method \"/path/:param\"] and
-  returns the equivalent route-spec in the format [:method
-  [\"path\" :param]]. If passed nil as input, returns nil."
+  "Takes a path-spec in the format `[:method \"/path/:param\"]` and
+  returns the equivalent route-spec in the format `[:method
+  [\"path\" :param]]`. If passed nil as input, returns nil."
   [path-spec]
   (if-not (nil? path-spec)
     (let [[method path] path-spec
@@ -98,20 +96,20 @@
 (defn unnest-dispatch-table
   "Given a nested dispatch table:
 
-    [[method pathvec verb-fn middleware
-      [method' pathvec' verb-fn' middleware' ...]
-      ...]
-     ...]
+      [[method pathvec verb-fn middleware
+        [method' pathvec' verb-fn' middleware' ...]
+        ...]
+       ...]
 
   produces a dispatch table with no nesting:
 
-    [[method pathvec verb-fn middleware]
-     [method' (into pathvec pathvec') verb-fn' middleware']
-     ...].
+      [[method pathvec verb-fn middleware]
+       [method' (into pathvec pathvec') verb-fn' middleware']
+       ...]
 
   Entries may also take the alternative form of
 
-    [pathvec middleware? & entries],
+      [pathvec middleware? & entries],
 
   in which case pathvec and middleware? (if present) will provide a
   context pathvec and default middleware for the nested entries
@@ -146,7 +144,7 @@
               (mapcat (partial unnest-entry default-middleware) entries)))]
     (unnest-table [] nil dispatch-table)))
 
-(defn keywords->symbols
+(defn- keywords->symbols
   "Converts keywords in xs to symbols, leaving other items unchanged."
   [xs]
   (mapv #(if (keyword? %)
@@ -154,13 +152,13 @@
            %)
     xs))
 
-(defn apply-middleware-sync
+(defn- apply-middleware-sync
   "Applies middleware to handler in a synchronous fashion. Ignores
   sync?."
   [middleware sync? handler]
   (middleware handler))
 
-(defn apply-middleware-async
+(defn- apply-middleware-async
   "Applies middleware to handler in a synchronous or asynchronous
   fashion depending on whether sync? is truthy."
   [middleware sync? handler]
@@ -169,10 +167,10 @@
       (rook-async/ring-handler->async-handler handler)
       handler)))
 
-(defn variable? [x]
+(defn- variable? [x]
   (or (keyword? x) (symbol? x)))
 
-(defn compare-pathvecs
+(defn- compare-pathvecs
   "Uses lexicographic order. Variables come before literal strings (so
   that /foo/:id sorts before /foo/bar)."
   [pathvec1 pathvec2]
@@ -197,7 +195,7 @@
                     (recur (next pv1) (next pv2))
                     res)))))))
 
-(defn compare-route-specs
+(defn- compare-route-specs
   "Uses compare-pathvecs first, breaking ties by comparing methods."
   [[method1 pathvec1] [method2 pathvec2]]
   (let [res (compare-pathvecs pathvec1 pathvec2)]
@@ -205,18 +203,19 @@
       (compare method1 method2)
       res)))
 
-(defn sort-dispatch-table [dispatch-table]
+#_ (defn sort-dispatch-table
+  [dispatch-table]
   (vec (sort compare-route-specs dispatch-table)))
 
-(defn sorted-routes
+(defn- sorted-routes
   "Converts the given map of route specs -> * to a sorted map."
   [routes]
   (into (sorted-map-by compare-route-specs) routes))
 
-(defn analyse-dispatch-table
+(defn- analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
-  key :routes, a map of route-spec -> handler-map at key :handlers and
-  a map of middleware-symbol -> middleware-spec at key :middleware.
+  key `:routes`, a map of route-spec -> handler-map at key `:handlers` and
+  a map of middleware-symbol -> middleware-spec at key `:middleware`.
   The structure of handler-maps is as required by handler-form;
   middleware-spec is the literal form specifying the middleware in the
   dispatch table; a route-spec* is a route-spec with keywords replaced
@@ -250,7 +249,7 @@
             route-params     (mapv (comp symbol name)
                                (filter keyword? pathvec))
             context          (:context (meta pathvec))
-            pathvec          (keywords->symbols pathvec)
+            ; pathvec          (keywords->symbols pathvec)
             arglist          (first (:arglists metadata))
             non-route-params (remove (set route-params) arglist)
             arg-resolvers    (:arg-resolvers metadata)
@@ -273,11 +272,11 @@
        :handlers   handlers
        :middleware (set/map-invert middleware)})))
 
-(defn wrap-with-schema [handler schema]
+#_ (defn wrap-with-schema [handler schema]
   (fn [request]
     (handler (assoc-in request [:rook :metadata :schema] schema))))
 
-(defn map-traversal-dispatcher
+(defn- map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
   dispatch. Used by build-map-traversal-handler. The optional
   not-found-response argument defaults to nil; pass in a closed
@@ -302,26 +301,26 @@
              ;; unsupported method for path
              not-found-response))))))
 
-(defn header-arg-resolver [sym]
+(defn- header-arg-resolver [sym]
   (fn [request]
     (-> request :headers (get (name sym)))))
 
-(defn param-arg-resolver [sym]
+(defn- param-arg-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (-> request :params kw))))
 
-(defn request-key-resolver [sym]
+(defn- request-key-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (kw request))))
 
-(defn route-param-resolver [sym]
+(defn- route-param-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (-> request :route-params kw))))
 
-(defn default-resolver [sym]
+(defn- default-resolver [sym]
   (fn [request]
     (internals/extract-argument-value
       sym request (-> request :rook :arg-resolvers))))
@@ -334,10 +333,11 @@
    :header      header-arg-resolver
    :param       param-arg-resolver})
 
-(def standard-resolver-keywords
+(def ^:private standard-resolver-keywords
   (set (keys standard-resolvers)))
 
-(defn arglist-resolver [arglist resolvers route-params]
+(defn- arglist-resolver
+  [arglist resolvers route-params]
   (let [route-params (set route-params)
         resolvers    (map (fn [arg]
                             (condp contains? arg
@@ -349,7 +349,8 @@
       (apply juxt resolvers)
       (constantly ()))))
 
-(defn resolver-entry [arg resolver]
+(defn- resolver-entry
+  [arg resolver]
   (if (keyword? resolver)
     (if-let [f (get standard-resolvers resolver)]
       [arg (f arg)]
@@ -360,7 +361,8 @@
       (throw (ex-info (str "non-keyword, non-ifn resolver: " resolver)
                {:arg arg :resolver resolver})))))
 
-(defn maybe-resolver-by-tag [arg]
+(defn- maybe-resolver-by-tag
+  [arg]
   (let [meta-ks     (keys (meta arg))
         resolver-ks (filterv standard-resolver-keywords meta-ks)]
     (case (count resolver-ks)
@@ -369,7 +371,8 @@
       (throw (ex-info (str "ambiguously tagged formal parameter: " arg)
                {:arg arg :resolver-tags resolver-ks})))))
 
-(defn resolvers-for [arglist resolvers-meta]
+(defn- resolvers-for
+  [arglist resolvers-meta]
   (into {}
     (keep (fn [arg]
             (cond
@@ -382,7 +385,8 @@
               (maybe-resolver-by-tag arg)))
       arglist)))
 
-(defn add-dispatch-entries [dispatch-map method pathvec handler]
+(defn- add-dispatch-entries
+  [dispatch-map method pathvec handler]
   (let [pathvec'      (mapv #(if (variable? %) ::param-next %) pathvec)
         dispatch-path (conj pathvec' method)
         binding-names (filter variable? pathvec)
@@ -398,7 +402,8 @@
       (assoc-in dispatch-map dispatch-path handler)
       (map vector binding-names binding-paths))))
 
-(defn applicable-middleware [specified-middleware arg-resolvers]
+(defn- applicable-middleware
+  [specified-middleware arg-resolvers]
   (let [mw (eval specified-middleware)]
     (if (seq arg-resolvers)
       (let [resolvers (mapv eval arg-resolvers)]
@@ -407,7 +412,7 @@
             (mw handler) resolvers)))
       mw)))
 
-(defn build-dispatch-map
+(defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
    {:keys [async?]}]
@@ -451,7 +456,7 @@
   by using the pathvec and method of the incoming request to look up
   an endpoint function in a nested map.
 
-  Can be passed to compile-dispatch-table using the :build-handler-fn
+  Can be passed to compile-dispatch-table using the `:build-handler-fn`
   option."
   [analysed-dispatch-table opts]
   (let [dispatch-map (build-dispatch-map analysed-dispatch-table opts)]
@@ -459,7 +464,7 @@
       (map-traversal-dispatcher dispatch-map (doto (async/chan) (async/close!)))
       (map-traversal-dispatcher dispatch-map))))
 
-(def dispatch-table-compilation-defaults
+(def ^:private dispatch-table-compilation-defaults
   {:async?           false
    :build-handler-fn build-map-traversal-handler})
 
@@ -471,16 +476,18 @@
 
   Supported options and their default values:
 
-   - async? (false):
+  `:async?`
 
-     Determines the way in which middleware is applied to the terminal
-     handler. Pass in true when compiling async handlers.
+  : _Default: false_
 
-   - build-handler-fn (build-map-traversal-handler):
+  : Determines the way in which middleware is applied to the terminal
+    handler. Pass in true when compiling async handlers.
 
-     Will be called with routes, handlers, middleware (see the
-     docstring of analyse-dispatch-table for a description of these)
-     and apply-middleware-fn. Should produce a Ring handler."
+  `:build-handler-fn`
+
+  : _Default: [[build-map-traversal-handler]]_
+
+  : Will be called with routes, handlers, middleware and should produce a Ring handler."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults
@@ -492,7 +499,7 @@
        (build-handler analysed-dispatch-table
          (select-keys options [:async?])))))
 
-(defn simple-namespace-dispatch-table
+(defn- simple-namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
   format intelligible to compile-dispatch-table."
   ([ns-sym]
@@ -528,7 +535,7 @@
   The individual namespaces are specified as vectors of the following
   shape:
 
-    [context-pathvec? ns-sym middleware?]
+      [context-pathvec? ns-sym middleware?]
 
   The optional fragments are interpreted as below (defaults listed in
   brackets):
@@ -546,32 +553,36 @@
   The options map, if supplied, can include the following keys (listed
   below with their default values):
 
-   - :context-pathvec ([]):
+  `:context-pathvec`
 
-     Top-level context-pathvec that will be prepended to
-     context-pathvecs for the individual namespaces.
+  : _Default: []_
 
-   - :default-middleware (clojure.core/identity):
+  : Top-level context-pathvec that will be prepended to
+    context-pathvecs for the individual namespaces.
 
-     Default middleware used for namespaces for which no middleware
-     was specified.
+  `:default-middleware`
+
+  : _Default: clojure.core/identity_
+
+  : Default middleware used for namespaces for which no middleware
+    was specified.
 
   Example call:
 
-    (namespace-dispatch-table
-      {:context-pathvec    [\"api\"]
-       :default-middleware basic-middleware}
-      ;; foo & bar use basic middleware:
-      [[\"foo\"]  'example.foo]
-      [[\"bar\"]  'example.bar]
-      ;; quux has special requirements:
-      [[\"quux\"] 'example.quux special-middleware])
+      (namespace-dispatch-table
+        {:context-pathvec    [\"api\"]
+         :default-middleware basic-middleware}
+        ;; foo & bar use basic middleware:
+        [[\"foo\"]  'example.foo]
+        [[\"bar\"]  'example.bar]
+        ;; quux has special requirements:
+        [[\"quux\"] 'example.quux special-middleware])
 
   The resulting dispatch table in its unnested form will include
   entries such as
 
-    [:get [\"api\" \"foo\"] 'example.foo/index identity]."
-  [options? & [[context-pathvec? ns-sym middleware?] & more :as ns-specs]]
+    [:get [\"api\" \"foo\"] 'example.foo/index identity]"
+  [options? & ns-specs]
   (let [default-opts {:context-pathvec    []
                       :default-middleware identity}
         opts         (if (map? options?)

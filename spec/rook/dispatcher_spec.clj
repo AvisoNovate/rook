@@ -13,9 +13,17 @@
             [clojure.core.async :as async]
             ring.middleware.params
             ring.middleware.keyword-params
+            [clojure.pprint :as pp]
             [clojure.edn :as edn])
   (:import (javax.servlet.http HttpServletResponse)))
 
+
+(defn pprint-code
+  [form]
+  ;; TODO: This
+  "Pretty prints the form using code indentation rules."
+  (pp/write form :dispatch pp/code-dispatch)
+  (prn))
 
 (defn namespace-handler
   "Produces a handler based on the given namespace.
@@ -40,7 +48,7 @@
 
 (defn wrap-with-pprint-request [handler]
   (fn [request]
-    (dispatcher/pprint-code request)
+    (pprint-code request)
     (handler request)))
 
 (defn wrap-with-pprint-response [handler]
@@ -49,8 +57,8 @@
       (if (satisfies? clojure.core.async.impl.protocols/ReadPort resp)
         (let [v (async/<!! resp)]
           (async/>!! resp v)
-          (dispatcher/pprint-code v))
-        (dispatcher/pprint-code resp))
+          (pprint-code v))
+        (pprint-code resp))
       (prn)
       resp)))
 
