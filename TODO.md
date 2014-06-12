@@ -24,7 +24,7 @@ Argument resolution requires a search among an set of argument resolvers, lookin
 This is necessary because, for an arbitrary function argument, there is currently no way to know from where
 the value will be resolved; based on the exact set of argument resolvers available at the call site,
 the value may be anything from the request itself, to a key stored in the request, to a value extracted from
-the `:params` map or the `:headers` map, to some arbitrary value entirely.
+the :params map or the :params map, to some arbitrary value entirely.
 
 The proposed change is that argument resolution take place statically. 
 
@@ -37,7 +37,7 @@ The new contract will be:
    (argument-symbol) -> (request) -> value  (or nil)
    
 Argument resolvers will be able to access meta-data associated with the symbol via the `meta` function; various
-tag values will indicate that the symbol in question is to be sourced from the `:params` or `:headers`, for example.
+tag values will indicate that the symbol in question is to be sourced from the :params or :headers, for example.
 
 Other argument resolvers can operate by matching the name specifically.
 

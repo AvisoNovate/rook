@@ -55,11 +55,11 @@
 
 (defn resource-uri-arg-resolver
   "Calculates the URI for a resource (handy when creating a Location header, for example).
-  First, calculates the server URI, which is either the `:server-uri` key in the request _or_
-  is calculated from the request's `:scheme`, `:server-name`, and `:server-port`.  It should be
+  First, calculates the server URI, which is either the :server-uri key in the request _or_
+  is calculated from the request's :scheme, :server-name, and :server-port.  It should be
   the address of the root of the server.
 
-  From there, the `:context` key (maintained by Compojure, when delving into nested contexts)
+  From there, the :context key (maintained by Compojure, when delving into nested contexts)
   is used to assemble the rest of the URI.
 
   The URI ends with a slash."
@@ -83,7 +83,7 @@
 
       {:keys [user-id email new-password] :as params*}
 
-  Which will work, even if the actual keys in the `:params` map were `:user_id`, `:email`, and `:new_password`.
+  Which will work, even if the actual keys in the :params map were :user_id, :email, and :new_password.
 
   This reflects the default configuration, where `params*` is mapped to this function."
   [request]
@@ -94,13 +94,13 @@
 (defn wrap-with-default-arg-resolvers
   "Adds a default set of argument resolvers, allowing for resolution of:
 
-   - `:request` - the Ring request map
-   - `:params`  - the `:params` key of the Ring request map
-   - `:params*`  - the `:params` key of the Ring request map, with keys _Clojurized_
-   - `:resource-uri` - via [[resource-uri-arg-resolver]]
-   - the argument as a parameter from the `:params` map
-   - the argument as a parameter from the `:route-params` map
-   - the argument as a header from the `:headers` map"
+   - :request - the Ring request map
+   - :params  - the :params key of the Ring request map
+   - :params*  - the :params key of the Ring request map, with keys _Clojurized_
+   - :resource-uri - via [[resource-uri-arg-resolver]]
+   - the argument as a parameter from the :params map
+   - the argument as a parameter from the :route-params map
+   - the argument as a header from the :headers map"
   [handler]
   (wrap-with-arg-resolvers handler
                            (fn [kw request]
@@ -149,7 +149,7 @@
                  request)))))
 
 (defn rook-dispatcher
-  "Ring request handler that uses information from `:rook` map (within the Ring request map) to invoke the previously
+  "Ring request handler that uses information from :rook map (within the Ring request map) to invoke the previously
   identified function, after resolving the function's arguments. This function must always be wrapped
   in [[wrap-namespace]] (which is what identifies the resource handler function that is to be invoked).
 
@@ -163,7 +163,7 @@
       (apply f argument-values))))
 
 (defn wrap-with-function-arg-resolvers
-  "Wraps the handler with a request that has the `:arg-resolvers` key extended with any
+  "Wraps the handler with a request that has the :arg-resolvers key extended with any
   function-specific arg-resolvers (from the function's meta-data)."
   [handler]
   (fn [request]

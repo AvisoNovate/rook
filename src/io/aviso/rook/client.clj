@@ -22,7 +22,7 @@
 (defn pass-headers
   "Useful in cases where the success handler is interested in the response headers, rather
   than the body of the response. For example, many responses return no body, but interesting headers (such
-  as a 201 (Created).  In that situation, the `:success` callback can be overridden to this function,
+  as a 201 (Created).  In that situation, the :success callback can be overridden to this function,
   and the success clause of the [[then]] macro will receive the useful headers, rather than the empty body."
   [response]
   [nil (:headers response)])
@@ -61,6 +61,7 @@
 
 (defn to*
   "Same as [[to]], but the paths are provided as a seq, not varargs."
+  {:added "0.1.10"}
   [request method paths]
   {:pre [(#{:put :post :get :delete :head :options} method)]}
   (-> request
@@ -73,7 +74,7 @@
                   (str "/")))))
 
 (defn to
-  "Targets the request with a method (`:get`, `:post`, etc.) and a URI. The URI is composed from the path;
+  "Targets the request with a method (:get, :post, etc.) and a URI. The URI is composed from the path;
   each part is a keyword or a value that is converted to a string. The URI
   starts with a slash and each element in the path is seperated by a slash."
   [request method & path]
@@ -81,25 +82,25 @@
 
 (defn with-body-params
   "Stores a Clojure map as the body of the request (as if EDN content was parsed into Clojure data.
-  The `:params` key of the Ring request will be the merge of `:query-params` and `:body-params`."
+  The :params key of the Ring request will be the merge of :query-params and :body-params."
   [request params]
   (assert (map? params))
   (assoc-in request [:ring-request :body-params] params))
 
 (defn with-query-params
   "Adds parameters to the :query-params key using merge. The query parameters should use keywords for keys. The
-  `:params` key of the Ring request will be the merge of `:query-params` and `:body-params`."
+  :params key of the Ring request will be the merge of :query-params and :body-params."
   [request params]
   (update-in request [:ring-request :query-params] merge params))
 
 (defn with-headers
-  "Merges the provided headers into the `:headers` key of the Ring request. Keys should be lower-cased strings."
+  "Merges the provided headers into the :headers key of the Ring request. Keys should be lower-cased strings."
   [request headers]
   (update-in request [:ring-request :headers] merge headers))
 
 (defn with-callback
   "Adds or replaces a callback for the given status code. A callback of nil removes the callback.
-  Instead of a specific numeric code, the keywords `:success` (for any 2xx status) or `:failure` (for
+  Instead of a specific numeric code, the keywords :success (for any 2xx status) or :failure (for
   any non-2xx status) can be provided ... but exact status code matches take precedence.  The callbacks
   are used by [[send]]."
   [request status-code callback]

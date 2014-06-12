@@ -11,20 +11,20 @@
 
   Async middleware comes in three categories.
 
-  Basic middleware, which simply adds or modifies the Ring request map,
-  works the same as traditional synchronous middleware: it may modify the request map
-  before passing it to its delegate handler; the return value will be a channel, rather than a map.
+  * Basic middleware, which simply adds or modifies the Ring request map,
+    works the same as traditional synchronous middleware: it may modify the request map
+    before passing it to its delegate handler; the return value will be a channel, rather than a map.
 
-  Intercepting middleware may perform an immediate (non-asynchronous) computation and return a value,
-  or may proceed directly to the delegate asynchronous handler. The returned value must be wrapped
-  in a channel (using [[result->channel]]). An example of this is middleware that performs authentication
-  or input validation.
+  * Intercepting middleware may perform an immediate (non-asynchronous) computation and return a value,
+    or may proceed directly to the delegate asynchronous handler. The returned value must be wrapped
+    in a channel (using [[result->channel]]). An example of this is middleware that performs authentication
+    or input validation.
 
-  Complex middleware that operates on the return value from the delegated handler, or must
-  perform its own async operations, is more challenging.
-  The delegated handler should be invoked inside a `go` block, so that the result from the handler
-  can be obtained without blocking."
-  (:import (javax.servlet.http HttpServletResponse))
+  * Complex middleware that operates on the return value from the delegated handler, or must
+    perform its own async operations, is more challenging.
+    The delegated handler should be invoked inside a [[safe-go]] block, so that the result from the handler
+    can be obtained without blocking."
+    (:import (javax.servlet.http HttpServletResponse))
   (:require
     [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
     [clojure.tools.logging :as l]
@@ -43,7 +43,7 @@
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
   is converted to a 500 response.
 
-  The request is used when reporting the exception (it contains a `:request-id`
+  The request is used when reporting the exception (it contains a :request-id
   key set by `io.aviso.client/send`)."
   [request & body]
   `(try
@@ -155,7 +155,7 @@
                      request)))))
 
 (defn wrap-with-schema-validation
-  "The asynchronous version of schema validation, triggered by `:schema` metadata."
+  "The asynchronous version of schema validation, triggered by :schema metadata."
   [handler]
   (sv/wrap-with-schema-validation handler result->channel))
 
@@ -233,18 +233,18 @@
   via the loopback.
 
   - handler - delegate asynchronous handler, typically via namespace-handler and/or routes
-  - k - the keyword added to the Ring request to identify the loopback handler function; `:loopback-handler` by default
+  - k - the keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default
 
   The loopback handler is exposed via `wrap-with-arg-resolvers`: resource handler functions can gain access
   to the loopback by providing an argument with a matching name.
 
   The loopback handler will capture some request data when first invoked (in a non-loopback request); this information
-  is merged into the request map provided to the delegate handler. This includes `:scheme`, `:server-port`, `:server-name`,
+  is merged into the request map provided to the delegate handler. This includes :scheme, :server-port, :server-name,
   and several others.
 
-  `:server-uri` is also captured, so that the `:resource-uri` argument can be resolved.
+  :server-uri is also captured, so that the :resource-uri argument can be resolved.
 
-  What's not captured: the `:body`, `:params`, `:uri`, `:query-string`, `:headers`, and all the various `:*-params` generated
+  What's not captured: the :body, :params, :uri, :query-string, :headers, and all the various :*-params generated
   by standard middleware. Essentially, enough information is captured and restored to allow the eventual
   handler to make determinations about the originating request, but not know the specific URI, query parameters,
   or posted data.

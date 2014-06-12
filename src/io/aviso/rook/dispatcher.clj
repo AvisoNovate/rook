@@ -25,11 +25,12 @@
   described in its docstring.
 
   The individual _resource handler functions_ (functions defined by a namespace
-  and either conforming to the naming convention, or defining `:route-spec` metadata)
+  and either conforming to the naming convention, or defining :route-spec metadata)
   are expected to support a single
   arity only. The arglist for that arity and the metadata on the
   request handler function will be examined to determine the correct
   argument resolution strategy at dispatch table compilation time."
+  {:added "0.1.10"}
   (:require [clojure.core.async :as async]
             [clojure.string :as string]
             [clojure.set :as set]
@@ -214,8 +215,8 @@
 
 (defn- analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
-  key `:routes`, a map of route-spec -> handler-map at key `:handlers` and
-  a map of middleware-symbol -> middleware-spec at key `:middleware`.
+  key :routes, a map of route-spec -> handler-map at key :handlers and
+  a map of middleware-symbol -> middleware-spec at key :middleware.
   The structure of handler-maps is as required by handler-form;
   middleware-spec is the literal form specifying the middleware in the
   dispatch table; a route-spec* is a route-spec with keywords replaced
@@ -456,7 +457,7 @@
   by using the pathvec and method of the incoming request to look up
   an endpoint function in a nested map.
 
-  Can be passed to compile-dispatch-table using the `:build-handler-fn`
+  Can be passed to compile-dispatch-table using the :build-handler-fn
   option."
   [analysed-dispatch-table opts]
   (let [dispatch-map (build-dispatch-map analysed-dispatch-table opts)]
@@ -476,14 +477,14 @@
 
   Supported options and their default values:
 
-  `:async?`
+  :async?
 
   : _Default: false_
 
   : Determines the way in which middleware is applied to the terminal
     handler. Pass in true when compiling async handlers.
 
-  `:build-handler-fn`
+  :build-handler-fn
 
   : _Default: [[build-map-traversal-handler]]_
 
@@ -553,14 +554,14 @@
   The options map, if supplied, can include the following keys (listed
   below with their default values):
 
-  `:context-pathvec`
+  :context-pathvec
 
   : _Default: []_
 
   : Top-level context-pathvec that will be prepended to
     context-pathvecs for the individual namespaces.
 
-  `:default-middleware`
+  :default-middleware
 
   : _Default: clojure.core/identity_
 

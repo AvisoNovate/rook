@@ -66,7 +66,7 @@
 
   Returns a tuple:
 
-  - on success, the tuple is `[nil request]`; that is, an updated request with the `:params`
+  - on success, the tuple is `[nil request]`; that is, an updated request with the :params
   re-written
   - on failure, the tuple is `[failures]`, where failures are as output from Schema validation"
   [request schema]
