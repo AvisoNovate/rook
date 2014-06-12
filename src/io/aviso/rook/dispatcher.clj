@@ -250,7 +250,6 @@
             route-params     (mapv (comp symbol name)
                                (filter keyword? pathvec))
             context          (:context (meta pathvec))
-            ; pathvec          (keywords->symbols pathvec)
             arglist          (first (:arglists metadata))
             non-route-params (remove (set route-params) arglist)
             arg-resolvers    (:arg-resolvers metadata)
@@ -272,10 +271,6 @@
       {:routes     (sorted-routes routes)
        :handlers   handlers
        :middleware (set/map-invert middleware)})))
-
-#_ (defn wrap-with-schema [handler schema]
-  (fn [request]
-    (handler (assoc-in request [:rook :metadata :schema] schema))))
 
 (defn- map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
