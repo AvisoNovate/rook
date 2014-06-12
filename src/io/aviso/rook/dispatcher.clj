@@ -156,15 +156,13 @@
 
 (defn apply-middleware-sync
   "Applies middleware to handler in a synchronous fashion. Ignores
-  sync?. Can be passed to compile-dispatch-table using
-  the :apply-middleware-fn option."
+  sync?."
   [middleware sync? handler]
   (middleware handler))
 
 (defn apply-middleware-async
   "Applies middleware to handler in a synchronous or asynchronous
-  fashion depending on whether sync? is truthy. Can be passed to
-  compile-dispatch-table using the :apply-middleware-fn option."
+  fashion depending on whether sync? is truthy."
   [middleware sync? handler]
   (middleware
     (if sync?
