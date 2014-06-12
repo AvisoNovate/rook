@@ -589,12 +589,12 @@
        (map (fn [[context-pathvec? ns-sym middleware?]]
               (let [context-pathvec (if (vector? context-pathvec?)
                                       context-pathvec?)
-                    ns-sym          (if context-pathvec
-                                      ns-sym
-                                      context-pathvec?)
                     middleware      (if context-pathvec
                                       middleware?
-                                      ns-sym)]
+                                      ns-sym)
+                    ns-sym          (if context-pathvec
+                                      ns-sym
+                                      context-pathvec?)]
                 (assert (symbol? ns-sym)
                   "Malformed ns-spec passed to namespace-dispatch-table")
                 (simple-namespace-dispatch-table

@@ -236,7 +236,17 @@
         (should= #{'very-strange-middleware}
           (set (map peek foos)))
         (should= #{'completely-regular-middleware}
-          (set (map peek bars))))))
+          (set (map peek bars)))))
+
+    (it "should support ns-specs consisting of the ns symbol alone"
+
+      (let [dt (dispatcher/unnest-dispatch-table
+                 (dispatcher/namespace-dispatch-table
+                   {:context-pathvec    ["foo"]
+                    :default-middleware `default-middleware}
+                   ['example.foo]))]
+        (should= (set simple-dispatch-table)
+          (set dt)))))
 
   (describe "compiled handlers using map traversal"
 
