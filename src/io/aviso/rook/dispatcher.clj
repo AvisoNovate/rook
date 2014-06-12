@@ -10,7 +10,7 @@
 
   The expected way to use this namespace is as follows:
 
-   - namespaces still correspond to resources;
+   - namespaces correspond to resources;
 
    - namespace-dispatch-table produces a dispatch table for a single
      namespace;
@@ -22,7 +22,13 @@
      compile-dispatch-table.
 
   compile-dispatch-table takes several options; these are all
-  described in its docstring."
+  described in its docstring.
+
+  The individual \"terminal handlers\" -- functions held in Vars with
+  path or route specs attached -- are expected to support a single
+  arity only. The arglist for that arity and the metadata on the
+  terminal handler Var will be examined to determine the correct
+  argument resolution strategy at dispatch table compilation time."
   (:require [clojure.core.async :as async]
             [clojure.string :as string]
             [clojure.pprint :as pp]
