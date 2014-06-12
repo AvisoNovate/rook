@@ -13,6 +13,8 @@
 
 
 (defn format-failures
+  "Format Schema validation errors for presentation to the user; currently this just uses `pr-str`, which is not
+  very useful."
   [failures]
   {:error    "validation-error"
    ;; This needs work; it won't transfer very well to the client for starters.
@@ -42,16 +44,14 @@
       .get
       (.format instant)))
 
-;;; Would prefer to merge my own into what string-coercion-matcher provides,
-;;; but see https://github.com/Prismatic/schema/issues/82
-(def ^:private extra-coercions
-  {s/Bool (coerce/safe #(Boolean/parseBoolean %))
-   s/Uuid (coerce/safe #(UUID/fromString %))
-   s/Inst (coerce/safe #(parse-instant %))})
+(def ^:private string-coercions
+  (merge coerce/+string-coercions+
+         {s/Uuid (coerce/safe #(UUID/fromString %))
+          s/Inst (coerce/safe #(parse-instant %))}))
 
 (defn- string-coercion-matcher
   [schema]
-  (or (extra-coercions schema)
+  (or (string-coercions schema)
       (coerce/string-coercion-matcher schema)))
 
 (defn wrap-invalid-response [failures]
