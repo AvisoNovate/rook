@@ -4,6 +4,8 @@
 
 image:https://drone.io/github.com/AvisoNovate/rook/status.png[Build Status, link="https://drone.io/github.com/AvisoNovate/rook"]
 
+image:http://clojars.org/rook/latest-version.svg[Clojars Project, link="http://clojars.org/rook"]
+
 Rook is a set of middleware and handlers to enable metadata-based routing for https://github.com/ring-clojure/ring[Ring] web applications.
 
 The intention is to expose a Clojure _namespace_ as a web service _resource_; there's a default mapping of HTTP verbs
@@ -17,9 +19,6 @@ Rook works well with https://github.com/clojure/core.async[Clojure's core.async]
 without blocking all your threads.
 
 Rook is available under the terms of the Apache Software License 2.0.
-
-Rook is available from the Clojars artifact repository as `io.aviso:rook`.
-Follow https://clojars.org/io.aviso/rook[these instructions] to configure the dependency in your build tool.
 
 http://howardlewisship.com/io.aviso/rook/[API Documentation]
 
