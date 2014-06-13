@@ -645,6 +645,7 @@
                       :default-middleware identity}
         opts (if (map? options?)
                (merge default-opts options?))
+        ;; If options? isn't a map, then it's really the first ns-spec
         ns-specs (if opts
                    ns-specs
                    (cons options? ns-specs))
