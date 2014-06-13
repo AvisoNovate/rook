@@ -340,6 +340,11 @@
     (it "should allow three resources to collaborate"
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
+                        (dispatcher/namespace-handler {:async? true}
+                          [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
+                          [["barney"] 'barney rook/wrap-with-default-arg-resolvers]
+                          [["betty"] 'betty rook/wrap-with-default-arg-resolvers])
+                        #_
                         (dispatcher/compile-dispatch-table {:async? true}
                           (dispatcher/namespace-dispatch-table
                             [["fred"] 'fred rook/wrap-with-default-arg-resolvers]

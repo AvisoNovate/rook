@@ -603,3 +603,10 @@
                   ns-sym
                   (or middleware default-middleware))))
          ns-specs))]))
+
+(defn namespace-handler
+  "Produces a handler based on the given namespaces. Supports the same
+  syntax namespace-dispatch-table does."
+  [options? & ns-specs]
+  (compile-dispatch-table options?
+    (apply namespace-dispatch-table options? ns-specs)))
