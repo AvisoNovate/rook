@@ -152,3 +152,17 @@
 (defn to-message [^Throwable t]
   (or (.getMessage t)
       (-> t .getClass .getName)))
+
+(defn prefix-with
+  "Like concat, but with arguments reversed."
+  [coll1 coll2]
+  (concat coll2 coll1))
+
+(defn wrap-with-arg-resolvers
+  "Middleware which adds the provided argument resolvers to the `[:rook :arg-resolvers]` collection.
+  Argument resolvers are used to gain access to information in the request, or information that
+  can be computed from the request, or static information that can be injected into resource handler
+  functions."
+  [handler arg-resolvers]
+  (fn [request]
+    (handler (update-in request [:rook :arg-resolvers] prefix-with arg-resolvers))))

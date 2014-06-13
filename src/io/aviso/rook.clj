@@ -12,11 +12,6 @@
     [compojure.core :as compojure]
     [clout.core :as clout]))
 
-(defn- prefix-with
-  "Like concat, but with arguments reversed."
-  [coll1 coll2]
-  (concat coll2 coll1))
-
 (defn build-map-arg-resolver
   "Builds a static argument resolver around the map of keys and values; the values are the exact resolved
   value for arguments matching the keys."
@@ -44,8 +39,7 @@
   can be computed from the request, or static information that can be injected into resource handler
   functions."
   [handler & arg-resolvers]
-  (fn [request]
-    (handler (update-in request [:rook :arg-resolvers] prefix-with arg-resolvers))))
+  (internals/wrap-with-arg-resolvers handler arg-resolvers))
 
 (defn- require-port?
   [scheme port]
@@ -168,7 +162,7 @@
   function-specific arg-resolvers (from the function's meta-data)."
   [handler]
   (fn [request]
-    (handler (update-in request [:rook :arg-resolvers] prefix-with (-> request :rook :metadata :arg-resolvers)))))
+    (handler (update-in request [:rook :arg-resolvers] internals/prefix-with (-> request :rook :metadata :arg-resolvers)))))
 
 (def default-rook-pipeline
   "The default pipeline for invoking a resource handler function: wraps

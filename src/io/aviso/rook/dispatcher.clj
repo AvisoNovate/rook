@@ -28,12 +28,10 @@
   resource handler function will be examined to determine the correct
   argument resolution strategy at dispatch table compilation time."
   {:added "0.1.10"}
+  (:import (java.net URLDecoder))
   (:require [clojure.string :as string]
             [clojure.set :as set]
-            [io.aviso.rook :as rook]
-            [io.aviso.rook.async :as rook-async]
-            [io.aviso.rook.internals :as internals]
-            [io.aviso.rook.schema-validation :as sv]))
+            [io.aviso.rook.internals :as internals]))
 
 ;; TODO: Move functions exposed just for tests to an internal namespace
 
@@ -75,7 +73,7 @@
   assumed."
   [request]
   [(:request-method request)
-   (mapv #(java.net.URLDecoder/decode ^String % "UTF-8")
+   (mapv #(URLDecoder/decode ^String % "UTF-8")
          (next (string/split (:uri request) #"/" 0)))])
 
 (defn path-spec->route-spec
@@ -440,9 +438,7 @@
     (if (seq arg-resolvers)
       (let [resolvers (mapv eval arg-resolvers)]
         (fn [handler]
-          (apply rook/wrap-with-arg-resolvers
-                 (mw handler)
-                 resolvers)))
+          (internals/wrap-with-arg-resolvers (mw handler) resolvers)))
       mw)))
 
 (defn- build-dispatch-map
