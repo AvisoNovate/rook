@@ -154,6 +154,29 @@
                      (format "Function %s, invoked as an asynchronous request handler, returned nil." f)
                      request)))))
 
+(def  closed-channel
+  "A closed channel, used as the result of a non-matching request."
+  (doto (chan) close!))
+
+(defn call-site-enhancer
+  "A call-site enhancer (for use with the dispatcher) that checks for the :sync metadata.
+  When present, the call-site handler is invoked using [[safe-thread]].
+  When not present, the call-site handler is invoked, but a nil result
+  will trigger a thrown exception."
+  [handler metadata]
+  (if (:sync metadata)
+    (fn [request]
+      (safe-thread request
+                   (handler request)))
+    (fn [request]
+      (let [result (handler request)]
+        (if (some? result)
+          result
+          (throw (ex-info
+                   (format "Function %s, invoked as an asynchronous request handler, returned nil."
+                           (:function metadata))
+                   request)))))))
+
 (defn wrap-with-schema-validation
   "The asynchronous version of schema validation, triggered by :schema metadata."
   [handler]

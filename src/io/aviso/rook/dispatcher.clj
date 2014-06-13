@@ -28,8 +28,7 @@
   resource handler function will be examined to determine the correct
   argument resolution strategy at dispatch table compilation time."
   {:added "0.1.10"}
-  (:require [clojure.core.async :refer [chan close!]]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [clojure.set :as set]
             [io.aviso.rook :as rook]
             [io.aviso.rook.async :as rook-async]
@@ -58,8 +57,6 @@
     }
   )
 
-(def ^:private closed-channel
-  (doto (chan) close!))
 
 (defn- request-route-spec
   "Takes a Ring request map and returns `[method pathvec]`, where method
