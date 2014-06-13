@@ -468,11 +468,11 @@
                   ;; It uses request->argvalues to generate the argument list. It then gets
                   ;; wrapped in additional layers of middleware.
 
-                  call-site (-> (let [ef (eval verb-fn-sym)]
+                  call-site (-> (let [resource-handler-fn (eval verb-fn-sym)]
                                   (fn [request]
-                                    (apply ef (request->argvalues request))))
+                                    (apply resource-handler-fn (request->argvalues request))))
 
-                                ;; Pass it through the bridge constructor; this is needed for
+                                ;; Pass it through the call-site enhancer; this is needed for
                                 ;; async support though it may have other possibilities.
                                 (call-site-enhancer-fn metadata)
 
