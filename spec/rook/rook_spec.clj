@@ -1,7 +1,7 @@
 (ns rook.rook-spec
   (:use
     io.aviso.rook
-    io.aviso.rook.internals
+    [io.aviso.rook.internals :exclude [wrap-with-arg-resolvers]]
     speclj.core
     clojure.template)
   (:require
