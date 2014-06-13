@@ -508,9 +508,7 @@
   option."
   [analysed-dispatch-table opts]
   (let [dispatch-map (build-dispatch-map analysed-dispatch-table opts)]
-    (if (:async? opts)
-      (map-traversal-dispatcher dispatch-map closed-channel)
-      (map-traversal-dispatcher dispatch-map))))
+    (map-traversal-dispatcher dispatch-map (:unmatched-result opts))))
 
 (defn- noop-call-site-enhancer
   "The default function to build the call site for a handler function, this is appropriate
@@ -520,6 +518,7 @@
 
 (def ^:private dispatch-table-compilation-defaults
   {:build-handler-fn      build-map-traversal-handler
+   :unmatched-result nil
    :call-site-enhancer-fn noop-call-site-enhancer})
 
 (defn compile-dispatch-table
@@ -542,6 +541,14 @@
 
   : The default implementation returns the call-site handler unchanged.
 
+  :unmatched-result
+
+  : _Default: nil_
+
+  : Value returned from the dispatcher function if the request doesn't match a resource handler
+    function. Again, this is a value that is changed when using the dispatcher for asynchronous
+    processing.
+
   :build-handler-fn
 
   : _Default: [[build-map-traversal-handler]]_
@@ -552,11 +559,10 @@
      dispatch-table-compilation-defaults
      dispatch-table))
   ([options dispatch-table]
-   (let [options (merge dispatch-table-compilation-defaults options)
-         build-handler (:build-handler-fn options)
+   (let [options' (merge dispatch-table-compilation-defaults options)
+         build-handler (:build-handler-fn options')
          analysed-dispatch-table (analyse-dispatch-table dispatch-table)]
-     (build-handler analysed-dispatch-table
-                    (select-keys options [:call-site-enhancer-fn])))))
+     (build-handler analysed-dispatch-table options'))))
 
 (defn- simple-namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
