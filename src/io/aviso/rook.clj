@@ -3,6 +3,7 @@
   (:require
     [medley.core :as medley]
     [io.aviso.rook
+     [dispatcher :as dispatcher]
      [schema-validation :as v]
      [internals :as internals]
      [utils :as utils]]
@@ -31,7 +32,6 @@
   "A dynamic argument resolver that simply resolves the argument to the matching key in the request map."
   [arg request]
   (get request arg))
-
 
 (defn wrap-with-arg-resolvers
   "Middleware which adds the provided argument resolvers to the `[:rook :arg-resolvers]` collection.
@@ -67,8 +67,6 @@
                               (if (require-port? (:scheme request) port)
                                 (str ":" port)))))]
     (str server-uri (:context request) "/")))
-
-
 
 (defn clojureized-params-arg-resolver
   "Converts the Request :params map, changing each key from embedded underscores to embedded dashes, the
@@ -193,8 +191,57 @@
        (compojure/context path [] handler')
        handler'))))
 
+(defn default-middleware
+  "Default middleware used by [[namespace-router]] (via [[default-dispatch-options]]). This
+  simply enables schema validation when the :schema metadata is present."
+  [handler]
+  (v/wrap-with-schema-validation handler))
+
+(def default-dispatch-options
+  "Default options passed by [[namespace-router]] when building and compiling a dispatch table.
+  This sets :default-middleware to [[default-middleware]]."
+  {
+    :default-middleware default-middleware
+    })
+
+(defn namespace-router
+  "Creates a request handler that routes according to a dispatch table, as per [[namespace-dispatch-table]].
+
+  options?
+  : Optional, options to be passed to [[compile-dispatch-table]] and [[namespace-dispatch-table]] after merging
+    with [[default-dispatch-options]].
+
+  ns-specs
+  : Defines mappings of paths to namespaces (and optionally, middleware overrides) as per [[namespace-dispatch-table]].
+
+  A minimal ns-spec is just a vector containg the symbol of a namespace. Adding more entries to the ns-spec
+  allows a path to be provided, and allows the middleware that wraps around each resource handler function
+  to be overridden.
+
+  Example:
+
+      (namespace-router {:default-middleware auth-middleware}
+        [[\"users\"] 'resources.users]]
+        [[\"invoices\"] 'resources.invoices]
+        [[\"configs\"] 'resources.configs admin-auth-middleware])
+
+  This defined three different namespaces under three different contexts; the configs path
+  has different middleware (presumably, implementing different authentication rules)."
+  {:arglists '([options? & ns-specs])}
+  [& ns-specs]
+  (let [options-provided (-> ns-specs first map?)
+        options' (merge default-dispatch-options
+                        (if options-provided
+                          (first ns-specs)))
+        ns-specs' (if options-provided
+                    (rest ns-specs)
+                    ns-specs)]
+    (dispatcher/compile-dispatch-table options'
+                                       (apply dispatcher/namespace-dispatch-table options' ns-specs'))))
+
 (defn wrap-with-standard-middleware
-  "The standard middleware that Rook expects to be present before it is passed the Ring request."
+  "The standard middleware that a dispatcher handler (created by
+   [[namespace-router]]) expects to be present before it is passed the Ring request."
   [handler]
   (-> handler
       wrap-with-default-arg-resolvers

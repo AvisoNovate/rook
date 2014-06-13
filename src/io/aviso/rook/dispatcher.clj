@@ -12,8 +12,7 @@
 
    - namespaces correspond to resources;
 
-   - [[namespace-dispatch-table]] produces a dispatch table for a single
-     namespace
+   - [[namespace-dispatch-table]] produces a dispatch table for one or more
 
    - any number of such dispatch tables can be concatenated to form a
      dispatch table for a collection of resources
@@ -26,7 +25,10 @@
   are expected to support a single
   arity only. The arglist for that arity and the metadata on the
   resource handler function will be examined to determine the correct
-  argument resolution strategy at dispatch table compilation time."
+  argument resolution strategy at dispatch table compilation time.
+
+  In practice, [[io.aviso.rook]] and [[io.aviso.rook.async]] provide
+  functions to build routing handlers based on these namespace specs."
   {:added "0.1.10"}
   (:import (java.net URLDecoder))
   (:require [clojure.string :as string]
@@ -529,7 +531,7 @@
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.
 
-  See the docstring of unnest-dispatch-table for a description of
+  See [[unnest-dispatch-table]] for a description of
   dispatch table format.
 
   Supported options and their default values:
@@ -538,20 +540,21 @@
   : A function that will be passed the _call site_ and the resource handler function's meta data.
     The call site is a Ring request handler that resolves arguments and invokes the
     resource handler function.
-  : This function is a hook to modify the behavior of the call site handler by returning a
+    This function is a hook to modify the behavior of the call site handler by returning a
     replacement handler. It is primarily used to bridge the differences between normal synchronous
     handlers, and asynchronous handlers.
-  : The default implementation returns the call-site handler unchanged.
+    The default implementation returns the call-site handler unchanged.
 
   :unmatched-result
   : _Default: nil_
-  : Value returned from the dispatcher function if the request doesn't match a resource handler
+    Value returned from the dispatcher function if the request doesn't match a resource handler
     function. Again, this is a value that is changed when using the dispatcher for asynchronous
     processing.
 
   :build-handler-fn
   : _Default: [[build-map-traversal-handler]]_
-  : Will be called with routes, handlers, middleware and should produce a Ring handler."
+    Will be called with routes, handlers, middleware and should produce a Ring handler.
+    There is almost never a need to override this, outside of testing."
   ([dispatch-table]
    (compile-dispatch-table
      dispatch-table-compilation-defaults
@@ -618,7 +621,8 @@
   :context-pathvec
   : _Default: []_
   : Top-level context-pathvec that will be prepended to
-    context-pathvecs for the individual namespaces.
+    context-pathvecs for the individual namespaces. In effect, this represents
+    a folder
 
   :default-middleware
   : _Default: clojure.core/identity_

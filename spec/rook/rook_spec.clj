@@ -35,25 +35,25 @@
 
     (it "should match incoming URIs and methods to functions"
         (do-template [method path namespace-name rook-key expected-value]
-          (should= expected-value
-                   (-> (mkrequest method path namespace-name)
-                       (get-in [:rook rook-key])))
+                     (should= expected-value
+                              (-> (mkrequest method path namespace-name)
+                                  (get-in [:rook rook-key])))
 
-          :get "/?limit=100" 'rook-test :function #'rook-test/index
+                     :get "/?limit=100" 'rook-test :function #'rook-test/index
 
-          :get "/" 'rook-test :namespace 'rook-test
+                     :get "/" 'rook-test :namespace 'rook-test
 
-          :get "/123" 'rook-test :function #'rook-test/show
+                     :get "/123" 'rook-test :function #'rook-test/show
 
-          :post "/123/activate" 'rook-test :function #'rook-test/activate
+                     :post "/123/activate" 'rook-test :function #'rook-test/activate
 
-          :get "/123/activate" 'rook-test :function nil
+                     :get "/123/activate" 'rook-test :function nil
 
-          :put "/" 'rook-test :function nil
+                     :put "/" 'rook-test :function nil
 
-          :put "/123" 'rook-test :function nil
+                     :put "/123" 'rook-test :function nil
 
-          :get "/?offset-100" 'rook-test2 :function #'rook-test2/index)))
+                     :get "/?offset-100" 'rook-test2 :function #'rook-test2/index)))
 
   (describe "argument resolution"
 
@@ -72,7 +72,7 @@
                                          [(fn [kw request] (get-in request [:params kw]))])))
 
     (it "should use :arg-resolvers to calculate argument values"
-        (let [test-mw (-> (wrap-namespace default-rook-pipeline 'rook-test)
+        (let [test-mw (-> (namespace-router ['rook-test])
                           param-handling)]
 
           (do-template [method path headers expected-result]
@@ -145,18 +145,18 @@
 
     (it "should match URIs and methods to specific functions"
         (let [test-mw (-> (compojure/context "/merchant" []
-                                             (wrap-namespace
-                                               (compojure/routes
-                                                 (compojure/context "/:id/activate" []
-                                                                    (wrap-namespace
-                                                                      (compojure/routes
-                                                                        (compojure/context "/:key" []
-                                                                                           (wrap-namespace
-                                                                                             default-rook-pipeline 'rook-test3))
-                                                                        default-rook-pipeline)
-                                                                      'rook-test2))
-                                                 default-rook-pipeline)
-                                               'rook-test))
+                            (wrap-namespace
+                              (compojure/routes
+                                (compojure/context "/:id/activate" []
+                                  (wrap-namespace
+                                    (compojure/routes
+                                      (compojure/context "/:key" []
+                                        (wrap-namespace
+                                          default-rook-pipeline 'rook-test3))
+                                      default-rook-pipeline)
+                                    'rook-test2))
+                                default-rook-pipeline)
+                              'rook-test))
                           param-handling)
               test-mw2 (-> (namespace-handler "/merchant" 'rook-test
                                               (compojure/routes
@@ -169,34 +169,34 @@
               test-mw4 (-> (namespace-handler "/test4" 'rook-test4)
                            (wrap-with-arg-resolvers request-arg-resolver))]
           (do-template [handler method path expected-result]
-            (should= expected-result
-                     (handler (mock/request method path)))
+                       (should= expected-result
+                                (handler (mock/request method path)))
 
-            test-mw :post "/456/activate" nil
+                       test-mw :post "/456/activate" nil
 
-            test-mw :get "/merchant/" {:status 200 :body "limit="}
+                       test-mw :get "/merchant/" {:status 200 :body "limit="}
 
-            test-mw :get "/merchant/6789" {:status 200 :body "id=6789"}
+                       test-mw :get "/merchant/6789" {:status 200 :body "id=6789"}
 
-            test-mw :get "/merchant/4567/activate?offset=1234" {:body "id=4567&offset=1234"}
+                       test-mw :get "/merchant/4567/activate?offset=1234" {:body "id=4567&offset=1234"}
 
-            test-mw :get "/merchant/4567/activate/test_key" {:body "test3,id=4567,key=test_key"}
+                       test-mw :get "/merchant/4567/activate/test_key" {:body "test3,id=4567,key=test_key"}
 
-            test-mw2 :post "/456/activate" nil
+                       test-mw2 :post "/456/activate" nil
 
-            test-mw2 :get "/merchant/" {:status 200 :body "limit="}
+                       test-mw2 :get "/merchant/" {:status 200 :body "limit="}
 
-            test-mw2 :get "/merchant/6789" {:status 200 :body "id=6789"}
+                       test-mw2 :get "/merchant/6789" {:status 200 :body "id=6789"}
 
-            test-mw2 :get "/merchant/4567/activate?offset=1234" {:body "id=4567&offset=1234"}
+                       test-mw2 :get "/merchant/4567/activate?offset=1234" {:body "id=4567&offset=1234"}
 
-            test-mw2 :get "/merchant/4567/activate/test_key" {:body "test3,id=4567,key=test_key"}
+                       test-mw2 :get "/merchant/4567/activate/test_key" {:body "test3,id=4567,key=test_key"}
 
-            test-mw2 :get "/merchant/test" {:status 200 :headers {} :body "test!"}
+                       test-mw2 :get "/merchant/test" {:status 200 :headers {} :body "test!"}
 
-            test-mw4 :get "/test4/proxy" "method=GET"
+                       test-mw4 :get "/test4/proxy" "method=GET"
 
-            test-mw4 :put "/test4/proxy" "method=PUT"))))
+                       test-mw4 :put "/test4/proxy" "method=PUT"))))
 
   (describe "function ordering within namespace"
     (it "should order functions by line number"
@@ -216,9 +216,9 @@
                              first
                              last)]
           (do-template [key expected]
-            (should= expected (get show-meta key))
-            :inherited :namespace
-            :overridden :function)))
+                       (should= expected (get show-meta key))
+                       :inherited :namespace
+                       :overridden :function)))
 
     (it "should not conflict when a function with a convention name has overriding :path-spec meta-data"
         (let [paths (get-available-paths 'rook-test6)
