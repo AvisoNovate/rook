@@ -293,7 +293,7 @@
         {:test1 "foo" :test2 "bar" :test3 "baz" :test4 "quux"}
         "test1=foo,id=123,test2=bar,test3=baz,test4=quux,meth=:post")))
 
-  (describe "async handlers"
+  #_ (describe "async handlers"
 
     (it "should return a channel with the correct response"
 
@@ -322,7 +322,7 @@
         (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
           (-> (mock/request :get "/fail") handler :status)))))
 
-  (describe "loopback-handler"
+  #_ (describe "loopback-handler"
 
     (it "should allow two resources to collaborate"
       (let [handler (rook-async/async-handler->ring-handler
@@ -348,7 +348,7 @@
         (should= ":barney says `:betty says `123 is a very fine id!''"
           (-> (mock/request :get "/fred/123") handler :body :message)))))
 
-  (describe "handlers with schema attached"
+  #_ (describe "handlers with schema attached"
 
     (it "should respond appropriately given a valid request"
       (let [middleware (fn [handler]
@@ -401,7 +401,7 @@
           :scheme :http
           :headers {}}))))
 
-  (describe "running inside jetty-async-adapter"
+  #_ (describe "running inside jetty-async-adapter"
 
     (with-all server
       (let [middleware (fn [handler]
