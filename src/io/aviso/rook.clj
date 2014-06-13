@@ -1,6 +1,7 @@
 (ns io.aviso.rook
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
+    [medley.core :as medley]
     [io.aviso.rook
      [schema-validation :as v]
      [internals :as internals]
@@ -87,9 +88,9 @@
 
   This reflects the default configuration, where `params*` is mapped to this function."
   [request]
-  (-> request
-      :params
-      (utils/transform-keys internals/to-clojureized-keyword)))
+  (->> request
+       :params
+       (medley/map-keys internals/to-clojureized-keyword)))
 
 (defn wrap-with-default-arg-resolvers
   "Adds a default set of argument resolvers, allowing for resolution of:

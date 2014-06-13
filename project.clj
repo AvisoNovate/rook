@@ -13,6 +13,7 @@
                  [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
                  [org.clojure/tools.logging "0.2.6"]
                  [ring "1.3.0"]
+                 [medley "0.2.1"]
                  [ring-middleware-format "0.3.2"]
                  [prismatic/schema "0.2.3"]
                  [compojure "1.1.6"]]

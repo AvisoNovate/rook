@@ -55,22 +55,3 @@
   [request]
   (summarize-method-and-uri (:request-method request) (:uri request)))
 
-(defn transform
-  "Transforms a map, passing each key through the key-fn and each value through the value-fn."
-  [m key-fn value-fn]
-  (->
-    (reduce-kv (fn [a k v] (assoc! a (key-fn k) (value-fn v)))
-               (transient {})
-               m)
-    persistent!))
-
-(defn transform-keys
-  [m key-fn]
-  "Transforms just the keys of a map, leaving the values unchanged."
-  (transform m key-fn identity))
-
-(defn transform-values
-  "Transforms just the values of a map, leaving the keys unchanged."
-  [m value-fn]
-  (transform m identity value-fn))
-
