@@ -19,7 +19,7 @@
      dispatch table for a collection of resources
 
    - such compound dispatch tables can be compiled using
-     [[compile-dispatch-table]].
+     [[compile-dispatch-table]]
 
   The individual _resource handler functions_ (functions defined by a namespace
   and either conforming to the naming convention, or defining :route-spec metadata)
@@ -67,7 +67,7 @@
 
       GET /foo/bar HTTP/1.1
 
-  become:
+  becomes:
 
       [:get [\"foo\" \"bar\"]]
 
@@ -296,8 +296,21 @@
       sym request (-> request :rook :arg-resolvers))))
 
 (def standard-resolvers
-  "A map of keyword -> (function of symbol returning a function of
-  request)."
+  "A map of the standard resolvers. The values
+  are functions that accept symbol and return an argument resolver for that symbol (an argument
+  resolver is a function passed the request and returning the argument value).
+
+  :request
+  : Always the Ring request map
+
+  :request-key
+  : The argument is converted to a keyword and used to access a value stored in the Ring request map.
+
+  :header
+  : The argument is converted to a string, and used to access a value in the :headers map of the Ring request.
+
+  :param
+  : The argument is converted to a keyword, and used to access a value in the :params map of the Ring request."
   {:request     (constantly identity)
    :request-key request-key-resolver
    :header      header-arg-resolver
@@ -428,7 +441,8 @@
       (let [resolvers (mapv eval arg-resolvers)]
         (fn [handler]
           (apply rook/wrap-with-arg-resolvers
-                 (mw handler) resolvers)))
+                 (mw handler)
+                 resolvers)))
       mw)))
 
 (defn- build-dispatch-map
@@ -525,29 +539,22 @@
   Supported options and their default values:
 
   :call-site-enhancer-fn
-
   : A function that will be passed the _call site_ and the resource handler function's meta data.
     The call site is a Ring request handler that resolves arguments and invokes the
     resource handler function.
-
-    This function is a hook to modify the behavior of the call site handler by returning a
+  : This function is a hook to modify the behavior of the call site handler by returning a
     replacement handler. It is primarily used to bridge the differences between normal synchronous
     handlers, and asynchronous handlers.
-
   : The default implementation returns the call-site handler unchanged.
 
   :unmatched-result
-
   : _Default: nil_
-
   : Value returned from the dispatcher function if the request doesn't match a resource handler
     function. Again, this is a value that is changed when using the dispatcher for asynchronous
     processing.
 
   :build-handler-fn
-
   : _Default: [[build-map-traversal-handler]]_
-
   : Will be called with routes, handlers, middleware and should produce a Ring handler."
   ([dispatch-table]
    (compile-dispatch-table
@@ -597,34 +604,28 @@
 
       [context-pathvec? ns-sym middleware?]
 
-  The optional fragments are interpreted as below (defaults listed in
-  brackets):
+  The optional fragments are interpreted as below:
 
-   - context-pathvec? ([]):
-
-     A context pathvec to be prepended to pathvecs for all entries
+  context-pathvec?
+  : _Default: ()_
+  :  A context pathvec to be prepended to pathvecs for all entries
      emitted for this namespace.
 
-   - middleware? (clojure.core/identity or as supplied in options?):
-
-     Middleware to be applied to terminal handlers found in this
+  middleware?
+  : _Default: clojure.core/identity (or as suppliied in options?)_
+  :  Middleware to be applied to terminal handlers found in this
      namespace.
 
   The options map, if supplied, can include the following keys (listed
   below with their default values):
 
   :context-pathvec
-
   : _Default: []_
-
   : Top-level context-pathvec that will be prepended to
     context-pathvecs for the individual namespaces.
 
   :default-middleware
-
-
   : _Default: clojure.core/identity_
-
   : Default middleware used for namespaces for which no middleware
     was specified.
 
@@ -642,7 +643,7 @@
   The resulting dispatch table in its unnested form will include
   entries such as
 
-    [:get [\"api\" \"foo\"] 'example.foo/index identity]"
+      [:get [\"api\" \"foo\"] 'example.foo/index identity]"
   [options? & ns-specs]
   (let [default-opts {:context-pathvec    []
                       :default-middleware identity}
