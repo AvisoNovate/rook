@@ -230,12 +230,10 @@
                                (filter keyword? pathvec))
             context (:context (meta pathvec))
             arglist (first (:arglists metadata))
-            non-route-params (remove (set route-params) arglist)
             arg-resolvers (:arg-resolvers metadata)
             handler (cond->
                       {:middleware-sym   mw-sym
                        :route-params     route-params
-                       :non-route-params non-route-params
                        :verb-fn-sym      verb-fn-sym
                        :arglist          arglist
                        :arg-resolvers    arg-resolvers
