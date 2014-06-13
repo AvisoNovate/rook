@@ -351,42 +351,6 @@
         (should= ":barney says `:betty says `123 is a very fine id!''"
           (-> (mock/request :get "/fred/123") handler :body :message)))))
 
-  #_ (describe "handlers with schema attached"
-
-    (it "should respond appropriately given a valid request"
-      (let [middleware (fn [handler]
-                         (-> handler
-                           rook-async/wrap-with-schema-validation
-                           rook/wrap-with-default-arg-resolvers))
-            handler    (->> (dispatcher/namespace-dispatch-table
-                              [["validating"] 'validating middleware])
-                         (dispatcher/compile-dispatch-table {:async? true})
-                         rook-async/wrap-with-loopback
-                         rook-async/async-handler->ring-handler)
-            response   (-> (mock/request :post "/validating")
-                         (merge {:params {:name "Vincent"}})
-                         handler)]
-        (should= HttpServletResponse/SC_OK (:status response))
-        (should= [:name] (:body response))))
-
-    (it "should send schema validation failures"
-      (let [middleware (fn [handler]
-                         (-> handler
-                           rook-async/wrap-with-schema-validation
-                           ring.middleware.keyword-params/wrap-keyword-params
-                           ring.middleware.params/wrap-params))
-            handler    (->> (dispatcher/namespace-dispatch-table
-                              [["validating"] 'validating middleware])
-                         (dispatcher/compile-dispatch-table {:async? true})
-                         rook-async/wrap-with-loopback
-                         rook-async/async-handler->ring-handler)
-            response   (-> (mock/request :post "/validating")
-                         handler)]
-        (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
-        (should= "validation-error" (-> response :body :error))
-        ;; TODO: Not sure that's the exact format I want sent back to the client!
-        (should= "{:name missing-required-key}" (-> response :body :failures)))))
-
   (describe "handlers with a large number of endpoints"
 
     (it "should compile and handle requests as expected using map traversal"
