@@ -97,7 +97,7 @@
        ;; Remove functions that do not have :path-spec metadata, and don't match a convention name
        (remove nil?)))
 
-(defn- eval-namespace-meta-values
+(defn eval-namespace-meta-values
   [n meta-map]
   (if (nil? meta-map)
     nil

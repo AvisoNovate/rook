@@ -9,9 +9,11 @@
 
 (defn show-default
   {:path-spec [:get "/default"]}
-  [])
+  [request]
+  (-> request :rook :metadata (select-keys [:inherited :overridden])))
 
 (defn show
   {:overridden :function}
-  [id])
+  [id request]
+  (-> request :rook :metadata (select-keys [:inherited :overridden])))
 
