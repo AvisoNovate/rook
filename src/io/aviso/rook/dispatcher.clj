@@ -33,7 +33,9 @@
   (:import (java.net URLDecoder))
   (:require [clojure.string :as string]
             [clojure.set :as set]
-            [io.aviso.rook.internals :as internals]))
+            [io.aviso.rook.internals :as internals]
+            [clojure.tools.logging :as l]
+            [io.aviso.rook.utils :as utils]))
 
 ;; TODO: Move functions exposed just for tests to an internal namespace
 
@@ -232,12 +234,12 @@
             arglist (first (:arglists metadata))
             arg-resolvers (:arg-resolvers metadata)
             handler (cond->
-                      {:middleware-sym   mw-sym
-                       :route-params     route-params
-                       :verb-fn-sym      verb-fn-sym
-                       :arglist          arglist
-                       :arg-resolvers    arg-resolvers
-                       :metadata         metadata}
+                      {:middleware-sym mw-sym
+                       :route-params   route-params
+                       :verb-fn-sym    verb-fn-sym
+                       :arglist        arglist
+                       :arg-resolvers  arg-resolvers
+                       :metadata       metadata}
                       context
                       (assoc :context (string/join "/" (cons "" context))))
             handlers (assoc handlers handler-sym handler)]
@@ -266,7 +268,8 @@
                     (assoc route-params v seg))
              ;; no match on path
              not-found-response))
-         (if-let [h (get dispatch (:request-method request))]
+         (if-let [h (or (get dispatch (:request-method request))
+                        (get dispatch '_))]
            (h (assoc request :route-params route-params))
            ;; unsupported method for path
            not-found-response))))))
@@ -525,7 +528,7 @@
 
 (def ^:private dispatch-table-compilation-defaults
   {:build-handler-fn      build-map-traversal-handler
-   :unmatched-result nil
+   :unmatched-result      nil
    :call-site-enhancer-fn noop-call-site-enhancer})
 
 (defn compile-dispatch-table
@@ -560,6 +563,9 @@
      dispatch-table-compilation-defaults
      dispatch-table))
   ([options dispatch-table]
+   (l/tracef "compile-dispatch-table\noptions: %s\n  table: %s\n"
+             (utils/pretty-print options)
+             (utils/pretty-print dispatch-table))
    (let [options' (merge dispatch-table-compilation-defaults options)
          build-handler (:build-handler-fn options')
          analysed-dispatch-table (analyse-dispatch-table dispatch-table)]
@@ -638,12 +644,7 @@
         [[\"foo\"]  'example.foo]
         [[\"bar\"]  'example.bar]
         ;; quux has special requirements:
-        [[\"quux\"] 'example.quux special-middleware])
-
-  The resulting dispatch table in its unnested form will include
-  entries such as
-
-      [:get [\"api\" \"foo\"] 'example.foo/index identity]"
+        [[\"quux\"] 'example.quux special-middleware])"
   [options? & ns-specs]
   (let [default-opts {:context-pathvec    []
                       :default-middleware identity}
