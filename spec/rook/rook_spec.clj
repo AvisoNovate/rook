@@ -185,20 +185,15 @@
 
     (it "should merge meta-data from the namespace into :metadata"
 
-        (let [handler (namespace-router ['rook-test5])
-
-               show-meta (->> 'rook-test5
-                             get-available-paths
-                             (filter (fn [[_ _ _ meta]] (= 'show (:name meta))))
-                             first
-                             last)]
+        (let [handler (-> (namespace-router ['rook-test5])
+                          param-handling)]
           (do-template [path key expected]
             (should= expected (-> (mock/request :get path)
                                   handler
-                                  key))
+                                  (get key :missing)))
 
-            "/" :inherited :namespace
-            "/" :overridden :function
+            "/123" :inherited :namespace
+            "/123" :overridden :function
             "/default" :inherited :namespace
             "/default" :overridden :namespace)))
 
