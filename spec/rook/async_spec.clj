@@ -15,6 +15,7 @@
 
 (describe "io.aviso.rook.async"
 
+  #_
   (describe "routing"
 
     (it "return the first result that isn't nil"
@@ -55,6 +56,7 @@
                               <!!))))
 
 
+  #_
   (describe "namespace-handler"
 
     (it "allows the path to be nil"
@@ -81,6 +83,7 @@
               :params-arg)))))
 
 
+  #_
   (describe "loopback-handler"
 
     (it "should expose the loopback in the request"
@@ -110,11 +113,16 @@
 
     (it "should allow resources to collaborate"
 
-        (let [routes (async/routes
+        (let [#_#_
+              routes (async/routes
                        (async/namespace-handler "/fred" 'fred)
                        (async/namespace-handler "/barney" 'barney))
               handler (->
-                        routes
+                        #_routes
+                        (rook/namespace-handler
+                          {:async? true}
+                          [["fred"] 'fred]
+                          [["barney"] 'barney])
                         async/wrap-with-loopback
                         async/async-handler->ring-handler)]
           (should= ":barney says `ribs!'"
@@ -125,7 +133,10 @@
 
     (it "properly sends schema validation failures"
         (let [handler (->
-                        (async/namespace-handler "/validating" 'validating)
+                        #_(async/namespace-handler "/validating" 'validating)
+                        (rook/namespace-handler
+                          {:async? true}
+                          [["validating"] 'validating async/wrap-with-schema-validation])
                         async/wrap-with-loopback
                         async/async-handler->ring-handler)
               response (-> (mock/request :post "/validating")
@@ -139,7 +150,10 @@
 
     (it "returns a 500 response if a sync handler throws an error"
         (let [handler (->
-                        (async/namespace-handler "/fail" 'failing)
+                        #_(async/namespace-handler "/fail" 'failing)
+                        (rook/namespace-handler
+                          {:async? true}
+                          [["fail"] 'failing])
                         async/wrap-with-loopback
                         async/async-handler->ring-handler)]
           (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR

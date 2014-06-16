@@ -103,6 +103,7 @@
   (fn [request]
     (safe-thread request (handler request))))
 
+#_
 (defn- routing*
   [request response-ch handlers]
   (if (empty? handlers)
@@ -115,6 +116,7 @@
                (put! response-ch handler-response)
                (routing* request response-ch (rest handlers)))))))
 
+#_
 (defn routing
   "Routes a request to sequence of async handlers. Each handler should return a channel
   that contains either a Ring response map or a closed channel
@@ -125,11 +127,13 @@
     (routing* request response-ch handlers)
     response-ch))
 
+#_
 (defn routes
   "Creates an async handler that routes to a number of other async handlers, using [[routing]]."
   [& handlers]
   #(apply routing % handlers))
 
+#_
 (defn async-rook-dispatcher
   "Replaces the default (synchronous) rook dispatcher. Resource handler methods
   may themselves be synchronous or asynchronous, with asynchronous the default.
@@ -170,6 +174,7 @@
   [handler]
   (sv/wrap-with-schema-validation handler result->channel))
 
+#_
 (def default-rook-pipeline
   "The default rook pipeline for async processing. Wraps async-rook-dispatcher with middleware to
   set the :arg-resolvers specific to the function, and to peform schema validation."
@@ -180,13 +185,16 @@
 ;;; Have to much about with some private functions in compojure.core ... at least, until we
 ;;; (perhaps) move Rook directly to clout.
 
+#_
 (defn- compojure-alias [symbol]
   @(ns-resolve 'compojure.core symbol))
 
+#_#_#_
 (def wrap-context-alias (compojure-alias 'wrap-context))
 (def context-route-alias (compojure-alias 'context-route))
 (def assoc-route-params-alias (compojure-alias 'assoc-route-params))
 
+#_
 (defn if-route
   "Async version of Compojure's if-route."
   [route handler]
@@ -195,6 +203,7 @@
       (handler (assoc-route-params-alias request params))
       (result->channel nil))))
 
+#_
 (defmacro context
   "Give all routes in the form a common path prefix. A simplified version of Compojure's context."
   [path & routes]
@@ -203,6 +212,7 @@
                (fn [request#]
                  (routing request# ~@routes)))))
 
+#_
 (defn namespace-handler
   "Asynchronous namespace handler. Adds namespace middleware, but the handler (including any middleware on the handler)
   should be asynchronous (returning a channel, not a direct result).

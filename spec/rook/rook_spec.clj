@@ -23,6 +23,7 @@
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
 
+#_
 (defn mkrequest [method path namespace]
   (let [handler (-> identity                                ; "handler" returns the request
                     wrap-with-function-arg-resolvers
@@ -31,6 +32,7 @@
     (handler (mock/request method path))))
 
 (describe "io.aviso.rook"
+  #_
   (describe "wrap-namespace"
 
     (it "should match incoming URIs and methods to functions"
@@ -72,7 +74,8 @@
                                                    [(fn [kw request] (get-in request [:params kw]))])))
 
     (it "should use :arg-resolvers to calculate argument values"
-        (let [test-mw (-> (wrap-namespace default-rook-pipeline 'rook-test)
+        (let [test-mw (-> #_(wrap-namespace default-rook-pipeline 'rook-test)
+                          (namespace-handler ['rook-test])
                           param-handling)]
 
           (do-template [method path headers expected-result]
@@ -127,7 +130,8 @@
                             handler))))
 
     (it "should operate with all types of arg-resolvers"
-        (let [test-mw (-> (wrap-namespace default-rook-pipeline 'rook-test)
+        (let [test-mw (-> #_(wrap-namespace default-rook-pipeline 'rook-test)
+                          (namespace-handler ['rook-test])
                           (wrap-with-arg-resolvers
                             (build-map-arg-resolver {:test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234})
                             (build-fn-arg-resolver {:test4 (fn [request] (str "test$" (:uri request)))}))

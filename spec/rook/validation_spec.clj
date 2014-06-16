@@ -98,7 +98,7 @@
 
   (describe "async middleware"
 
-    (let [handler (async/namespace-handler 'validating)]
+    (let [handler (namespace-handler {:async? true} ['validating]) #_(async/namespace-handler 'validating)]
       (it "is present in the default async pipeline"
           (should= HttpServletResponse/SC_BAD_REQUEST
                    (->

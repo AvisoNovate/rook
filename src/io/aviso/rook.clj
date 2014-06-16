@@ -112,6 +112,7 @@
                                                    :params       :params
                                                    :params*      clojureized-params-arg-resolver})))
 
+#_
 (defn- get-compiled-paths
   [namespace-name]
   (l/debugf "Scanning %s for mappable functions" namespace-name)
@@ -130,6 +131,7 @@
        (remove nil?)
        doall))
 
+#_
 (defn wrap-namespace
   "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
   either by metadata or by default mappings from function name - sets this functions metadata in request map.
@@ -147,6 +149,7 @@
                  (internals/match-against-compiled-paths request namespace-name compiled-paths)
                  request)))))
 
+#_
 (defn rook-dispatcher
   "Ring request handler that uses information from :rook map (within the Ring request map) to invoke the previously
   identified function, after resolving the function's arguments. This function must always be wrapped
@@ -168,6 +171,7 @@
   (fn [request]
     (handler (update-in request [:rook :arg-resolvers] internals/prefix-with (-> request :rook :metadata :arg-resolvers)))))
 
+#_
 (def default-rook-pipeline
   "The default pipeline for invoking a resource handler function: wraps
   [[rook-dispatcher]] to do the actual work with middleware to extend :args-resolvers with function-specific arg resolvers and

@@ -8,6 +8,7 @@
     [clj-http
      [cookies :as cookies]
      [client :as client]]
+    [io.aviso.rook :as rook]
     [io.aviso.rook
      [async :as async]
      [utils :as utils]
@@ -17,6 +18,7 @@
 
   (with-all server
     (->
+      #_
       (async/routes
         (async/namespace-handler "/fred" 'fred)
         (async/namespace-handler "/barney" 'barney)
@@ -24,6 +26,13 @@
         (async/namespace-handler "/sessions" 'sessions)
         (async/namespace-handler "/creator" 'creator)
         (async/namespace-handler "/creator-loopback" 'creator-loopback))
+      (rook/namespace-handler {:async? true}
+        [["fred"] 'fred]
+        [["barney"] 'barney]
+        [["slow"] 'slow]
+        [["sessions"] 'sessions]
+        [["creator"] 'creator]
+        [["creator-loopback"] 'creator-loopback])
       async/wrap-with-loopback
       async/wrap-session
       async/wrap-with-standard-middleware
