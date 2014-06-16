@@ -608,5 +608,5 @@
   "Produces a handler based on the given namespaces. Supports the same
   syntax namespace-dispatch-table does."
   [options? & ns-specs]
-  (compile-dispatch-table options?
+  (compile-dispatch-table (if (map? options?) options?)
     (apply namespace-dispatch-table options? ns-specs)))

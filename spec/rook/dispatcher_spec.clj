@@ -25,6 +25,7 @@
   (pp/write form :dispatch pp/code-dispatch)
   (prn))
 
+#_
 (defn namespace-handler
   "Produces a handler based on the given namespace.
 
@@ -297,14 +298,14 @@
 
     (it "should return a channel with the correct response"
 
-      (let [handler (namespace-handler {:async? true}
-                      [] 'barney `default-middleware)]
+      (let [handler (dispatcher/namespace-handler {:async? true}
+                      [[] 'barney `default-middleware])]
         (should= {:message "ribs!"}
           (-> (mock/request :get "/") handler async/<!! :body))))
 
     (it "should expose the request's :params key as an argument"
-      (let [handler (namespace-handler {:async? true}
-                      [] 'echo-params rook/wrap-with-default-arg-resolvers)
+      (let [handler (dispatcher/namespace-handler {:async? true}
+                      [[] 'echo-params rook/wrap-with-default-arg-resolvers])
             params {:foo :bar}]
         (should-be-same params
           (-> (mock/request :get "/")
@@ -317,8 +318,8 @@
     (it "should return a 500 response if a sync handler throws an exception"
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
-                        (namespace-handler
-                          ["fail"] 'failing rook-async/wrap-restful-format)))]
+                        (dispatcher/namespace-handler
+                          [["fail"] 'failing rook-async/wrap-restful-format])))]
         (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
           (-> (mock/request :get "/fail") handler :status)))))
 
