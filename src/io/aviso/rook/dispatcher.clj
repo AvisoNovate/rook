@@ -31,8 +31,8 @@
   (:require [clojure.core.async :as async]
             [clojure.string :as string]
             [clojure.set :as set]
-            [io.aviso.rook :as rook]
-            [io.aviso.rook.async :as rook-async]
+            #_[io.aviso.rook :as rook]
+            #_[io.aviso.rook.async :as rook-async]
             [io.aviso.rook.internals :as internals]
             [io.aviso.rook.schema-validation :as sv]))
 
@@ -162,7 +162,7 @@
   [middleware sync? handler]
   (middleware
     (if sync?
-      (rook-async/ring-handler->async-handler handler)
+      (internals/ring-handler->async-handler handler)
       handler)))
 
 (defn- variable? [x]
@@ -401,7 +401,7 @@
     (if (seq arg-resolvers)
       (let [resolvers (mapv eval arg-resolvers)]
         (fn [handler]
-          (apply rook/wrap-with-arg-resolvers
+          (internals/wrap-with-arg-resolvers
             (mw handler) resolvers)))
       mw)))
 
@@ -604,6 +604,7 @@
                   (or middleware default-middleware))))
          ns-specs))]))
 
+#_
 (defn namespace-handler
   "Produces a handler based on the given namespaces. Supports the same
   syntax namespace-dispatch-table does."

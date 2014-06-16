@@ -77,8 +77,18 @@
 
   (describe "middleware"
 
+    #_
     (it "is present in the default synchronous pipeline"
         (let [handler (namespace-handler 'validating)]
+          (should= HttpServletResponse/SC_BAD_REQUEST
+                   (->
+                     (request :post "/")
+                     (assoc :params {:first-name "Wrong Key"})
+                     handler
+                     :status))))
+
+    (it "validates schemas when present"
+        (let [handler (namespace-handler ['validating wrap-with-schema-validation])]
           (should= HttpServletResponse/SC_BAD_REQUEST
                    (->
                      (request :post "/")

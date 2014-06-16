@@ -298,13 +298,13 @@
 
     (it "should return a channel with the correct response"
 
-      (let [handler (dispatcher/namespace-handler {:async? true}
+      (let [handler (rook/namespace-handler {:async? true}
                       [[] 'barney `default-middleware])]
         (should= {:message "ribs!"}
           (-> (mock/request :get "/") handler async/<!! :body))))
 
     (it "should expose the request's :params key as an argument"
-      (let [handler (dispatcher/namespace-handler {:async? true}
+      (let [handler (rook/namespace-handler {:async? true}
                       [[] 'echo-params rook/wrap-with-default-arg-resolvers])
             params {:foo :bar}]
         (should-be-same params
@@ -318,7 +318,7 @@
     (it "should return a 500 response if a sync handler throws an exception"
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
-                        (dispatcher/namespace-handler
+                        (rook/namespace-handler
                           [["fail"] 'failing rook-async/wrap-restful-format])))]
         (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
           (-> (mock/request :get "/fail") handler :status)))))
@@ -328,6 +328,10 @@
     (it "should allow two resources to collaborate"
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
+                        (rook/namespace-handler {:async? true}
+                          [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
+                          [["barney"] 'barney rook/wrap-with-default-arg-resolvers])
+                        #_
                         (dispatcher/compile-dispatch-table {:async? true}
                           (dispatcher/namespace-dispatch-table
                             [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
@@ -341,7 +345,7 @@
     (it "should allow three resources to collaborate"
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
-                        (dispatcher/namespace-handler {:async? true}
+                        (rook/namespace-handler {:async? true}
                           [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
                           [["barney"] 'barney rook/wrap-with-default-arg-resolvers]
                           [["betty"] 'betty rook/wrap-with-default-arg-resolvers])
@@ -415,7 +419,7 @@
                            rook/wrap-with-function-arg-resolvers
                            rook-async/wrap-with-schema-validation))
             handler (->
-                      (dispatcher/namespace-handler {:async? true}
+                      (rook/namespace-handler {:async? true}
                         [["fred"] 'fred middleware]
                         [["barney"] 'barney middleware]
                         [["betty"] 'betty middleware]

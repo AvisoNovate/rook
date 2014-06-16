@@ -4,7 +4,7 @@
     [ring.util.response :as r]))
 
 (defn index
-  [params]
+  [^:request-key params]
   (r/response {:params-arg params}))
 
 (defn show

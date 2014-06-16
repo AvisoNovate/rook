@@ -1,10 +1,10 @@
 (ns rook.rook-spec
   (:use
     io.aviso.rook
-    io.aviso.rook.internals
     speclj.core
     clojure.template)
   (:require
+    [io.aviso.rook.internals :as internals]
     rook-test
     rook-test2
     rook-test3
@@ -60,16 +60,16 @@
     (it "should search using the API key if the natural key does not exist"
 
         (should= :by-api-keyword
-                 (extract-argument-value 'user-id
-                                         {:params {:user_id :by-api-keyword}}
-                                         [(fn [kw request] (get-in request [:params kw]))])))
+                 (internals/extract-argument-value 'user-id
+                                                   {:params {:user_id :by-api-keyword}}
+                                                   [(fn [kw request] (get-in request [:params kw]))])))
 
     (it "should favor the natural key over the API key"
         (should= :by-natural-keyword
-                 (extract-argument-value 'user-id
-                                         {:params {:user-id :by-natural-keyword
-                                                   :user_id :by-api-keyword}}
-                                         [(fn [kw request] (get-in request [:params kw]))])))
+                 (internals/extract-argument-value 'user-id
+                                                   {:params {:user-id :by-natural-keyword
+                                                             :user_id :by-api-keyword}}
+                                                   [(fn [kw request] (get-in request [:params kw]))])))
 
     (it "should use :arg-resolvers to calculate argument values"
         (let [test-mw (-> (wrap-namespace default-rook-pipeline 'rook-test)
@@ -97,8 +97,8 @@
 
     (it "should expose the request's :params key as an argument"
         (let [handler (->
-                        (namespace-handler 'echo-params)
-                        wrap-with-default-arg-resolvers)
+                        (namespace-handler ['echo-params])
+                        #_wrap-with-default-arg-resolvers)
               params {:foo :bar}]
           (should-be-same params
                           (-> (mock/request :get "/")
@@ -108,7 +108,7 @@
                               :params-arg))))
 
     (it "should expose the request's :params as argument params* with translated keywords"
-        (let [handler (-> (namespace-handler 'echo-params)
+        (let [handler (-> (namespace-handler ['echo-params])
                           wrap-with-default-arg-resolvers)
               params {:user_id "hlship@gmail.com" :new_password "secret"}]
           (should= {:user-id      "hlship@gmail.com"
@@ -121,8 +121,8 @@
     (it "should fail if a map parameter does not include :as"
         (should-throw IllegalArgumentException
                       "map argument has no :as key"
-                      (let [handler (-> (namespace-handler 'echo-params)
-                                        wrap-with-default-arg-resolvers)]
+                      (let [handler (-> (namespace-handler ['echo-params])
+                                        #_wrap-with-default-arg-resolvers)]
                         (-> (mock/request :put "/123")
                             handler))))
 
@@ -141,6 +141,7 @@
                      (mock/request :post "/123/activate?test1=1test")
                      test-mw)))))
 
+  #_
   (describe "nested contexts"
 
     (it "should match URIs and methods to specific functions"
@@ -201,7 +202,7 @@
   (describe "function ordering within namespace"
     (it "should order functions by line number"
 
-        (let [paths (get-available-paths 'rook-test5)
+        (let [paths (internals/get-available-paths 'rook-test5)
               funcs (map #(nth % 2) paths)]
 
           (should= [#'rook-test5/show-default #'rook-test5/show] funcs))))
@@ -211,7 +212,7 @@
     (it "should merge meta-data from the namespace into :metadata"
 
         (let [show-meta (->> 'rook-test5
-                             get-available-paths
+                             internals/get-available-paths
                              (filter (fn [[_ _ _ meta]] (= 'show (:name meta))))
                              first
                              last)]
@@ -221,12 +222,13 @@
             :overridden :function)))
 
     (it "should not conflict when a function with a convention name has overriding :path-spec meta-data"
-        (let [paths (get-available-paths 'rook-test6)
+        (let [paths (internals/get-available-paths 'rook-test6)
               _ (should= 1 (count paths))
               [method uri] (first paths)]
           (should= :post method)
           (should= "/:user-name/:password" uri))))
 
+  #_
   (describe ":resource-uri argument resolver"
 
     (with handler (-> (namespace-handler nil 'creator

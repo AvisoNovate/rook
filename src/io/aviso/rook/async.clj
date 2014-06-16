@@ -39,6 +39,7 @@
      [utils :as utils]
      [internals :as internals]]))
 
+#_
 (defmacro safety-first
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
   is converted to a 500 response.
@@ -61,17 +62,23 @@
   "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by [[safety-first]] if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
+  `(internals/safe-go ~request ~expr ~@more)
+  #_
   `(go (safety-first ~request ~expr ~@more)))
 
 (defmacro safe-thread
   "Wraps the body in a [[safety-first]] block and then in a thread block. The request is used by [[safety-first]] if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
+  `(internals/safe-thread ~request ~expr ~@more)
+  #_
   `(thread (safety-first ~request ~expr ~@more)))
 
 (defn async-handler->ring-handler
   "Wraps an asynchronous handler function as a standard synchronous handler. The synchronous handler uses `<!!`, so it may block."
   [async-handler]
+  (internals/async-handler->ring-handler async-handler)
+  #_
   (fn [request]
     (-> request async-handler <!!)))
 
@@ -79,6 +86,8 @@
   "Wraps the result from a synchronous handler into a channel. Non-nil results are `put!` on to the channel;
   a nil result causes the channel to be `close!`ed."
   [result]
+  (internals/result->channel result)
+  #_
   (let [ch (chan 1)]
     (if (some? result)
       (put! ch result)
@@ -89,6 +98,8 @@
   "Wraps a syncronous Ring handler function as an asynchronous handler. The handler is invoked in another
    thread, and a nil response is converted to a `close!` action."
   [handler]
+  (internals/ring-handler->async-handler handler)
+  #_
   (fn [request]
     (safe-thread request (handler request))))
 
@@ -98,7 +109,7 @@
     ;; Close response channel upon running out of handlers.
     (close! response-ch)
     ;; Otherwise, see if the first handler will return a truthy value.
-    (take! (safety-first request ((first handlers) request))
+    (take! (internals/safety-first request ((first handlers) request))
            (fn [handler-response]
              (if handler-response
                (put! response-ch handler-response)

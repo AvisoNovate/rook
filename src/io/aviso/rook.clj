@@ -3,6 +3,7 @@
   (:require
     [medley.core :as medley]
     [io.aviso.rook
+     [dispatcher :as dispatcher]
      [schema-validation :as v]
      [internals :as internals]
      [utils :as utils]]
@@ -11,11 +12,6 @@
     [clojure.string :as str]
     [compojure.core :as compojure]
     [clout.core :as clout]))
-
-(defn- prefix-with
-  "Like concat, but with arguments reversed."
-  [coll1 coll2]
-  (concat coll2 coll1))
 
 (defn build-map-arg-resolver
   "Builds a static argument resolver around the map of keys and values; the values are the exact resolved
@@ -44,6 +40,8 @@
   can be computed from the request, or static information that can be injected into resource handler
   functions."
   [handler & arg-resolvers]
+  (internals/wrap-with-arg-resolvers handler arg-resolvers)
+  #_
   (fn [request]
     (handler (update-in request [:rook :arg-resolvers] prefix-with arg-resolvers))))
 
@@ -168,7 +166,7 @@
   function-specific arg-resolvers (from the function's meta-data)."
   [handler]
   (fn [request]
-    (handler (update-in request [:rook :arg-resolvers] prefix-with (-> request :rook :metadata :arg-resolvers)))))
+    (handler (update-in request [:rook :arg-resolvers] internals/prefix-with (-> request :rook :metadata :arg-resolvers)))))
 
 (def default-rook-pipeline
   "The default pipeline for invoking a resource handler function: wraps
@@ -178,6 +176,7 @@
       wrap-with-function-arg-resolvers
       v/wrap-with-schema-validation))
 
+#_
 (defn namespace-handler
   "Helper handler, which wraps rook-dispatcher in namespace middleware.
 
@@ -208,3 +207,9 @@
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
 
+(defn namespace-handler
+  "Produces a handler based on the given namespaces. Supports the same
+  syntax namespace-dispatch-table does."
+  [options? & ns-specs]
+  (dispatcher/compile-dispatch-table (if (map? options?) options?)
+    (apply dispatcher/namespace-dispatch-table options? ns-specs)))
