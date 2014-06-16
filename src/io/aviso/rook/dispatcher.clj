@@ -225,7 +225,6 @@
          entries    (seq (unnest-dispatch-table dispatch-table))]
     (if-let [[method pathvec verb-fn-sym mw-spec] (first entries)]
       (let [handler-sym (gensym "handler_sym__")
-            method      (if (identical? method :all) '_ method)
             routes      (assoc routes
                           [method (keywords->symbols pathvec)] handler-sym)
             [middleware mw-sym]
@@ -289,7 +288,8 @@
                  (assoc route-params v seg))
                ;; no match on path
                not-found-response))
-           (if-let [h (get dispatch (:request-method request))]
+           (if-let [h (or (get dispatch (:request-method request))
+                          (get dispatch :all))]
              (h (assoc request :route-params route-params))
              ;; unsupported method for path
              not-found-response))))))

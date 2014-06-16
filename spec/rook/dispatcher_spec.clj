@@ -424,7 +424,8 @@
                         [["creator"] 'creator middleware]
                         [["creator-loopback"] 'creator-loopback middleware]
                         [["static"] 'static identity]
-                        [["static2" :foo "asdf"] 'static2 identity])
+                        [["static2" :foo "asdf"] 'static2 identity]
+                        [["catch-all"] 'catch-all identity])
                       rook-async/wrap-with-loopback
                       rook-async/wrap-session
                       rook-async/wrap-with-standard-middleware)]
@@ -506,6 +507,12 @@
       (let [response (http/get "http://localhost:9988/static2/123/asdf/foo")]
         (should= "Here's the foo param for this request: 123"
           (:body response))))
+
+    (it "should correctly handle catch-all routes (:all)"
+      (let [response1 (http/get "http://localhost:9988/catch-all")
+            response2 (http/put "http://localhost:9988/catch-all")]
+        (should= "Caught you!" (:body response1))
+        (should= "Caught you!" (:body response2))))
 
     (after-all
       (.stop @server))))
