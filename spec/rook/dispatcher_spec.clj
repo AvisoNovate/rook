@@ -415,16 +415,16 @@
                            rook/wrap-with-function-arg-resolvers
                            rook-async/wrap-with-schema-validation))
             handler (->
-                      (dispatcher/compile-dispatch-table {:async? true}
-                        (-> (dispatcher/namespace-dispatch-table
-                              [["fred"] 'fred middleware]
-                              [["barney"] 'barney middleware]
-                              [["betty"] 'betty middleware]
-                              [["slow"] 'slow middleware]
-                              [["sessions"] 'sessions middleware]
-                              [["creator"] 'creator middleware]
-                              [["creator-loopback"] 'creator-loopback middleware]
-                              [["static"] 'static identity])))
+                      (dispatcher/namespace-handler {:async? true}
+                        [["fred"] 'fred middleware]
+                        [["barney"] 'barney middleware]
+                        [["betty"] 'betty middleware]
+                        [["slow"] 'slow middleware]
+                        [["sessions"] 'sessions middleware]
+                        [["creator"] 'creator middleware]
+                        [["creator-loopback"] 'creator-loopback middleware]
+                        [["static"] 'static identity]
+                        [["static2" :foo "asdf"] 'static2 identity])
                       rook-async/wrap-with-loopback
                       rook-async/wrap-session
                       rook-async/wrap-with-standard-middleware)]
@@ -500,6 +500,11 @@
       (let [response (http/get "http://localhost:9988/static"
                        {:accept :edn})]
         (should= "Server localhost has received a request for some application/edn."
+          (:body response))))
+
+    (it "should correctly handle route params specified in context vectors"
+      (let [response (http/get "http://localhost:9988/static2/123/asdf/foo")]
+        (should= "Here's the foo param for this request: 123"
           (:body response))))
 
     (after-all
