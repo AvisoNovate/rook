@@ -13,7 +13,18 @@ and paths to function names; these can be extended or overridden by metadata on 
 
 The end result is that a proper web service resource can be created in very little code.
 
-Rook makes use of https://github.com/weavejester/compojure[Compojure] to handle request routing.
+Rook makes use of its own request routing mechanism that offers very
+fast dispatch of requests to handler functions even in the presence of
+a very large number of endpoints (what
+https://github.com/weavejester/compojure[Compojure] calls routes).
+This dispatching mechanism replaces the usual linear search for a
+handler capable of producing a non-+nil+ response inside Rook
+handlers; however, +nil+ is still returned for requests that cannot be
+handled usefully, allowing Rook handlers to interoperate with
+Compojure-style handlers. Rook's dispatching mechanism is flexible
+enough to be applied in scenarios where the namespace-resource
+correspondence does not hold, at the cost of a modest increase of
+verbosity in user code.
 
 Rook works well with https://github.com/clojure/core.async[Clojure's core.async] to allow you to build richly interdependent resources
 without blocking all your threads.
@@ -25,8 +36,17 @@ http://howardlewisship.com/io.aviso/rook/[API Documentation]
 == Resource Handler Functions
 
 Rook analyzes the public functions of a namespace to determine which functions are invoked and under which circumstances.
-The circumstances are a combination of an HTTP verb (GET, POST, etc.) and a https://github.com/weavejester/clout[Clout] route. The
-route may include keywords. This is called the _path specification_.
+
+The circumstances are a combination of an HTTP verb (GET, POST, etc.)
+and the request path. The Rook representation is your choice of
+----
+[:get "/foo/:id"]   ; :path-spec key in a handler function's metadata
+----
+or
+----
+[:get ["foo" :id]]  ; :route-spec key in a handler function's metadata
+----
+-- these both catch +GET /foo/123+ with +123+ bound to the path parameter +id+.
 
 Rook applies a naming convention to functions, so simply naming a function with a particular name implies a certain
 path specification.
@@ -88,7 +108,7 @@ Rook:
 ----
 (defn active-users
   "List just users who are currently active."
-  {:path-spec [:get "/active"]}
+  {:path-spec [:get "/active"]}     ; equivalently {:route-spec [:get ["active"]]}
   [request]
   ...)
 ----
@@ -96,8 +116,6 @@ Rook:
 The +:path-spec+ contains two values: the keyword for the verb (this may also be the value +:all+) and the path to match.
 
 == Ring Handlers and Middleware
-
-image:rook-sync.png[Rook Processing Diagram]
 
 Rook works within the Ring framework by providing middleware and request handlers, forming a processing pipeline.
 The section marked *namespace-handler*  in the diagram represents a portion of the overall pipeline constructed by
@@ -123,30 +141,42 @@ such as authentication, logging, error handling, etc.
 
 Ring assists with extracting information from the request and provides it as arguments to the invoked resource handler function.
 
-TIP: To avoid confusion, Rook uses the term _parameters_ to refer to query parameters that are part of an HTTP request; it uses
+TIP: To avoid confusion, Rook uses the term _parameters_ to refer to route, query and form parameters that are part of an HTTP request; it uses
 _arguments_ to refer to function arguments (which are often called parameters, as well).
 
-Ring uses the name of the argument to identify the value to provide.
+Ring uses the name of the argument together with metadata attached to
+the argument symbol or to the Var holding the handler itself to
+identify the value to provide.
 
-First, the argument name is converted to a keyword and a search of the argument resolvers (described shortly) occurs.
+If the argument symbol is tagged with +{:header true}+, Rook will
+supply the value taken from the header matching the argument name (due
+to the way Ring works, the match is case-insensitive; +^:header
+content-type+ matches a +Content-Type+ header), and similarly for
++:param+ (non-route request parameters), +:request+ (the entire Ring
+request map) and +:request-key+ (a top-level key in the Ring request
+map).
 
-If the search is unsuccessful, then a second search occurs, but with
-dashes in the keyword converted to underscores, e.g., +user-id+ to +:user_id+.footnote:[
-The second keyword exists to pragmatically support clients sending JSON, rather than EDN, data; in JavaScript, underscores are
-easier to wrangle than dashes.]
+Alternatively, if the handler function's metadata includes a
++:resolvers+ key holding a map of argument symbol to argument resolver
+function, the resolver specified in the map will be used (the keyword
+tags mentioned above can be used in the map as shorthand for the
+standard resolvers).
+
+Route parameters are matched by name and should not be tagged.
+
+Arguments that do not match route parameters by name and which do not
+have resolvers assigned to them through tags or the +:resolvers+ map
+will be resolved at request processing time using a more dynamic
+approach.
+
+Dynamic resolution makes use of argument resolvers taken from the
+handler function's metadata (at the +:arg-resolvers+ key) and the
+namespace's metadata (in absence of +:arg-resolvers+ metadata on the
+function); additional argument resolvers can be added by middleware --
++(update-in request [:rook :resolvers] conj ...)+.
 
 It is assumed that standard http://ring-clojure.github.io/ring/ring.middleware.keyword-params.html[Ring middleware] is in place to
 convert the +:params+ map from string keys to keyword keys.
-
-Argument resolution is performed by the {api}/io.aviso.rook.html#var-rook-dispatcher[+rook-dispatcher]+ function,
-just before invoking the resource handler function.
-The {api}/io.aviso.rook.html#var-default-rook-pipeline[+default-rook-pipeline+] includes +rook-dispatcher+ plus middleware to add any
-argument resolvers from the
-function's +:arg-resolvers+ metadata footnote:[Remember that Rook merges function metadata with metadata of the containing namespace]
-to the list of argument resolvers used by +rook-dispatcher+.
-
-WARNING: If both the namespace and the function define +:arg-resolvers+ metadata, then the function's list overrides
-the namespace's.
 
 Function {api}/io.aviso.rook.html#var-wrap-with-default-arg-resolvers[+wrap-with-default-arg-resolvers+]
 provides a default set of argument resolvers:
@@ -221,74 +251,31 @@ itself to be resolved, the following function can be defined:
 
 A typical web service will expose some number of resources; under Rook this means mapping a number of namespaces.
 
-The {api}/io.aviso.rook.html#var-namespace-handler[+namespace-handler+] function is the easy way to do this mapping. It combines +compojure.core/context+ with Rook's
-+wrap-namespace+ (which identifies the function to be invoked within the namespace) and +default-rook-pipeline+.
+The {api}/io.aviso.rook.html#var-namespace-handler[+namespace-handler+] function is the easy way to do this mapping.
 
 ----
-(routes
-  (namespace-handler "/users" 'org.example.resources.users)
-  (namespace-handler "/orders" 'org.example.resources.orders))
+(namespace-handler
+  [["users"] 'org.example.resources.users]
+  [["orders"] 'org.example.resources.orders])
 ----
 
 IMPORTANT: Rook will +require+ the namespace if it has not already been previously loaded into Clojure.
 
-Remember that the way +context+ works is to match and strip off the prefix, so an incoming GET request for +/users/232+
-will be matched as context +/users+; Rook will then identify function +org.example.resources.users/show+ with path +/:id+;
-ultimately invoking the function with the _string_ value +232+ for the +id+ parameter.
-
-In more complicated circumstances, you may have resources in a parent-child relationship. For example, if you were modeling
-_hotels_ which contain _rooms_, you might want to access the list of rooms for a particular
-hotel with the URL +/hotels/123/rooms/237+:
-
-----
-(routes
-  (namespace-handler "/hotels 'org.example.resources.hotels
-    (routes
-       (namespace-handler "/:hotel-id/rooms" 'org.example.resources.rooms)
-       default-rook-pipeline)))
-----
-
-In this example, the first +namespace-handler+ call will match any URL that starts with +/hotels+. Since that
-may be a match for the hotels resource itself, or rooms within a specific hotel, the handler for the namespace
-can't simply be +default-rook-pipeline+; instead it is a new route containing a namespace handler, and the
-+default-rook-pipeline+ for the +org.example.resources.hotels+ namespace.
-
-The nested route matches the +:hotel-id+ symbol from the path; this will be resolved to argument +hotel-id+ in any
-resource handler function that is invoked in the +rooms+ namespace.
-
-It is important that the +default-rook-pipeline+ both be present, and come _last_.
-
-If it is missing, then requests for the +/hotels+ URL will be identified by the middleware, but will never be invoked.
-
-If it is present, but comes before the nested namespaces, then a conflict will occur: URLs that should match against
-the +rooms+ resource will also match against the +hotels+ resource, and since the +default-rook-pipeline+ for the
-+hotels+ resource is executed first (incorrectly), it will invoke a resource handler function from the +hotels+ namespace.
-
-The namespace middleware always invokes its delegate handler (the request handling function it wraps around), _even when no function has been identified_.
-This seems counter-intuitive, but makes sense in the context of the nested resources: for a particular request
-the +hotels+ namespace may not have a corresponding function to invoke, but the nested +rooms+ namespace may have
-a matching function.
-
-Also, in the nested resource scenario, the function to invoke may be identified in an outer context, then re-identified,
-in an inner context, before being invoked.
-
 == Writing Rook Middleware
 
-Rook uses the +:rook+ key of the request to store information needed to process requests.
-With the exception of +:arg-resolvers+, the values are supplied by the the +wrap-namespace+ function.
+Rook uses the +:rook+ key of the request to store information needed
+to process requests. Middleware specified in calls to
++namespace-handler+ can make use of this information.
 
 +:arg-resolvers+::
 List of argument resolvers that apply to any invoked resource handler functions.
-+:namespace+::
-The symbol identifying the namespace containing the matched function.
-+:function+::
-The matched function, which will be invoked by +default-rook-pipeline+.
 +:metadata+::
-The metadata for the matched function. This is the merged metadata of the function and the namespace (if there
-are collisions, the function takes precedence).
-
-Rook middleware that fits between +wrap-namespace+ and +rook-dispatcher+ should check for nested request key +[:rook :function]+ to
-see if a function has been identified.
+The metadata for the matched function minus the
++:arg-resolvers+ key (as argument resolvers are treated specially by
+the dispatch machinery). This is the merged metadata of the function
+and the namespace (if there are collisions, the function takes
+precedence). This is, notably, where the request schema is found
+during request processing (see below).
 
 == Validation
 
@@ -357,21 +344,18 @@ Below is the minimal setup for a standard Jetty Ring server handling Rook resour
     compojure.core
   (:require
     [ring.adapter.jetty :as jetty]
-    [io.aviso.rook :as rook])
+    [io.aviso.rook :as rook]
+    [io.aviso.rook.schema-validation :as sv])
 
 (defn start-server
-    [port]
-    (let [handler (->
-                    (routes
-                      (namespace-handler "/users" 'org.example.resources.users)
-                      (namespace-handler "/orders" 'org.example.resources.orders)
-                      (namespace-handler "/hotels 'org.example.resources.hotels
-                        (routes
-                          (namespace-handler "/:hotel-id/rooms" 'org.example.resources.rooms)
-                          rook/default-rook-pipeline)))
-                    rook/wrap-with-standard-middleware)]
-        (jetty/run-jetty handler {:port port :join? false})))
-
+   [port]
+   (let [handler (rook/namespace-handler
+                       {:default-middleware sv/wrap-with-schema-validation}
+                       [["users"] 'org.example.resources.users]
+                       [["orders"] 'org.example.resources.orders]
+                       [["hotels"] 'org.example.resources.hotels]
+                       [[:hotel-id "rooms"] 'org.example.resources.rooms]))]
+     (jetty/run-jetty handler {:port port :join? false})))
 ----
 
 A more complete example would also configure https://github.com/AvisoNovate/twixt[Twixt] for exception reporting, and to (perhaps) provide a client-side application
