@@ -324,7 +324,7 @@
 (def standard-resolvers
   "A map of keyword -> (function of symbol returning a function of
   request)."
-  {:request (constantly identity)
+  {:request     (constantly identity)
    :request-key request-key-resolver
    :header      header-arg-resolver
    :param       param-arg-resolver})
