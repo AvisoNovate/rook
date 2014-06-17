@@ -39,7 +39,6 @@
      [utils :as utils]
      [internals :as internals]]))
 
-#_
 (defmacro safety-first
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
   is converted to a 500 response.
@@ -47,189 +46,43 @@
   The request is used when reporting the exception (it contains a :request-id
   key set by `io.aviso.client/send`)."
   [request & body]
-  `(try
-     ~@body
-     (catch Throwable t#
-       (let [r# ~request]
-         (l/errorf t# "Exception processing request %s (%s)"
-                   (:request-id r# (or "<INCOMING>"))
-                   (utils/summarize-request r#)))
-       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                       {:exception (internals/to-message t#)}))))
-
+  `(internals/safety-first ~request ~@body))
 
 (defmacro safe-go
   "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by [[safety-first]] if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
-  `(internals/safe-go ~request ~expr ~@more)
-  #_
-  `(go (safety-first ~request ~expr ~@more)))
+  `(internals/safe-go ~request ~expr ~@more))
 
 (defmacro safe-thread
   "Wraps the body in a [[safety-first]] block and then in a thread block. The request is used by [[safety-first]] if it must
   fabricate a response. Requires at least one expression."
   [request expr & more]
-  `(internals/safe-thread ~request ~expr ~@more)
-  #_
-  `(thread (safety-first ~request ~expr ~@more)))
+  `(internals/safe-thread ~request ~expr ~@more))
 
 (defn async-handler->ring-handler
   "Wraps an asynchronous handler function as a standard synchronous handler. The synchronous handler uses `<!!`, so it may block."
   [async-handler]
-  (internals/async-handler->ring-handler async-handler)
-  #_
-  (fn [request]
-    (-> request async-handler <!!)))
+  (internals/async-handler->ring-handler async-handler))
 
 (defn result->channel
   "Wraps the result from a synchronous handler into a channel. Non-nil results are `put!` on to the channel;
   a nil result causes the channel to be `close!`ed."
   [result]
-  (internals/result->channel result)
-  #_
-  (let [ch (chan 1)]
-    (if (some? result)
-      (put! ch result)
-      (close! ch))
-    ch))
+  (internals/result->channel result))
 
 (defn ring-handler->async-handler
   "Wraps a syncronous Ring handler function as an asynchronous handler. The handler is invoked in another
    thread, and a nil response is converted to a `close!` action."
   [handler]
-  (internals/ring-handler->async-handler handler)
-  #_
-  (fn [request]
-    (safe-thread request (handler request))))
-
-#_
-(defn- routing*
-  [request response-ch handlers]
-  (if (empty? handlers)
-    ;; Close response channel upon running out of handlers.
-    (close! response-ch)
-    ;; Otherwise, see if the first handler will return a truthy value.
-    (take! (internals/safety-first request ((first handlers) request))
-           (fn [handler-response]
-             (if handler-response
-               (put! response-ch handler-response)
-               (routing* request response-ch (rest handlers)))))))
-
-#_
-(defn routing
-  "Routes a request to sequence of async handlers. Each handler should return a channel
-  that contains either a Ring response map or a closed channel
-  (nil is not an allowed value over a channel). Handlers
-  are typically implemented using `clojure.core.async` `go` or `thread` blocks."
-  [request & handlers]
-  (let [response-ch (chan 1)]
-    (routing* request response-ch handlers)
-    response-ch))
-
-#_
-(defn routes
-  "Creates an async handler that routes to a number of other async handlers, using [[routing]]."
-  [& handlers]
-  #(apply routing % handlers))
-
-#_
-(defn async-rook-dispatcher
-  "Replaces the default (synchronous) rook dispatcher. Resource handler methods
-  may themselves be synchronous or asynchronous, with asynchronous the default.
-
-  The function meta-data key :sync can be set to true
-  to indicate that the handler is synchronous.
-
-  For an asynchronous handler (one implemented around a go or thread block),
-  the function should return a channel that will receive the ultimate result.
-  The function may close the channel to allow the search for a handler to continue.
-
-  Asynchronous handler functions should be careful to return a 500 response if there is
-  a failure (e.g., a thrown exception).  The safe-go and safe-thread macros
-  are useful to easily ensure this.
-
-  For a synchronous handler (which must have the :sync true meta-data), the function
-  is invoked in a thread, and its result wrapped in a channel (with nil converted to close! action).
-  Exceptions thrown by a synchronous handler are automatically converted into a 500 response.
-
-  A synchronous handler may return false; this will close the channel and allow the handler
-  search to continue.
-
-  If no resource handler function has been identified, this function
-  will return a closed unbuffered channel."
-  [{{meta-data :metadata f :function} :rook :as request}]
-  (cond
-    (nil? f) (result->channel nil)
-    (:sync meta-data) (safe-thread request
-                                   (rook/rook-dispatcher request))
-    :else (or
-            (rook/rook-dispatcher request)
-            (throw (ex-info
-                     (format "Function %s, invoked as an asynchronous request handler, returned nil." f)
-                     request)))))
+  (internals/ring-handler->async-handler handler))
 
 (defn wrap-with-schema-validation
   "The asynchronous version of schema validation, triggered by :schema metadata."
   [handler]
   (sv/wrap-with-schema-validation handler result->channel))
 
-#_
-(def default-rook-pipeline
-  "The default rook pipeline for async processing. Wraps async-rook-dispatcher with middleware to
-  set the :arg-resolvers specific to the function, and to peform schema validation."
-  (-> async-rook-dispatcher
-      rook/wrap-with-function-arg-resolvers
-      wrap-with-schema-validation))
-
-;;; Have to much about with some private functions in compojure.core ... at least, until we
-;;; (perhaps) move Rook directly to clout.
-
-#_
-(defn- compojure-alias [symbol]
-  @(ns-resolve 'compojure.core symbol))
-
-#_#_#_
-(def wrap-context-alias (compojure-alias 'wrap-context))
-(def context-route-alias (compojure-alias 'context-route))
-(def assoc-route-params-alias (compojure-alias 'assoc-route-params))
-
-#_
-(defn if-route
-  "Async version of Compojure's if-route."
-  [route handler]
-  (fn [request]
-    (if-let [params (clout/route-matches route request)]
-      (handler (assoc-route-params-alias request params))
-      (result->channel nil))))
-
-#_
-(defmacro context
-  "Give all routes in the form a common path prefix. A simplified version of Compojure's context."
-  [path & routes]
-  `(if-route ~(context-route-alias path)
-             (wrap-context-alias
-               (fn [request#]
-                 (routing request# ~@routes)))))
-
-#_
-(defn namespace-handler
-  "Asynchronous namespace handler. Adds namespace middleware, but the handler (including any middleware on the handler)
-  should be asynchronous (returning a channel, not a direct result).
-
-  In most cases, a path will be specified and the context macro used to put the new handler inside the context. However,
-  path may also be nil."
-  ([namespace-name]
-   (namespace-handler nil namespace-name))
-  ([path namespace-name]
-   (namespace-handler path namespace-name default-rook-pipeline))
-  ([path namespace-name handler]
-   (let [handler' (rook/wrap-namespace handler namespace-name)]
-     (if path
-       (context path handler')
-       handler'))))
-
-(def request-copy-properties
+(def ^:private request-copy-properties
   "Properties of a Ring request that should be copied into a chained request."
   [:server-port :server-name :remote-addr :scheme :ssl-client-cert :server-uri])
 
@@ -293,7 +146,6 @@
                                             (merge captured-request-data))]
                            (wrapped request')))]
          (handler' request))))))
-
 
 (defn wrap-restful-format
   "Asychronous version of `ring.middleware.format/wrap-restful-format`; this implementation uses

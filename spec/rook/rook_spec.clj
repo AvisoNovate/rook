@@ -74,8 +74,7 @@
                                                    [(fn [kw request] (get-in request [:params kw]))])))
 
     (it "should use :arg-resolvers to calculate argument values"
-        (let [test-mw (-> #_(wrap-namespace default-rook-pipeline 'rook-test)
-                          (namespace-handler ['rook-test])
+        (let [test-mw (-> (namespace-handler ['rook-test])
                           param-handling)]
 
           (do-template [method path headers expected-result]
@@ -99,10 +98,8 @@
             :put "/123" nil nil)))
 
     (it "should expose the request's :params key as an argument"
-        (let [handler (->
-                        (namespace-handler ['echo-params])
-                        #_wrap-with-default-arg-resolvers)
-              params {:foo :bar}]
+      (let [handler (namespace-handler ['echo-params])
+            params {:foo :bar}]
           (should-be-same params
                           (-> (mock/request :get "/")
                               (assoc :params params)
@@ -124,14 +121,12 @@
     (it "should fail if a map parameter does not include :as"
         (should-throw IllegalArgumentException
                       "map argument has no :as key"
-                      (let [handler (-> (namespace-handler ['echo-params])
-                                        #_wrap-with-default-arg-resolvers)]
+                      (let [handler (namespace-handler ['echo-params])]
                         (-> (mock/request :put "/123")
                             handler))))
 
     (it "should operate with all types of arg-resolvers"
-        (let [test-mw (-> #_(wrap-namespace default-rook-pipeline 'rook-test)
-                          (namespace-handler ['rook-test])
+        (let [test-mw (-> (namespace-handler ['rook-test])
                           (wrap-with-arg-resolvers
                             (build-map-arg-resolver {:test1 "TEST!" :test2 "TEST@" :test3 "TEST#" :request-method :1234})
                             (build-fn-arg-resolver {:test4 (fn [request] (str "test$" (:uri request)))}))
@@ -203,6 +198,7 @@
 
             test-mw4 :put "/test4/proxy" "method=PUT"))))
 
+  #_
   (describe "function ordering within namespace"
     (it "should order functions by line number"
 
@@ -211,6 +207,7 @@
 
           (should= [#'rook-test5/show-default #'rook-test5/show] funcs))))
 
+  #_
   (describe "meta data support"
 
     (it "should merge meta-data from the namespace into :metadata"

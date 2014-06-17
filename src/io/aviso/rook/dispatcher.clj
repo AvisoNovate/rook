@@ -4,9 +4,17 @@
 
       [method [path-segment ...]]
 
-  to endpoint functions. The recognized format is described at length
-  in the docstrings of the [[unnest-dispatch-table]] and
+  to resource handler functions. The recognized format is described at
+  length in the docstrings of the [[unnest-dispatch-table]] and
   [[request-route-spec]] functions exported by this namespace.
+
+  User code interested in setting up a handler for a RESTful API will
+  typically not interact with this namespace directly; rather, it will
+  use [[io.aviso.rook/namespace-handler]]. Functions exported by this
+  namespace can be useful, however, to code that wishes to use the
+  dispatcher in a more flexible way (perhaps avoiding the namespace to
+  resource correspondence) and utility add-ons that wish to deal with
+  dispatch tables directly.
 
   The expected way to use this namespace is as follows:
 
@@ -21,22 +29,17 @@
    - such compound dispatch tables can be compiled using
      [[compile-dispatch-table]].
 
-  The individual _resource handler functions_ (functions defined by a namespace
-  and either conforming to the naming convention, or defining :route-spec metadata)
-  are expected to support a single
-  arity only. The arglist for that arity and the metadata on the
-  request handler function will be examined to determine the correct
-  argument resolution strategy at dispatch table compilation time."
+  The individual resource handler functions are expected to support a
+  single arity only. The arglist for that arity and the metadata on
+  the resource handler function will be examined to determine the
+  correct argument resolution strategy at dispatch table compilation
+  time."
   {:added "0.1.10"}
   (:require [clojure.core.async :as async]
             [clojure.string :as string]
             [clojure.set :as set]
-            #_[io.aviso.rook :as rook]
-            #_[io.aviso.rook.async :as rook-async]
             [io.aviso.rook.internals :as internals]
             [io.aviso.rook.schema-validation :as sv]))
-
-;; TODO: Move functions exposed just for tests to an internal namespace
 
 (def ^:private default-mappings
 
@@ -168,7 +171,7 @@
 (defn- variable? [x]
   (or (keyword? x) (symbol? x)))
 
-(defn- compare-pathvecs
+(defn compare-pathvecs
   "Uses lexicographic order. Variables come before literal strings (so
   that /foo/:id sorts before /foo/bar)."
   [pathvec1 pathvec2]
@@ -193,7 +196,7 @@
                     (recur (next pv1) (next pv2))
                     res)))))))
 
-(defn- compare-route-specs
+(defn compare-route-specs
   "Uses compare-pathvecs first, breaking ties by comparing methods."
   [[method1 pathvec1] [method2 pathvec2]]
   (let [res (compare-pathvecs pathvec1 pathvec2)]
@@ -201,7 +204,7 @@
       (compare method1 method2)
       res)))
 
-#_ (defn sort-dispatch-table
+(defn sort-dispatch-table
   [dispatch-table]
   (vec (sort compare-route-specs dispatch-table)))
 
@@ -294,26 +297,26 @@
              ;; unsupported method for path
              not-found-response))))))
 
-(defn- header-arg-resolver [sym]
+(defn header-arg-resolver [sym]
   (fn [request]
     (-> request :headers (get (name sym)))))
 
-(defn- param-arg-resolver [sym]
+(defn param-arg-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (-> request :params kw))))
 
-(defn- request-key-resolver [sym]
+(defn request-key-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (kw request))))
 
-(defn- route-param-resolver [sym]
+(defn route-param-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (-> request :route-params kw))))
 
-(defn- default-resolver [sym]
+(defn default-resolver [sym]
   (fn [request]
     (internals/extract-argument-value
       sym request (-> request :rook :arg-resolvers))))
@@ -522,59 +525,16 @@
         vec)]))
 
 (defn namespace-dispatch-table
-  "Examines the given namespaces and produces a dispatch table in a
-  format intelligible to compile-dispatch-table.
-
-  The individual namespaces are specified as vectors of the following
-  shape:
-
-      [context-pathvec? ns-sym middleware?]
-
-  The optional fragments are interpreted as below (defaults listed in
-  brackets):
-
-   - context-pathvec? ([]):
-
-     A context pathvec to be prepended to pathvecs for all entries
-     emitted for this namespace.
-
-   - middleware? (clojure.core/identity or as supplied in options?):
-
-     Middleware to be applied to terminal handlers found in this
-     namespace.
-
-  The options map, if supplied, can include the following keys (listed
-  below with their default values):
-
-  :context-pathvec
-
-  : _Default: []_
-
-  : Top-level context-pathvec that will be prepended to
-    context-pathvecs for the individual namespaces.
-
-  :default-middleware
-
-  : _Default: clojure.core/identity_
-
-  : Default middleware used for namespaces for which no middleware
-    was specified.
-
-  Example call:
-
-      (namespace-dispatch-table
-        {:context-pathvec    [\"api\"]
-         :default-middleware basic-middleware}
-        ;; foo & bar use basic middleware:
-        [[\"foo\"]  'example.foo]
-        [[\"bar\"]  'example.bar]
-        ;; quux has special requirements:
-        [[\"quux\"] 'example.quux special-middleware])
+  "Similar to [[io.aviso.rook/namespace-handler]], but stops short of
+  producing a handler, returning a dispatch table instead. See the
+  docstring of [[io.aviso.rook/namespace-handler]] for a description
+  of ns-spec syntax and a list of supported options (NB. `async?` is
+  irrelevant to the shape of the dispatch table).
 
   The resulting dispatch table in its unnested form will include
   entries such as
 
-    [:get [\"api\" \"foo\"] 'example.foo/index identity]"
+      [:get [\"api\" \"foo\"] 'example.foo/index identity]."
   [options? & ns-specs]
   (let [default-opts {:context-pathvec    []
                       :default-middleware identity}
@@ -603,11 +563,3 @@
                   ns-sym
                   (or middleware default-middleware))))
          ns-specs))]))
-
-#_
-(defn namespace-handler
-  "Produces a handler based on the given namespaces. Supports the same
-  syntax namespace-dispatch-table does."
-  [options? & ns-specs]
-  (compile-dispatch-table (if (map? options?) options?)
-    (apply namespace-dispatch-table options? ns-specs)))

@@ -12,7 +12,6 @@
   []
   (-> (UUID/randomUUID) .toString))
 
-
 (defn response
   "Construct Ring response for success or other status.  If the status code is omitted, it defaults
   to 200.  If only the body is provided, but it is numeric, then it is treated as a status code with
@@ -43,6 +42,12 @@
   (binding [*print-level* 4
             *print-length* 5] (pretty-print object)))
 
+(defn pprint-code
+  "Pretty prints the form using code indentation rules."
+  [form]
+  (pprint/write form :dispatch pprint/code-dispatch)
+  (prn))
+
 (defn summarize-method-and-uri
   [method uri]
   "Formats a method (a keyword, e.g. :get) and a URI into a single string."
@@ -54,4 +59,3 @@
   "Returns a summary of the request: the :request-method and the :uri, formatted as a single string."
   [request]
   (summarize-method-and-uri (:request-method request) (:uri request)))
-

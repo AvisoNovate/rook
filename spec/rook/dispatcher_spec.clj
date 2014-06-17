@@ -18,38 +18,9 @@
   (:import (javax.servlet.http HttpServletResponse)))
 
 
-(defn pprint-code
-  [form]
-  ;; TODO: This
-  "Pretty prints the form using code indentation rules."
-  (pp/write form :dispatch pp/code-dispatch)
-  (prn))
-
-#_
-(defn namespace-handler
-  "Produces a handler based on the given namespace.
-
-  Defined here rather than in io.aviso.rook.dispatcher because this is
-  not, in general, the best way to use compile-dispatch-table;
-  instead, the dispatch tables for all resource namespaces should be
-  merged and the resulting table should be compiled."
-  ([ns-sym]
-     (dispatcher/compile-dispatch-table
-       (dispatcher/namespace-dispatch-table [ns-sym])))
-  ([context-pathvec ns-sym]
-     (dispatcher/compile-dispatch-table
-       (dispatcher/namespace-dispatch-table [context-pathvec ns-sym])))
-  ([context-pathvec ns-sym middleware]
-     (dispatcher/compile-dispatch-table
-       (dispatcher/namespace-dispatch-table [context-pathvec ns-sym middleware])))
-  ([options context-pathvec ns-sym middleware]
-     (dispatcher/compile-dispatch-table options
-       (dispatcher/namespace-dispatch-table [context-pathvec ns-sym middleware]))))
-
-
 (defn wrap-with-pprint-request [handler]
   (fn [request]
-    (pprint-code request)
+    (utils/pprint-code request)
     (handler request)))
 
 (defn wrap-with-pprint-response [handler]
@@ -58,8 +29,8 @@
       (if (satisfies? clojure.core.async.impl.protocols/ReadPort resp)
         (let [v (async/<!! resp)]
           (async/>!! resp v)
-          (pprint-code v))
-        (pprint-code resp))
+          (utils/pprint-code v))
+        (utils/pprint-code resp))
       (prn)
       resp)))
 
@@ -330,12 +301,7 @@
                       (rook-async/wrap-with-loopback
                         (rook/namespace-handler {:async? true}
                           [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
-                          [["barney"] 'barney rook/wrap-with-default-arg-resolvers])
-                        #_
-                        (dispatcher/compile-dispatch-table {:async? true}
-                          (dispatcher/namespace-dispatch-table
-                            [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
-                            [["barney"] 'barney rook/wrap-with-default-arg-resolvers]))))]
+                          [["barney"] 'barney rook/wrap-with-default-arg-resolvers])))]
         (should= ":barney says `ribs!'"
           (-> (mock/request :get "/fred")
             handler
@@ -348,13 +314,7 @@
                         (rook/namespace-handler {:async? true}
                           [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
                           [["barney"] 'barney rook/wrap-with-default-arg-resolvers]
-                          [["betty"] 'betty rook/wrap-with-default-arg-resolvers])
-                        #_
-                        (dispatcher/compile-dispatch-table {:async? true}
-                          (dispatcher/namespace-dispatch-table
-                            [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
-                            [["barney"] 'barney rook/wrap-with-default-arg-resolvers]
-                            [["betty"] 'betty rook/wrap-with-default-arg-resolvers]))))]
+                          [["betty"] 'betty rook/wrap-with-default-arg-resolvers])))]
         (should= ":barney says `:betty says `123 is a very fine id!''"
           (-> (mock/request :get "/fred/123") handler :body :message)))))
 

@@ -15,27 +15,6 @@
 
 (describe "io.aviso.rook.async"
 
-  #_
-  (describe "routing"
-
-    (it "return the first result that isn't nil"
-
-        (let [req {:uri "whatever"}]
-          (should= req
-                   (->
-                     (async/routing req
-                                    (fn [_] (thread nil))
-                                    (fn [request] (thread
-                                                    (utils/response 200 request))))
-                     <!!
-                     :body))))
-
-    (it "returns nil when there are no handlers"
-        (should= nil
-                 (->
-                   (async/routing {})
-                   <!!))))
-
   (describe "result->channel"
 
     (it "returns most values normally"
@@ -56,69 +35,11 @@
                               <!!))))
 
 
-  #_
-  (describe "namespace-handler"
-
-    (it "allows the path to be nil"
-        (let [handler (async/namespace-handler 'barney)]
-          (should= {:message "ribs!"}
-                   (->
-                     (mock/request :get "/")
-                     handler
-                     <!!
-                     :body))))
-
-    (it "should expose the request's :params key as an argument"
-        (let [handler (->
-                        (async/namespace-handler 'echo-params)
-                        (rook/wrap-with-default-arg-resolvers))
-              params {:foo :bar}]
-          (should-be-same params
-            (->
-              (mock/request :get "/")
-              (assoc :params params)
-              handler
-              <!!
-              :body
-              :params-arg)))))
-
-
-  #_
-  (describe "loopback-handler"
-
-    (it "should expose the loopback in the request"
-        (let [fred (fn [request]
-                     (go
-                       (if (= (:uri request) "/fred")
-                         (->
-                           (c/new-request (:loopback-handler request))
-                           (c/to :get :barney)
-                           c/send
-                           (c/then (reply (utils/response reply))))
-                         false)))
-              barney (fn [request]
-                       (go
-                         (if (= (:uri request) "/barney")
-                           (utils/response 200 "rubble")
-                           false)))
-              wrapped (async/wrap-with-loopback (async/routes fred barney))]
-          (should= "rubble"
-                   (->
-                     {:uri "/fred"}
-                     wrapped
-                     <!!
-                     :body)))))
-
   (describe "end-to-end test"
 
     (it "should allow resources to collaborate"
 
-        (let [#_#_
-              routes (async/routes
-                       (async/namespace-handler "/fred" 'fred)
-                       (async/namespace-handler "/barney" 'barney))
-              handler (->
-                        #_routes
+        (let [handler (->
                         (rook/namespace-handler
                           {:async? true}
                           [["fred"] 'fred]
@@ -133,7 +54,6 @@
 
     (it "properly sends schema validation failures"
         (let [handler (->
-                        #_(async/namespace-handler "/validating" 'validating)
                         (rook/namespace-handler
                           {:async? true}
                           [["validating"] 'validating async/wrap-with-schema-validation])
@@ -150,7 +70,6 @@
 
     (it "returns a 500 response if a sync handler throws an error"
         (let [handler (->
-                        #_(async/namespace-handler "/fail" 'failing)
                         (rook/namespace-handler
                           {:async? true}
                           [["fail"] 'failing])

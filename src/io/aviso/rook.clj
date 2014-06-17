@@ -33,17 +33,13 @@
   [arg request]
   (get request arg))
 
-
 (defn wrap-with-arg-resolvers
   "Middleware which adds the provided argument resolvers to the `[:rook :arg-resolvers]` collection.
   Argument resolvers are used to gain access to information in the request, or information that
   can be computed from the request, or static information that can be injected into resource handler
   functions."
   [handler & arg-resolvers]
-  (internals/wrap-with-arg-resolvers handler arg-resolvers)
-  #_
-  (fn [request]
-    (handler (update-in request [:rook :arg-resolvers] prefix-with arg-resolvers))))
+  (internals/wrap-with-arg-resolvers handler arg-resolvers))
 
 (defn- require-port?
   [scheme port]
@@ -58,8 +54,8 @@
   is calculated from the request's :scheme, :server-name, and :server-port.  It should be
   the address of the root of the server.
 
-  From there, the :context key (maintained by Compojure, when delving into nested contexts)
-  is used to assemble the rest of the URI.
+  From there, the :context key (made available by the dispatch
+  mechanism) is used to assemble the rest of the URI.
 
   The URI ends with a slash."
   [request]
@@ -71,8 +67,6 @@
                               (if (require-port? (:scheme request) port)
                                 (str ":" port)))))]
     (str server-uri (:context request) "/")))
-
-
 
 (defn clojureized-params-arg-resolver
   "Converts the Request :params map, changing each key from embedded underscores to embedded dashes, the
@@ -112,95 +106,12 @@
                                                    :params       :params
                                                    :params*      clojureized-params-arg-resolver})))
 
-#_
-(defn- get-compiled-paths
-  [namespace-name]
-  (l/debugf "Scanning %s for mappable functions" namespace-name)
-  (->> (internals/get-available-paths namespace-name)
-       (map (fn [[route-method route-path f full-meta]]
-              (assert (internals/supported-methods route-method)
-                      (format "Method %s (from :path-spec of function %s) must be one of %s."
-                              route-method
-                              f
-                              (str/join ", " internals/supported-methods)))
-              ;; It would be nice if there was a way to qualify the path for when we are nested
-              ;; inside a Compojure context, but we'd need the request to do that.
-              (l/debugf "Mapping %s to %s"
-                        (utils/summarize-method-and-uri route-method route-path) f)
-              [route-method (clout/route-compile route-path) f full-meta]))
-       (remove nil?)
-       doall))
-
-#_
-(defn wrap-namespace
-  "Middleware that scans provided namespace and if any of the functions defined there matches the route spec -
-  either by metadata or by default mappings from function name - sets this functions metadata in request map.
-
-  This does not invoke the function; that is the responsibility of the [[rook-dispatcher]]
-  function. Several additional middleware filters will typically sit between identifying the function and actually invoking it."
-  [handler namespace-name]
-  (let [compiled-paths (get-compiled-paths namespace-name)]
-    (fn [request]
-      ;; The handler is always invoked.  If there's a matching function in the namespace,
-      ;; then the request will contain that matching function data in the :rook key. Otherwise
-      ;; the handler is invoked with the unchanged request (because a nested context may
-      ;; want to handle the request).
-      (handler (or
-                 (internals/match-against-compiled-paths request namespace-name compiled-paths)
-                 request)))))
-
-#_
-(defn rook-dispatcher
-  "Ring request handler that uses information from :rook map (within the Ring request map) to invoke the previously
-  identified function, after resolving the function's arguments. This function must always be wrapped
-  in [[wrap-namespace]] (which is what identifies the resource handler function that is to be invoked).
-
-  This should also always be wrapped with [[wrap-with-function-arg-resolvers]],
-  to ensure that function-specific argument resolvers are present in the `[:rook :arg-resolvers]` key."
-  [{{f :function metadata :metadata resolvers :arg-resolvers} :rook :as request}]
-  (let [args (-> metadata :arglists first)
-        argument-values (map #(internals/extract-argument-value % request resolvers) args)]
-    (when f
-      (l/debug "Invoking handler function" f)
-      (apply f argument-values))))
-
 (defn wrap-with-function-arg-resolvers
   "Wraps the handler with a request that has the :arg-resolvers key extended with any
   function-specific arg-resolvers (from the function's meta-data)."
   [handler]
   (fn [request]
     (handler (update-in request [:rook :arg-resolvers] internals/prefix-with (-> request :rook :metadata :arg-resolvers)))))
-
-#_
-(def default-rook-pipeline
-  "The default pipeline for invoking a resource handler function: wraps
-  [[rook-dispatcher]] to do the actual work with middleware to extend :args-resolvers with function-specific arg resolvers and
-  schema validation."
-  (-> rook-dispatcher
-      wrap-with-function-arg-resolvers
-      v/wrap-with-schema-validation))
-
-#_
-(defn namespace-handler
-  "Helper handler, which wraps rook-dispatcher in namespace middleware.
-
-  - path - if not nil, then a Compojure context is created to contain the created middleware and handler.
-    The path should start with a slash, but not end with one.
-  - namespace-name - the symbol identifying the namespace to scan, e.g., `'org.example.resources.users`
-  - handler - The handler to use; defaults to [[default-rook-pipeline]], but in many cases, you will want to wrap
-    or replace `default-rook-pipeline` with additional middleware, or combine several handlers into a single Compojure route.
-
-  The advanced version also takes a path for `compojure.core/context` and the handler to invoke."
-  ;; I'm thinking that handlers is wrong; the handlers should actually be middleware.
-  ([namespace-name]
-   (namespace-handler nil namespace-name))
-  ([path namespace-name]
-   (namespace-handler path namespace-name default-rook-pipeline))
-  ([path namespace-name handler]
-   (let [handler' (wrap-namespace handler namespace-name)]
-     (if path
-       (compojure/context path [] handler')
-       handler'))))
 
 (defn wrap-with-standard-middleware
   "The standard middleware that Rook expects to be present before it is passed the Ring request."
@@ -212,8 +123,62 @@
       ring.middleware.params/wrap-params))
 
 (defn namespace-handler
-  "Produces a handler based on the given namespaces. Supports the same
-  syntax namespace-dispatch-table does."
+  "Examines the given namespaces and produces either a Ring handler or
+  an asynchronous Ring handler (for use with functions exported by the
+  io.aviso.rook.async and io.aviso.rook.jetty-async-adapter
+  namespaces).
+
+  The individual namespaces are specified as vectors of the following
+  shape:
+
+      [context-pathvec? ns-sym middleware?]
+
+  The optional fragments are interpreted as below (defaults listed in
+  brackets):
+
+   - context-pathvec? ([]):
+
+     A context pathvec to be prepended to pathvecs for all entries
+     emitted for this namespace.
+
+   - middleware? (clojure.core/identity or as supplied in options?):
+
+     Middleware to be applied to terminal handlers found in this
+     namespace.
+
+  The options map, if supplied, can include the following keys (listed
+  below with their default values):
+
+  :context-pathvec
+
+  : _Default: []_
+
+  : Top-level context-pathvec that will be prepended to
+    context-pathvecs for the individual namespaces.
+
+  :default-middleware
+
+  : _Default: clojure.core/identity_
+
+  : Default middleware used for namespaces for which no middleware
+    was specified.
+
+  :async?
+
+  : _Default: false_
+
+  : If `true`, an async handler will be returned.
+
+  Example call:
+
+      (namespace-handler
+        {:context-pathvec    [\"api\"]
+         :default-middleware basic-middleware}
+        ;; foo & bar use basic middleware:
+        [[\"foo\"]  'example.foo]
+        [[\"bar\"]  'example.bar]
+        ;; quux has special requirements:
+        [[\"quux\"] 'example.quux special-middleware])."
   [options? & ns-specs]
   (dispatcher/compile-dispatch-table (if (map? options?) options?)
     (apply dispatcher/namespace-dispatch-table options? ns-specs)))
