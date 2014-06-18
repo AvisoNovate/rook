@@ -375,14 +375,16 @@
                            rook/wrap-with-function-arg-resolvers
                            rook-async/wrap-with-schema-validation))
             handler (->
-                      (rook/namespace-handler {:async? true}
-                        [["fred"] 'fred middleware]
-                        [["barney"] 'barney middleware]
-                        [["betty"] 'betty middleware]
-                        [["slow"] 'slow middleware]
-                        [["sessions"] 'sessions middleware]
-                        [["creator"] 'creator middleware]
-                        [["creator-loopback"] 'creator-loopback middleware]
+                      (rook/namespace-handler
+                        {:async? true
+                         :default-middleware middleware}
+                        [["fred"] 'fred]
+                        [["barney"] 'barney]
+                        [["betty"] 'betty]
+                        [["slow"] 'slow]
+                        [["sessions"] 'sessions]
+                        [["creator"] 'creator]
+                        [["creator-loopback"] 'creator-loopback]
                         [["static"] 'static identity]
                         [["static2" :foo "asdf"] 'static2 identity]
                         [["catch-all"] 'catch-all identity])
