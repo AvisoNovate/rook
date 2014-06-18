@@ -41,13 +41,6 @@
   [handler & arg-resolvers]
   (internals/wrap-with-arg-resolvers handler arg-resolvers))
 
-(defn- require-port?
-  [scheme port]
-  (case scheme
-    :http (not (= port 80))
-    :https (not (= port 443))
-    true))
-
 (defn resource-uri-arg-resolver
   "Calculates the URI for a resource (handy when creating a Location header, for example).
   First, calculates the server URI, which is either the :server-uri key in the request _or_
@@ -59,14 +52,7 @@
 
   The URI ends with a slash."
   [request]
-  (let [server-uri (or (:server-uri request)
-                       (str (-> request :scheme name)
-                            "://"
-                            (-> request :server-name)
-                            (let [port (-> request :server-port)]
-                              (if (require-port? (:scheme request) port)
-                                (str ":" port)))))]
-    (str server-uri (:context request) "/")))
+  (internals/resource-uri-for request))
 
 (defn clojureized-params-arg-resolver
   "Converts the Request :params map, changing each key from embedded underscores to embedded dashes, the

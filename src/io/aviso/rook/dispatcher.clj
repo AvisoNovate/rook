@@ -297,26 +297,30 @@
              ;; unsupported method for path
              not-found-response))))))
 
-(defn header-arg-resolver [sym]
+(defn make-header-arg-resolver [sym]
   (fn [request]
     (-> request :headers (get (name sym)))))
 
-(defn param-arg-resolver [sym]
+(defn make-param-arg-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (-> request :params kw))))
 
-(defn request-key-resolver [sym]
+(defn make-request-key-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (kw request))))
 
-(defn route-param-resolver [sym]
+(defn make-route-param-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (-> request :route-params kw))))
 
-(defn default-resolver [sym]
+(defn make-resource-uri-arg-resolver [sym]
+  (fn [request]
+    (internals/resource-uri-for request)))
+
+(defn make-default-resolver [sym]
   (fn [request]
     (internals/extract-argument-value
       sym request (-> request :rook :arg-resolvers))))
@@ -324,10 +328,11 @@
 (def standard-resolvers
   "A map of keyword -> (function of symbol returning a function of
   request)."
-  {:request     (constantly identity)
-   :request-key request-key-resolver
-   :header      header-arg-resolver
-   :param       param-arg-resolver})
+  {:request      (constantly identity)
+   :request-key  make-request-key-resolver
+   :header       make-header-arg-resolver
+   :param        make-param-arg-resolver
+   :resource-uri make-resource-uri-arg-resolver})
 
 (def ^:private standard-resolver-keywords
   (set (keys standard-resolvers)))
@@ -337,9 +342,9 @@
   (let [route-params (set route-params)
         resolvers    (map (fn [arg]
                             (condp contains? arg
-                              route-params (route-param-resolver arg)
+                              route-params (make-route-param-resolver arg)
                               resolvers    (get resolvers arg)
-                              (default-resolver arg)))
+                              (make-default-resolver arg)))
                        arglist)]
     (if (seq resolvers)
       (apply juxt resolvers)

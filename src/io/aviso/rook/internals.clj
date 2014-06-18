@@ -29,6 +29,26 @@
       (.replace \- \_)
       keyword))
 
+(defn- require-port?
+  [scheme port]
+  (case scheme
+    :http (not (= port 80))
+    :https (not (= port 443))
+    true))
+
+(defn resource-uri-for
+  "Backs [[io.aviso.rook/resource-uri-arg-resolver]] and
+  ^:resource-uri tag support in [[io.aviso.rook.dispatcher]]."
+  [request]
+  (let [server-uri (or (:server-uri request)
+                       (str (-> request :scheme name)
+                            "://"
+                            (-> request :server-name)
+                            (let [port (-> request :server-port)]
+                              (if (require-port? (:scheme request) port)
+                                (str ":" port)))))]
+    (str server-uri (:context request) "/")))
+
 (defn extract-argument-value
   "Uses the arg-resolvers to identify the resolved value for an argument. First a check for
   the keyword version of the argument (which is a symbol) takes place. If that resolves as nil,
