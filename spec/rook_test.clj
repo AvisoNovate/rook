@@ -1,6 +1,6 @@
 (ns rook-test)
 
-(defn index [limit]
+(defn index [^:param limit]
   {:status 200
    :body   (str "limit=" limit)})
 
@@ -11,7 +11,13 @@
 (defn activate
   {:route-spec [:post [:id "activate"]]
    :path-spec [:post "/:id/activate"]}
-  [test1 id request test2 test3 test4 request-method]
+  [test1
+   id
+   ^:request request
+   test2
+   test3
+   test4
+   ^:request-key request-method]
   (str "test1=" test1
        ",id=" id
        ",test2=" test2,

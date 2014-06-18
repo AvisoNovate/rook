@@ -8,5 +8,5 @@
    :schema {:name                     s/Str
             (s/optional-key :address) [s/Str]
             (s/optional-key :city)    s/Str}}
-  [params]
+  [^:request-key params]
   (utils/response 200 (-> params keys sort)))

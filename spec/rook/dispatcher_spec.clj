@@ -80,7 +80,7 @@
              (resp/response "Hello!"))
            (defn show [id]
              (resp/response (str "Interesting id: " id)))
-           (defn create [x]
+           (defn create [^:param x]
              (resp/response (str "Created " x))))))
 
 (create-ns 'example.bar)
@@ -93,7 +93,7 @@
              (resp/response "Hello!"))
            (defn show [id]
              (resp/response (str "Interesting id: " id)))
-           (defn create [x]
+           (defn create [^:param x]
              (resp/response (str "Created " x))))))
 
 
@@ -147,9 +147,7 @@
 
     (it "should produce a handler returning valid response maps"
 
-      (let [handler (dispatcher/compile-dispatch-table
-                      (mapv (comp #(conj % rook/wrap-with-default-arg-resolvers) pop)
-                        simple-dispatch-table))
+      (let [handler (dispatcher/compile-dispatch-table simple-dispatch-table)
             index-response  (handler (mock/request :get "/foo"))
             show-response   (handler (mock/request :get "/foo/1"))
             create-response (handler (merge (mock/request :post "/foo")
@@ -236,7 +234,6 @@
           (should= expected-value
             (let [mw (fn [handler]
                        (-> handler
-                         rook/wrap-with-default-arg-resolvers
                          wrap-with-resolve-method
                          ring.middleware.keyword-params/wrap-keyword-params
                          ring.middleware.params/wrap-params))
@@ -276,7 +273,7 @@
 
     (it "should expose the request's :params key as an argument"
       (let [handler (rook/namespace-handler {:async? true}
-                      [[] 'echo-params rook/wrap-with-default-arg-resolvers])
+                      [[] 'echo-params])
             params {:foo :bar}]
         (should-be-same params
           (-> (mock/request :get "/")
@@ -300,8 +297,8 @@
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
                         (rook/namespace-handler {:async? true}
-                          [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
-                          [["barney"] 'barney rook/wrap-with-default-arg-resolvers])))]
+                          [["fred"] 'fred]
+                          [["barney"] 'barney])))]
         (should= ":barney says `ribs!'"
           (-> (mock/request :get "/fred")
             handler
@@ -312,9 +309,9 @@
       (let [handler (rook-async/async-handler->ring-handler
                       (rook-async/wrap-with-loopback
                         (rook/namespace-handler {:async? true}
-                          [["fred"] 'fred rook/wrap-with-default-arg-resolvers]
-                          [["barney"] 'barney rook/wrap-with-default-arg-resolvers]
-                          [["betty"] 'betty rook/wrap-with-default-arg-resolvers])))]
+                          [["fred"] 'fred]
+                          [["barney"] 'barney]
+                          [["betty"] 'betty])))]
         (should= ":barney says `:betty says `123 is a very fine id!''"
           (-> (mock/request :get "/fred/123") handler :body :message)))))
 
@@ -323,8 +320,7 @@
     (it "should respond appropriately given a valid request"
       (let [middleware (fn [handler]
                          (-> handler
-                           rook-async/wrap-with-schema-validation
-                           rook/wrap-with-default-arg-resolvers))
+                           rook-async/wrap-with-schema-validation))
             handler    (->> (dispatcher/namespace-dispatch-table
                               [["validating"] 'validating middleware])
                          (dispatcher/compile-dispatch-table {:async? true})
