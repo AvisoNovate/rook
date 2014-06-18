@@ -229,14 +229,12 @@
           (should= :post method)
           (should= "/:user-name/:password" uri))))
 
-  #_
   (describe ":resource-uri argument resolver"
 
-    (with handler (-> (namespace-handler nil 'creator
-                                         (compojure/routes
-                                           (namespace-handler "/nested" 'creator)
-                                           default-rook-pipeline))
-                      wrap-with-standard-middleware))
+    (with handler (wrap-with-standard-middleware
+                    (namespace-handler
+                      [[] 'creator]
+                      [["nested"] 'creator])))
     (with request {:scheme         :http
                    :server-name    "rook.aviso.io"
                    :server-port    80
