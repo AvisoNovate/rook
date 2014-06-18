@@ -128,10 +128,10 @@
     (it "should operate with all types of arg-resolvers"
         (let [test-mw (-> (namespace-handler ['rook-test])
                           (wrap-with-arg-resolvers
-                            (build-map-arg-resolver {:test1 "TEST!" :test2 "TEST@" :test3 "TEST#"})
+                            (build-map-arg-resolver {:test3 "TEST#"})
                             (build-fn-arg-resolver {:test4 (fn [request] (str "test$" (:uri request)))}))
                           param-handling)]
-          (should= "test1=TEST!,id=123,test2=TEST@,test3=TEST#,test4=test$/123/activate,meth=:post"
+          (should= "test1=1test,id=123,test2=,test3=TEST#,test4=test$/123/activate,meth=:post"
                    (->
                      ;; So we've set up a specific conflict for test1 ... is it the query parameter value "1test"
                      ;; or is it the arg-resolver value "TEST!". The correct answer is "TEST!" because

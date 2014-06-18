@@ -11,10 +11,10 @@
 (defn activate
   {:route-spec [:post [:id "activate"]]
    :path-spec [:post "/:id/activate"]}
-  [test1
+  [^:param test1
    id
    ^:request request
-   test2
+   ^:param test2
    test3
    test4
    ^:request-key request-method]

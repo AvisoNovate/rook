@@ -259,8 +259,8 @@
         :put "/123"          'rook-test {} nil
 
         :post "/123/activate" 'rook-test
-        {:test1 "foo" :test2 "bar" :test3 "baz" :test4 "quux"}
-        "test1=foo,id=123,test2=bar,test3=baz,test4=quux,meth=:post")))
+        {:test1 "foo" :test2 "bar"}
+        "test1=foo,id=123,test2=bar,test3=,test4=,meth=:post")))
 
   (describe "async handlers"
 
