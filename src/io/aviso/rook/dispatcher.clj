@@ -420,17 +420,6 @@
       (assoc-in dispatch-map dispatch-path handler)
       (map vector binding-names binding-paths))))
 
-#_
-(defn- applicable-middleware
-  [specified-middleware arg-resolvers]
-  (let [mw (eval specified-middleware)]
-    (if (seq arg-resolvers)
-      (let [resolvers (mapv eval arg-resolvers)]
-        (fn [handler]
-          (internals/wrap-with-arg-resolvers
-            (mw handler) resolvers)))
-      mw)))
-
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
