@@ -49,8 +49,8 @@
   (prn))
 
 (defn summarize-method-and-uri
-  [method uri]
   "Formats a method (a keyword, e.g. :get) and a URI into a single string."
+  [method uri]
   (format "%s `%s'"
           (-> method name .toUpperCase)
           uri))
