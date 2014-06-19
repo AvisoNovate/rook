@@ -181,7 +181,6 @@
   "The equivalent of `io.aviso.rook/wrap-with-standard-middleware`, but for an asynchronous pipeline."
   [handler]
   (-> handler
-      rook/wrap-with-default-arg-resolvers
       wrap-restful-format
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))

@@ -2,5 +2,5 @@
 
 (defn proxy-request
   {:path-spec [:all "/proxy"]}
-  [request-method]
+  [^:request-key request-method]
   (str "method=" (-> request-method name .toUpperCase)))

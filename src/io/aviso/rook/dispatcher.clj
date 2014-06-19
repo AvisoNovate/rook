@@ -320,12 +320,7 @@
   (fn [request]
     (internals/resource-uri-for request)))
 
-(defn make-default-resolver [sym]
-  (fn [request]
-    (internals/extract-argument-value
-      sym request (-> request :rook :arg-resolvers))))
-
-(def standard-resolvers
+(def standard-resolver-factories
   "A map of keyword -> (function of symbol returning a function of
   request)."
   {:request      (constantly identity)
@@ -334,17 +329,38 @@
    :param        make-param-arg-resolver
    :resource-uri make-resource-uri-arg-resolver})
 
+(def standard-arg-resolvers
+  "A map of symbol -> (function of request)."
+  {'request      identity
+   'params       :params
+   'params*      internals/clojurized-params-arg-resolver
+   'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})
+
+(defn make-default-resolver [sym]
+  (or (get standard-arg-resolvers sym)
+      (throw (ex-info (str "No default argument resolver for symbol " sym)
+               {:symbol sym}))))
+
 (def ^:private standard-resolver-keywords
-  (set (keys standard-resolvers)))
+  (set (keys standard-resolver-factories)))
+
+(defn- arg-name [arg]
+  (if (map? arg)
+    (if-let [as (:as arg)]
+      as
+      (throw (ex-info "map argument has no :as key"
+               {:arg arg})))
+    arg))
 
 (defn- arglist-resolver
   [arglist resolvers route-params]
   (let [route-params (set route-params)
         resolvers    (map (fn [arg]
-                            (condp contains? arg
-                              route-params (make-route-param-resolver arg)
-                              resolvers    (get resolvers arg)
-                              (make-default-resolver arg)))
+                            (let [arg (arg-name arg)]
+                              (condp contains? arg
+                                route-params (make-route-param-resolver arg)
+                                resolvers    (get resolvers arg)
+                                (make-default-resolver arg))))
                        arglist)]
     (if (seq resolvers)
       (apply juxt resolvers)
@@ -353,7 +369,7 @@
 (defn- resolver-entry
   [arg resolver]
   (if (keyword? resolver)
-    (if-let [f (get standard-resolvers resolver)]
+    (if-let [f (get standard-resolver-factories resolver)]
       [arg (f arg)]
       (throw (ex-info (str "unknown resolver keyword: " resolver)
                {:arg arg :resolver resolver})))
@@ -373,17 +389,18 @@
                {:arg arg :resolver-tags resolver-ks})))))
 
 (defn- resolvers-for
-  [arglist resolvers-meta]
+  [arglist resolvers-map]
   (into {}
     (keep (fn [arg]
-            (cond
-              (contains? resolvers-meta arg)
-              (let [resolver (get resolvers-meta arg)]
-                (resolver-entry arg resolver))
-              (contains? (meta arg) :io.aviso.rook/resolver)
-              (resolver-entry arg (:io.aviso.rook/resolver (meta arg)))
-              :else
-              (maybe-resolver-by-tag arg)))
+            (let [arg (arg-name arg)]
+              (cond
+                (contains? resolvers-map arg)
+                (let [resolver (get resolvers-map arg)]
+                  (resolver-entry arg resolver))
+                (contains? (meta arg) :io.aviso.rook/resolver)
+                (resolver-entry arg (:io.aviso.rook/resolver (meta arg)))
+                :else
+                (maybe-resolver-by-tag arg))))
       arglist)))
 
 (defn- add-dispatch-entries
@@ -403,6 +420,7 @@
       (assoc-in dispatch-map dispatch-path handler)
       (map vector binding-names binding-paths))))
 
+#_
 (defn- applicable-middleware
   [specified-middleware arg-resolvers]
   (let [mw (eval specified-middleware)]
@@ -429,12 +447,11 @@
 
                   resolve-args (arglist-resolver
                                  arglist
-                                 (resolvers-for arglist (:resolvers metadata))
+                                 (resolvers-for arglist
+                                   (eval (:arg-resolvers metadata)))
                                  route-params)
 
-                  mw (applicable-middleware
-                       (get middleware middleware-sym)
-                       arg-resolvers)
+                  mw (eval (get middleware middleware-sym))
 
                   f  (let [ef (eval verb-fn-sym)]
                        (fn wrapped-handler [request]

@@ -4,7 +4,7 @@
   ;;
   ;; Used a non-standard prefix for rook, to demonstrate that the eval occurs
   ;; in the fred namespace, not somewhere where there's a rook alias already.
-  {:arg-resolvers [(io.aviso.rook/build-map-arg-resolver {:partner :barney})]}
+  {:arg-resolvers {'partner (constantly :barney)}}
   (:require
     [clojure.core.async :refer [go]]
     [io.aviso.rook :as r]
@@ -13,7 +13,7 @@
      [utils :as utils]]))
 
 (defn index
-  [loopback-handler partner]
+  [^:request-key loopback-handler partner]
   (go
     (-> (c/new-request loopback-handler)
         (c/to :get partner)
@@ -21,7 +21,7 @@
         (c/then (response
                   (utils/response {:message (format "%s says `%s'" partner (:message response))}))))))
 
-(defn show [id loopback-handler partner]
+(defn show [id ^:request-key loopback-handler partner]
   (go
     (->
       (c/new-request loopback-handler)

@@ -260,7 +260,7 @@
 
         :post "/123/activate" 'rook-test
         {:test1 "foo" :test2 "bar"}
-        "test1=foo,id=123,test2=bar,test3=,test4=,meth=:post")))
+        "test1=foo,id=123,test2=bar,test3=TEST#,test4=test$/123/activate,meth=:post")))
 
   (describe "async handlers"
 
@@ -370,14 +370,10 @@
   (describe "running inside jetty-async-adapter"
 
     (with-all server
-      (let [middleware (fn [handler]
-                         (-> handler
-                           rook/wrap-with-function-arg-resolvers
-                           rook-async/wrap-with-schema-validation))
-            handler (->
+      (let [handler (->
                       (rook/namespace-handler
                         {:async? true
-                         :default-middleware middleware}
+                         :default-middleware rook-async/wrap-with-schema-validation}
                         [["fred"] 'fred]
                         [["barney"] 'barney]
                         [["betty"] 'betty]

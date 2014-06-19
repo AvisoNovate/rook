@@ -21,6 +21,11 @@
       (.replace \_ \-)
       keyword))
 
+(defn clojurized-params-arg-resolver [request]
+  (->> request
+       :params
+       (medley/map-keys to-clojureized-keyword)))
+
 (defn to-api-keyword
   "Converts a keyword with embedded dashes into one with embedded underscores."
   [kw]

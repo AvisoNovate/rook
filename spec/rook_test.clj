@@ -1,4 +1,6 @@
-(ns rook-test)
+(ns rook-test
+  {:arg-resolvers {'test3 (constantly "TEST#")
+                   'test4 (fn [request] (str "test$" (:uri request)))}})
 
 (defn index [^:param limit]
   {:status 200
@@ -30,6 +32,6 @@
 
 (defn check-if-modified
   {:path-spec [:post "/:id/if-modified-since"]}
-  [id if-modified-since]
+  [id ^:header if-modified-since]
   {:id id
    :if-modified-since if-modified-since})

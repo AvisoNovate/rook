@@ -66,32 +66,9 @@
 
   This reflects the default configuration, where `params*` is mapped to this function."
   [request]
-  (->> request
-       :params
-       (medley/map-keys internals/to-clojureized-keyword)))
+  (internals/clojurized-params-arg-resolver request))
 
-(defn wrap-with-default-arg-resolvers
-  "Adds a default set of argument resolvers, allowing for resolution of:
-
-   - :request - the Ring request map
-   - :params  - the :params key of the Ring request map
-   - :params*  - the :params key of the Ring request map, with keys _Clojurized_
-   - :resource-uri - via [[resource-uri-arg-resolver]]
-   - the argument as a parameter from the :params map
-   - the argument as a parameter from the :route-params map
-   - the argument as a header from the :headers map"
-  [handler]
-  (wrap-with-arg-resolvers handler
-                           (fn [kw request]
-                             (or
-                               (get-in request [:params kw])
-                               (get-in request [:route-params kw])
-                               (get-in request [:headers (name kw)])))
-                           (build-fn-arg-resolver {:request      identity
-                                                   :resource-uri resource-uri-arg-resolver
-                                                   :params       :params
-                                                   :params*      clojureized-params-arg-resolver})))
-
+#_
 (defn wrap-with-function-arg-resolvers
   "Wraps the handler with a request that has the :arg-resolvers key extended with any
   function-specific arg-resolvers (from the function's meta-data)."
@@ -103,7 +80,6 @@
   "The standard middleware that Rook expects to be present before it is passed the Ring request."
   [handler]
   (-> handler
-      wrap-with-default-arg-resolvers
       (ring.middleware.format/wrap-restful-format :formats [:json-kw :edn])
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
