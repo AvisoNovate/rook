@@ -251,7 +251,8 @@
             context          (:context (meta pathvec))
             arglist          (first (:arglists metadata))
             non-route-params (remove (set route-params) arglist)
-            arg-resolvers    (:arg-resolvers metadata)
+            arg-resolvers    (binding [*ns* ns]
+                               (eval (:arg-resolvers metadata)))
             schema           (:schema metadata)
             handler (cond->
                       {:middleware-sym   mw-sym
@@ -436,8 +437,7 @@
 
                   resolve-args (arglist-resolver
                                  arglist
-                                 (resolvers-for arglist
-                                   (eval (:arg-resolvers metadata)))
+                                 (resolvers-for arglist arg-resolvers)
                                  route-params)
 
                   mw (eval (get middleware middleware-sym))
