@@ -373,7 +373,8 @@
       (let [handler (->
                       (rook/namespace-handler
                         {:async? true
-                         :default-middleware rook-async/wrap-with-schema-validation}
+                         :default-middleware rook-async/wrap-with-schema-validation
+                         :arg-resolvers {'strange-injection :injection}}
                         [["fred"] 'fred]
                         [["barney"] 'barney]
                         [["betty"] 'betty]
@@ -383,10 +384,13 @@
                         [["creator-loopback"] 'creator-loopback]
                         [["static"] 'static identity]
                         [["static2" :foo "asdf"] 'static2 identity]
-                        [["catch-all"] 'catch-all identity])
+                        [["catch-all"] 'catch-all identity]
+                        [["surprise"] 'surprise identity])
                       rook-async/wrap-with-loopback
                       rook-async/wrap-session
-                      rook-async/wrap-with-standard-middleware)]
+                      rook-async/wrap-with-standard-middleware
+                      (rook-async/wrap-with-injections
+                        {:strange-injection "really surprising"}))]
         (jetty/run-async-jetty handler
           {:host "localhost" :port 9988 :join? false :async-timeout 100})))
 
@@ -471,6 +475,10 @@
             response2 (http/put "http://localhost:9988/catch-all")]
         (should= "Caught you!" (:body response1))
         (should= "Caught you!" (:body response2))))
+
+    (it "should support injections and default argument resolvers"
+      (let [response (http/get "http://localhost:9988/surprise")]
+        (should= "This is really surprising!" (:body response))))
 
     (after-all
       (.stop @server))))
