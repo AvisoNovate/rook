@@ -136,16 +136,33 @@
    (wrap-with-loopback handler :loopback-handler))
   ([handler k]
    (fn [request]
-     (let [arg-resolvers (-> request :rook :arg-resolvers)
+     (let [injections (-> request ::rook/injections)
            captured-request-data (select-keys request request-copy-properties)]
        (letfn [(handler' [nested-request]
                          (let [wrapped (rook/wrap-with-arg-resolvers handler (rook/build-map-arg-resolver {k handler'}))
                                request' (-> nested-request
                                             (assoc k handler')
-                                            (assoc-in [:rook :arg-resolvers] arg-resolvers)
+                                            (assoc ::rook/injections injections)
                                             (merge captured-request-data))]
                            (wrapped request')))]
          (handler' request))))))
+
+(defn wrap-with-injections
+  "Merges the given map into the map found at
+  `:io.aviso.rook/injections` key in the request prior to passing it
+  to the handler. May be specified multiple times in the middleware stack.
+
+  Injections thus added to the request will be preserved for requests
+  made via the loopback mechanism."
+  [handler injections]
+  (fn [request]
+    (handler (update-in request [::rook/injections] merge injections))))
+
+(defn get-injection
+  "Extracts the injection named by the given keyword from the
+  request."
+  [request kw]
+  (-> request ::rook/injections kw))
 
 (defn wrap-restful-format
   "Asychronous version of `ring.middleware.format/wrap-restful-format`; this implementation uses

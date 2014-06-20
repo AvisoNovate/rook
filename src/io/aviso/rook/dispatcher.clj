@@ -321,6 +321,11 @@
   (fn [request]
     (internals/resource-uri-for request)))
 
+(defn make-injection-resolver [sym]
+  (let [kw (keyword sym)]
+    (fn [request]
+      (-> request :io.aviso.rook/injections kw))))
+
 (def standard-resolver-factories
   "A map of keyword -> (function of symbol returning a function of
   request)."
@@ -328,6 +333,7 @@
    :request-key  make-request-key-resolver
    :header       make-header-arg-resolver
    :param        make-param-arg-resolver
+   :injection    make-injection-resolver
    :resource-uri make-resource-uri-arg-resolver})
 
 (def standard-arg-resolvers
