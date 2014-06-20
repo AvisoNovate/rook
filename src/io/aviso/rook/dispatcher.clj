@@ -220,7 +220,18 @@
   The structure of handler-maps is as required by handler-form;
   middleware-spec is the literal form specifying the middleware in the
   dispatch table; a route-spec* is a route-spec with keywords replaced
-  by symbols in the pathvec."
+  by symbols in the pathvec.
+
+  `options` should be a map of options or `nil`. Currently only one
+  option is supported:
+
+  :arg-resolvers
+
+  : _Default: nil_
+
+  : Can be used to specify default resolvers (which will be overridden
+    by argument resolvers specified in namespace or function
+    metadata)."
   [dispatch-table options]
   (let [extra-arg-resolvers (:arg-resolvers options)]
     (loop [routes     {}
@@ -477,7 +488,8 @@
   [analysed-dispatch-table opts]
   (let [dispatch-map (build-dispatch-map analysed-dispatch-table opts)]
     (if (:async? opts)
-      (map-traversal-dispatcher dispatch-map (doto (async/chan) (async/close!)))
+      (map-traversal-dispatcher dispatch-map
+        (doto (async/chan) (async/close!)))
       (map-traversal-dispatcher dispatch-map))))
 
 (def ^:private dispatch-table-compilation-defaults
@@ -503,7 +515,16 @@
 
   : _Default: [[build-map-traversal-handler]]_
 
-  : Will be called with routes, handlers, middleware and should produce a Ring handler."
+  : Will be called with routes, handlers, middleware and should
+    produce a Ring handler.
+
+  :arg-resolvers
+
+  : _Default: nil_
+
+  : Can be used to specify default resolvers (which will be overridden
+    by argument resolvers specified in namespace or function
+    metadata)."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults
