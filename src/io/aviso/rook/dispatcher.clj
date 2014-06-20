@@ -221,56 +221,59 @@
   middleware-spec is the literal form specifying the middleware in the
   dispatch table; a route-spec* is a route-spec with keywords replaced
   by symbols in the pathvec."
-  [dispatch-table]
-  (loop [routes     {}
-         handlers   {}
-         middleware {}
-         entries    (seq (unnest-dispatch-table dispatch-table))]
-    (if-let [[method pathvec verb-fn-sym mw-spec] (first entries)]
-      (let [handler-sym (gensym "handler_sym__")
-            routes      (assoc routes
-                          [method (keywords->symbols pathvec)] handler-sym)
-            [middleware mw-sym]
-            (if (contains? middleware mw-spec)
-              [middleware (get middleware mw-spec)]
-              (let [mw-sym (gensym "mw_sym__")]
-                [(assoc middleware mw-spec mw-sym) mw-sym]))
-            ns               (-> verb-fn-sym namespace symbol the-ns)
-            ns-metadata      (meta ns)
-            metadata         (merge (reduce-kv (fn [out k v]
-                                                 (assoc out
-                                                   k (if (symbol? v)
-                                                       @(ns-resolve ns v)
-                                                       v)))
-                                      {}
-                                      (dissoc ns-metadata :doc))
-                               (meta (resolve verb-fn-sym)))
-            sync?            (:sync metadata)
-            route-params     (mapv (comp symbol name)
-                               (filter keyword? pathvec))
-            context          (:context (meta pathvec))
-            arglist          (first (:arglists metadata))
-            non-route-params (remove (set route-params) arglist)
-            arg-resolvers    (binding [*ns* ns]
-                               (eval (:arg-resolvers metadata)))
-            schema           (:schema metadata)
-            handler (cond->
-                      {:middleware-sym   mw-sym
-                       :route-params     route-params
-                       :non-route-params non-route-params
-                       :verb-fn-sym      verb-fn-sym
-                       :arglist          arglist
-                       :arg-resolvers    arg-resolvers
-                       :schema           schema
-                       :sync?            sync?
-                       :metadata         metadata}
-                      context
-                      (assoc :context (string/join "/" (cons "" context))))
-            handlers (assoc handlers handler-sym handler)]
-        (recur routes handlers middleware (next entries)))
-      {:routes     (sorted-routes routes)
-       :handlers   handlers
-       :middleware (set/map-invert middleware)})))
+  [dispatch-table options]
+  (let [extra-arg-resolvers (:arg-resolvers options)]
+    (loop [routes     {}
+           handlers   {}
+           middleware {}
+           entries    (seq (unnest-dispatch-table dispatch-table))]
+      (if-let [[method pathvec verb-fn-sym mw-spec] (first entries)]
+        (let [handler-sym (gensym "handler_sym__")
+              routes      (assoc routes
+                            [method (keywords->symbols pathvec)] handler-sym)
+              [middleware mw-sym]
+              (if (contains? middleware mw-spec)
+                [middleware (get middleware mw-spec)]
+                (let [mw-sym (gensym "mw_sym__")]
+                  [(assoc middleware mw-spec mw-sym) mw-sym]))
+              ns               (-> verb-fn-sym namespace symbol the-ns)
+              ns-metadata      (meta ns)
+              metadata         (merge (reduce-kv (fn [out k v]
+                                                   (assoc out
+                                                     k (if (symbol? v)
+                                                         @(ns-resolve ns v)
+                                                         v)))
+                                        {}
+                                        (dissoc ns-metadata :doc))
+                                 (meta (resolve verb-fn-sym)))
+              sync?            (:sync metadata)
+              route-params     (mapv (comp symbol name)
+                                 (filter keyword? pathvec))
+              context          (:context (meta pathvec))
+              arglist          (first (:arglists metadata))
+              non-route-params (remove (set route-params) arglist)
+              arg-resolvers    (merge
+                                 extra-arg-resolvers
+                                 (binding [*ns* ns]
+                                   (eval (:arg-resolvers metadata))))
+              schema           (:schema metadata)
+              handler (cond->
+                        {:middleware-sym   mw-sym
+                         :route-params     route-params
+                         :non-route-params non-route-params
+                         :verb-fn-sym      verb-fn-sym
+                         :arglist          arglist
+                         :arg-resolvers    arg-resolvers
+                         :schema           schema
+                         :sync?            sync?
+                         :metadata         metadata}
+                        context
+                        (assoc :context (string/join "/" (cons "" context))))
+              handlers (assoc handlers handler-sym handler)]
+          (recur routes handlers middleware (next entries)))
+        {:routes     (sorted-routes routes)
+         :handlers   handlers
+         :middleware (set/map-invert middleware)}))))
 
 (defn- map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
@@ -508,9 +511,9 @@
   ([options dispatch-table]
      (let [options       (merge dispatch-table-compilation-defaults options)
            build-handler (:build-handler-fn options)
-           analysed-dispatch-table (analyse-dispatch-table dispatch-table)]
-       (build-handler analysed-dispatch-table
-         (select-keys options [:async?])))))
+           analysed-dispatch-table (analyse-dispatch-table
+                                     dispatch-table options)]
+       (build-handler analysed-dispatch-table options))))
 
 (defn- simple-namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
