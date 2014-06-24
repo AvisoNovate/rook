@@ -6,7 +6,32 @@
      [internals :as internals]
      [utils :as utils]]
     [ring.middleware params format keyword-params]
-    [clojure.string :as str]))
+    [clojure.string :as str]
+    [medley.core :as medley]))
+
+(defn inject*
+  "Merges the provided map of injectable argument values into the request. Keys should be keywords
+  (that will match against function argument symbols, converted to keywords)."
+  {:added "0.1.10"}
+  [request injection-map]
+  (medley/update request :io.aviso.rook/injections merge injection-map))
+
+(defn inject
+  "Merges a single symbol key and value into the map of injectable argument values."
+  {:added "0.1.10"}
+  [request key value]
+  {:pre [(keyword? key)
+         (some? value)]}
+  (inject* request {key value}))
+
+(defn wrap-with-injection
+  "Wraps a request handler with an injection of the key and value."
+  {:added "0.1.10"}
+  [handler key value]
+  (fn [request]
+    (-> request
+        (inject key value)
+        handler)))
 
 (defn build-map-arg-resolver
   "Builds a static argument resolver around the map of keys and values; the values are the exact resolved

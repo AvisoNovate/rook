@@ -23,7 +23,7 @@
 
 (describe "io.aviso.rook"
 
-  (describe "argument resolution"
+  (context "argument resolution"
 
     (it "should search using the API key if the natural key does not exist"
 
@@ -64,8 +64,8 @@
             :put "/123" nil nil)))
 
     (it "should expose the request's :params key as an argument"
-      (let [handler (namespace-handler ['echo-params])
-            params {:foo :bar}]
+        (let [handler (namespace-handler ['echo-params])
+              params {:foo :bar}]
           (should-be-same params
                           (-> (mock/request :get "/")
                               (assoc :params params)
@@ -88,66 +88,61 @@
                       "map argument has no :as key"
                       (let [handler (namespace-handler ['echo-params2])]
                         (-> (mock/request :put "/123")
-                            handler))))
+                            handler)))))
 
-    #_
-    (it "should operate with all types of arg-resolvers"
-        (let [test-mw (-> (namespace-handler ['rook-test])
-                          (wrap-with-arg-resolvers
-                            (build-map-arg-resolver {:test3 "TEST#"})
-                            (build-fn-arg-resolver {:test4 (fn [request] (str "test$" (:uri request)))}))
-                          param-handling)]
-          (should= "test1=1test,id=123,test2=,test3=TEST#,test4=test$/123/activate,meth=:post"
-                   (->
-                     ;; So we've set up a specific conflict for test1 ... is it the query parameter value "1test"
-                     ;; or is it the arg-resolver value "TEST!". The correct answer is "TEST!" because
-                     ;; that arg-resolver is added later in processing, and is therefore deemed to be more
-                     ;; specific.
-                     (mock/request :post "/123/activate?test1=1test")
-                     test-mw)))))
-
-  (describe ":resource-uri argument resolver"
-
-    (with handler (wrap-with-standard-middleware
-                    (namespace-handler
-                      [[] 'creator]
-                      [["nested"] 'creator])))
-    (with request {:scheme         :http
-                   :server-name    "rook.aviso.io"
-                   :server-port    80
-                   :request-method :post})
-
-    (it "resolves the correct value for a top-level resource"
-        (let [h @handler]
-          (should= "http://rook.aviso.io/<ID>"
-                   (-> @request
-                       (assoc :uri "/")
-                       h
-                       (get-in [:headers "Location"])))))
-
-    (it "resolves the correct value for a nested resource"
-        (let [h @handler]
-          (should= "http://rook.aviso.io/nested/<ID>"
-                   (-> @request
-                       (assoc :uri "/nested")
-                       h
-                       (get-in [:headers "Location"])))))
-
-    (it "will use the :server-uri key if present"
-        (should= "http://overrride.com/api/"
-                 (resource-uri-arg-resolver {:server-uri "http://overrride.com"
-                                             :context    "/api"})))
-
-    (it "will include the port number if not matching the scheme default"
-        (should= "http://server.com:81/"
-                 (resource-uri-arg-resolver {:scheme      :http
-                                             :server-port 81
-                                             :server-name "server.com"}))
-
-        (should= "https://server.com:232/"
-                 (resource-uri-arg-resolver {:scheme      :https
-                                             :server-port 232
-                                             :server-name "server.com"})))))
+    (context ":injection argument resolution"
+      (with handler (-> (namespace-handler [["injection"] 'injection-demo])
+                        (wrap-with-injection :data-source "[DS]")))
 
 
-(run-specs)
+      (it "should resolve :injection tagged arguments by symbol"
+
+          (let [response (@handler (mock/request :get "/injection"))]
+            (should= {:data-source "[DS]"}
+                     (:body response)))))
+
+    (context ":resource-uri argument resolver"
+
+      (with handler (wrap-with-standard-middleware
+                      (namespace-handler
+                        [[] 'creator]
+                        [["nested"] 'creator])))
+      (with request {:scheme         :http
+                     :server-name    "rook.aviso.io"
+                     :server-port    80
+                     :request-method :post})
+
+      (it "resolves the correct value for a top-level resource"
+          (let [h @handler]
+            (should= "http://rook.aviso.io/<ID>"
+                     (-> @request
+                         (assoc :uri "/")
+                         h
+                         (get-in [:headers "Location"])))))
+
+      (it "resolves the correct value for a nested resource"
+          (let [h @handler]
+            (should= "http://rook.aviso.io/nested/<ID>"
+                     (-> @request
+                         (assoc :uri "/nested")
+                         h
+                         (get-in [:headers "Location"])))))
+
+      (it "will use the :server-uri key if present"
+          (should= "http://overrride.com/api/"
+                   (resource-uri-arg-resolver {:server-uri "http://overrride.com"
+                                               :context    "/api"})))
+
+      (it "will include the port number if not matching the scheme default"
+          (should= "http://server.com:81/"
+                   (resource-uri-arg-resolver {:scheme      :http
+                                               :server-port 81
+                                               :server-name "server.com"}))
+
+          (should= "https://server.com:232/"
+                   (resource-uri-arg-resolver {:scheme      :https
+                                               :server-port 232
+                                               :server-name "server.com"})))))
+
+
+  (run-specs)
