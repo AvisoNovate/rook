@@ -15,8 +15,7 @@
                  [ring "1.3.0"]
                  [medley "0.4.0"]
                  [ring-middleware-format "0.3.2"]
-                 [prismatic/schema "0.2.3"]
-                 [compojure "1.1.6"]]
+                 [prismatic/schema "0.2.3"]]
   :plugins [[speclj "3.0.2"]]
   :test-paths ["spec"]
   :codox {:src-dir-uri               "https://github.com/AvisoNovate/rook/blob/master/"
