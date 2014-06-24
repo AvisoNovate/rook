@@ -10,7 +10,7 @@
                               [speclj "3.0.2"]
                               [log4j "1.2.17"]]}}
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/core.async "0.1.278.0-76b25b-alpha"]
+                 [org.clojure/core.async "0.1.303.0-886421-alpha"]
                  [org.clojure/tools.logging "0.2.6"]
                  [ring "1.3.0"]
                  [medley "0.4.0"]
