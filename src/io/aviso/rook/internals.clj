@@ -2,7 +2,6 @@
   "Unsupported internal functions used in the implementation."
   (:require
     [io.aviso.rook.utils :as utils]
-    [clout.core :as clout]
     [medley.core :as medley]
     [clojure.core.async :as async]
     [clojure.tools.logging :as l])

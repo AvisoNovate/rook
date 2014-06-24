@@ -13,8 +13,7 @@
     rook-test6
     [ring.mock.request :as mock]
     ring.middleware.params
-    ring.middleware.keyword-params
-    [compojure.core :as compojure]))
+    ring.middleware.keyword-params))
 
 
 (defn param-handling [handler]
@@ -22,39 +21,7 @@
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
 
-#_
-(defn mkrequest [method path namespace]
-  (let [handler (-> identity                                ; "handler" returns the request
-                    wrap-with-function-arg-resolvers
-                    (wrap-namespace namespace)
-                    param-handling)]
-    (handler (mock/request method path))))
-
 (describe "io.aviso.rook"
-  #_
-  (describe "wrap-namespace"
-
-    (it "should match incoming URIs and methods to functions"
-        (do-template [method path namespace-name rook-key expected-value]
-          (should= expected-value
-                   (-> (mkrequest method path namespace-name)
-                       (get-in [:rook rook-key])))
-
-          :get "/?limit=100" 'rook-test :function #'rook-test/index
-
-          :get "/" 'rook-test :namespace 'rook-test
-
-          :get "/123" 'rook-test :function #'rook-test/show
-
-          :post "/123/activate" 'rook-test :function #'rook-test/activate
-
-          :get "/123/activate" 'rook-test :function nil
-
-          :put "/" 'rook-test :function nil
-
-          :put "/123" 'rook-test :function nil
-
-          :get "/?offset-100" 'rook-test2 :function #'rook-test2/index)))
 
   (describe "argument resolution"
 
@@ -138,95 +105,6 @@
                      ;; specific.
                      (mock/request :post "/123/activate?test1=1test")
                      test-mw)))))
-
-  #_
-  (describe "nested contexts"
-
-    (it "should match URIs and methods to specific functions"
-        (let [test-mw (-> (compojure/context "/merchant" []
-                                             (wrap-namespace
-                                               (compojure/routes
-                                                 (compojure/context "/:id/activate" []
-                                                                    (wrap-namespace
-                                                                      (compojure/routes
-                                                                        (compojure/context "/:key" []
-                                                                                           (wrap-namespace
-                                                                                             default-rook-pipeline 'rook-test3))
-                                                                        default-rook-pipeline)
-                                                                      'rook-test2))
-                                                 default-rook-pipeline)
-                                               'rook-test))
-                          param-handling)
-              test-mw2 (-> (namespace-handler "/merchant" 'rook-test
-                                              (compojure/routes
-                                                (compojure/GET "/test" [] {:body "test!"})
-                                                default-rook-pipeline (namespace-handler "/:id/activate" 'rook-test2
-                                                                                         (compojure/routes
-                                                                                           default-rook-pipeline
-                                                                                           (namespace-handler "/:key" 'rook-test3)))))
-                           param-handling)
-              test-mw4 (-> (namespace-handler "/test4" 'rook-test4)
-                           (wrap-with-arg-resolvers request-arg-resolver))]
-          (do-template [handler method path expected-result]
-            (should= expected-result
-                     (handler (mock/request method path)))
-
-            test-mw :post "/456/activate" nil
-
-            test-mw :get "/merchant/" {:status 200 :body "limit="}
-
-            test-mw :get "/merchant/6789" {:status 200 :body "id=6789"}
-
-            test-mw :get "/merchant/4567/activate?offset=1234" {:body "id=4567&offset=1234"}
-
-            test-mw :get "/merchant/4567/activate/test_key" {:body "test3,id=4567,key=test_key"}
-
-            test-mw2 :post "/456/activate" nil
-
-            test-mw2 :get "/merchant/" {:status 200 :body "limit="}
-
-            test-mw2 :get "/merchant/6789" {:status 200 :body "id=6789"}
-
-            test-mw2 :get "/merchant/4567/activate?offset=1234" {:body "id=4567&offset=1234"}
-
-            test-mw2 :get "/merchant/4567/activate/test_key" {:body "test3,id=4567,key=test_key"}
-
-            test-mw2 :get "/merchant/test" {:status 200 :headers {} :body "test!"}
-
-            test-mw4 :get "/test4/proxy" "method=GET"
-
-            test-mw4 :put "/test4/proxy" "method=PUT"))))
-
-  #_
-  (describe "function ordering within namespace"
-    (it "should order functions by line number"
-
-        (let [paths (internals/get-available-paths 'rook-test5)
-              funcs (map #(nth % 2) paths)]
-
-          (should= [#'rook-test5/show-default #'rook-test5/show] funcs))))
-
-  #_
-  (describe "meta data support"
-
-    (it "should merge meta-data from the namespace into :metadata"
-
-        (let [show-meta (->> 'rook-test5
-                             internals/get-available-paths
-                             (filter (fn [[_ _ _ meta]] (= 'show (:name meta))))
-                             first
-                             last)]
-          (do-template [key expected]
-            (should= expected (get show-meta key))
-            :inherited :namespace
-            :overridden :function)))
-
-    (it "should not conflict when a function with a convention name has overriding :path-spec meta-data"
-        (let [paths (internals/get-available-paths 'rook-test6)
-              _ (should= 1 (count paths))
-              [method uri] (first paths)]
-          (should= :post method)
-          (should= "/:user-name/:password" uri))))
 
   (describe ":resource-uri argument resolver"
 
