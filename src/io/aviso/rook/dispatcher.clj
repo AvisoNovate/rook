@@ -40,7 +40,6 @@
             [clojure.set :as set]
             [io.aviso.tracker :as t]
             [io.aviso.rook.internals :as internals]
-            [io.aviso.rook.schema-validation :as sv]
             [clojure.string :as str]))
 
 (def ^:private default-mappings
@@ -242,20 +241,16 @@
                                (filter keyword? pathvec))
             context (:context (meta pathvec))
             arglist (first (:arglists metadata))
-            non-route-params (remove (set route-params) arglist)
             arg-resolvers (merge
                             extra-arg-resolvers
                             (binding [*ns* ns]
                               (eval (:arg-resolvers metadata))))
-            schema (:schema metadata)
             handler (cond->
                       {:middleware-sym   mw-sym
                        :route-params     route-params
-                       :non-route-params non-route-params
                        :verb-fn-sym      verb-fn-sym
                        :arglist          arglist
                        :arg-resolvers    arg-resolvers
-                       :schema           schema
                        :sync?            sync?
                        :metadata         metadata}
                       context
@@ -471,8 +466,8 @@
                                               apply-middleware-async
                                               apply-middleware-sync)
 
-                           {:keys [middleware-sym route-params non-route-params
-                                   verb-fn-sym arglist arg-resolvers schema sync?
+                           {:keys [middleware-sym route-params
+                                   verb-fn-sym arglist arg-resolvers sync?
                                    metadata context]}
                            (get handlers handler-sym)
 
