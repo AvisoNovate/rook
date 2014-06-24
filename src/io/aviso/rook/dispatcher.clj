@@ -227,6 +227,9 @@
                                    (let [mw-sym (gensym "mw_sym__")]
                                      [(assoc middleware mw-spec mw-sym) mw-sym]))
             ns (-> verb-fn-sym namespace symbol the-ns)
+            ;; Seems like we should just do the *ns* binding trick once
+            ;; per namespace. Possilby as an additional map passed into
+            ;; analyze*
             ns-metadata (meta ns)
             metadata (merge (reduce-kv (fn [out k v]
                                          (assoc out
@@ -243,6 +246,7 @@
             arglist (first (:arglists metadata))
             arg-resolvers (merge
                             extra-arg-resolvers
+                            ;; Only metadata on the namespace needs this trick (since it is unevaluated)
                             (binding [*ns* ns]
                               (eval (:arg-resolvers metadata))))
             handler (cond->
@@ -401,15 +405,19 @@
 
 (defn- resolver-entry
   [arg resolver]
-  (if (keyword? resolver)
+  (cond
+    (keyword? resolver)
     (if-let [f (get standard-resolver-factories resolver)]
       [arg (f arg)]
       (throw (ex-info (format "Keyword %s does not identify a known argument resolver." resolver)
-               {:arg arg :resolver resolver})))
-    (if (ifn? resolver)
-      [arg resolver]
-      (throw (ex-info (format "Argument resolver value `%s' is neither a keyword not a function." resolver)
-               {:arg arg :resolver resolver})))))
+                      {:arg arg :resolver resolver})))
+
+    (ifn? resolver)
+    [arg resolver]
+
+    :else
+    (throw (ex-info (format "Argument resolver value `%s' is neither a keyword not a function." resolver)
+                    {:arg arg :resolver resolver}))))
 
 (defn- maybe-resolver-by-tag
   [arg]
@@ -424,6 +432,11 @@
                {:arg arg :resolver-tags resolver-ks})))))
 
 (defn- resolvers-for
+  "Peforms a first pass at argument resolution, looking for various meta-data or
+  naming conventions to convert from an argument, to an argument resolver factory, to
+  an argument resolver.
+
+  Returns a map from argument to argument resolver."
   [arglist resolvers-map]
   (into {}
     (keep (fn [arg]
