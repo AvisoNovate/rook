@@ -1,17 +1,12 @@
 (ns io.aviso.rook
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
-    [medley.core :as medley]
     [io.aviso.rook
      [dispatcher :as dispatcher]
-     [schema-validation :as v]
      [internals :as internals]
      [utils :as utils]]
     [ring.middleware params format keyword-params]
-    [clojure.tools.logging :as l]
-    [clojure.string :as str]
-    [compojure.core :as compojure]
-    [clout.core :as clout]))
+    [clojure.string :as str]))
 
 (defn build-map-arg-resolver
   "Builds a static argument resolver around the map of keys and values; the values are the exact resolved
@@ -67,14 +62,6 @@
   This reflects the default configuration, where `params*` is mapped to this function."
   [request]
   (internals/clojurized-params-arg-resolver request))
-
-#_
-(defn wrap-with-function-arg-resolvers
-  "Wraps the handler with a request that has the :arg-resolvers key extended with any
-  function-specific arg-resolvers (from the function's meta-data)."
-  [handler]
-  (fn [request]
-    (handler (update-in request [:rook :arg-resolvers] internals/prefix-with (-> request :rook :metadata :arg-resolvers)))))
 
 (defn wrap-with-standard-middleware
   "The standard middleware that Rook expects to be present before it is passed the Ring request."
