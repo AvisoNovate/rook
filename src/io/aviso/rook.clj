@@ -9,6 +9,17 @@
     [clojure.string :as str]
     [medley.core :as medley]))
 
+(defn get-injected-value
+  "Retrieves an injected value stored in the request. Throws an exception if the value is falsey."
+  {:added "0.1.10"}
+  [request injection-key]
+  {:pre [(some? request)
+         (keyword? injection-key)]}
+  (or
+    (get-in request [:io.aviso.rook/injections injection-key])
+    (throw (ex-info (format "Unable to retrieve injected value for key `%s'." injection-key)
+                    {:request request}))))
+
 (defn inject*
   "Merges the provided map of injectable argument values into the request. Keys should be keywords
   (that will match against function argument symbols, converted to keywords)."
@@ -17,7 +28,9 @@
   (medley/update request :io.aviso.rook/injections merge injection-map))
 
 (defn inject
-  "Merges a single symbol key and value into the map of injectable argument values."
+  "Merges a single keyword key and value into the map of injectable argument values. This is
+  associated with the :injection argument meta data. The key must be a symbol; the actual argument
+  will be converted to a keyword for lookup."
   {:added "0.1.10"}
   [request key value]
   {:pre [(keyword? key)
