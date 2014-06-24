@@ -27,8 +27,6 @@
     (:import (javax.servlet.http HttpServletResponse))
   (:require
     [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
-    [clojure.tools.logging :as l]
-    [clout.core :as clout]
     [ring.middleware
      [session :as session]
      [format-params :as format-params]
