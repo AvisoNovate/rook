@@ -38,8 +38,10 @@
   (:require [clojure.core.async :as async]
             [clojure.string :as string]
             [clojure.set :as set]
+            [io.aviso.tracker :as t]
             [io.aviso.rook.internals :as internals]
-            [io.aviso.rook.schema-validation :as sv]))
+            [io.aviso.rook.schema-validation :as sv]
+            [clojure.string :as str]))
 
 (def ^:private default-mappings
 
@@ -213,6 +215,54 @@
   [routes]
   (into (sorted-map-by compare-route-specs) routes))
 
+(defn- analyze*
+  [routes handlers middleware extra-arg-resolvers dispatch-table-entry]
+  (if-let [[method pathvec verb-fn-sym mw-spec] dispatch-table-entry]
+    (t/track
+      (format "Analyzing resource handler function `%s'." verb-fn-sym)
+      (let [handler-sym (gensym "handler_sym__")
+            routes' (assoc routes
+                      [method (keywords->symbols pathvec)] handler-sym)
+            [middleware' mw-sym] (if (contains? middleware mw-spec)
+                                   [middleware (get middleware mw-spec)]
+                                   (let [mw-sym (gensym "mw_sym__")]
+                                     [(assoc middleware mw-spec mw-sym) mw-sym]))
+            ns (-> verb-fn-sym namespace symbol the-ns)
+            ns-metadata (meta ns)
+            metadata (merge (reduce-kv (fn [out k v]
+                                         (assoc out
+                                           k (if (symbol? v)
+                                               @(ns-resolve ns v)
+                                               v)))
+                                       {}
+                                       (dissoc ns-metadata :doc))
+                            (meta (resolve verb-fn-sym)))
+            sync? (:sync metadata)
+            route-params (mapv (comp symbol name)
+                               (filter keyword? pathvec))
+            context (:context (meta pathvec))
+            arglist (first (:arglists metadata))
+            non-route-params (remove (set route-params) arglist)
+            arg-resolvers (merge
+                            extra-arg-resolvers
+                            (binding [*ns* ns]
+                              (eval (:arg-resolvers metadata))))
+            schema (:schema metadata)
+            handler (cond->
+                      {:middleware-sym   mw-sym
+                       :route-params     route-params
+                       :non-route-params non-route-params
+                       :verb-fn-sym      verb-fn-sym
+                       :arglist          arglist
+                       :arg-resolvers    arg-resolvers
+                       :schema           schema
+                       :sync?            sync?
+                       :metadata         metadata}
+                      context
+                      (assoc :context (string/join "/" (cons "" context))))
+            handlers' (assoc handlers handler-sym handler)]
+        [routes' handlers' middleware']))))
+
 (defn- analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
   key :routes, a map of route-spec -> handler-map at key :handlers and
@@ -238,50 +288,8 @@
            handlers   {}
            middleware {}
            entries    (seq (unnest-dispatch-table dispatch-table))]
-      (if-let [[method pathvec verb-fn-sym mw-spec] (first entries)]
-        (let [handler-sym (gensym "handler_sym__")
-              routes      (assoc routes
-                            [method (keywords->symbols pathvec)] handler-sym)
-              [middleware mw-sym]
-              (if (contains? middleware mw-spec)
-                [middleware (get middleware mw-spec)]
-                (let [mw-sym (gensym "mw_sym__")]
-                  [(assoc middleware mw-spec mw-sym) mw-sym]))
-              ns               (-> verb-fn-sym namespace symbol the-ns)
-              ns-metadata      (meta ns)
-              metadata         (merge (reduce-kv (fn [out k v]
-                                                   (assoc out
-                                                     k (if (symbol? v)
-                                                         @(ns-resolve ns v)
-                                                         v)))
-                                        {}
-                                        (dissoc ns-metadata :doc))
-                                 (meta (resolve verb-fn-sym)))
-              sync?            (:sync metadata)
-              route-params     (mapv (comp symbol name)
-                                 (filter keyword? pathvec))
-              context          (:context (meta pathvec))
-              arglist          (first (:arglists metadata))
-              non-route-params (remove (set route-params) arglist)
-              arg-resolvers    (merge
-                                 extra-arg-resolvers
-                                 (binding [*ns* ns]
-                                   (eval (:arg-resolvers metadata))))
-              schema           (:schema metadata)
-              handler (cond->
-                        {:middleware-sym   mw-sym
-                         :route-params     route-params
-                         :non-route-params non-route-params
-                         :verb-fn-sym      verb-fn-sym
-                         :arglist          arglist
-                         :arg-resolvers    arg-resolvers
-                         :schema           schema
-                         :sync?            sync?
-                         :metadata         metadata}
-                        context
-                        (assoc :context (string/join "/" (cons "" context))))
-              handlers (assoc handlers handler-sym handler)]
-          (recur routes handlers middleware (next entries)))
+      (if-let [[routes' handlers' middleware'] (analyze* routes handlers middleware extra-arg-resolvers (first entries))]
+        (recur routes' handlers' middleware' (next entries))
         {:routes     (sorted-routes routes)
          :handlers   handlers
          :middleware (set/map-invert middleware)}))))
@@ -357,13 +365,21 @@
    'params*      internals/clojurized-params-arg-resolver
    'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})
 
-(defn make-default-resolver [sym]
-  (or (get standard-arg-resolvers sym)
-      (throw (ex-info (str "No default argument resolver for symbol " sym)
-               {:symbol sym}))))
-
 (def ^:private standard-resolver-keywords
   (set (keys standard-resolver-factories)))
+
+(defn make-default-resolver [sym]
+  (or (get standard-arg-resolvers sym)
+      ;; Soon we'll be getting rid of the whole concept of arg-resolvers in this particular
+      ;; passion (which dates back to Rook 0.1.9 and earlier).
+      (fn [request]
+        (internals/extract-argument-value sym request (-> request :rook :arg-resolvers)))
+      ;; We're still debating whether the right behavior is to throw an exception, or
+      ;; just treat it the same as :request-key.
+      #_ (throw (ex-info (format "No default argument resolver for symbol `%s'." sym)
+               {:symbol sym
+                :available-keywords standard-resolver-keywords
+                :available-symbols (keys standard-arg-resolvers)}))))
 
 (defn- arg-name [arg]
   (if (map? arg)
@@ -377,11 +393,12 @@
   [arglist resolvers route-params]
   (let [route-params (set route-params)
         resolvers    (map (fn [arg]
-                            (let [arg (arg-name arg)]
-                              (condp contains? arg
-                                route-params (make-route-param-resolver arg)
-                                resolvers    (get resolvers arg)
-                                (make-default-resolver arg))))
+                            (let [arg-symbol (arg-name arg)]
+                              (t/track #(format "Creating argument resolver for `%s'." arg-symbol)
+                                       (condp contains? arg-symbol
+                                         route-params (make-route-param-resolver arg-symbol)
+                                         resolvers (get resolvers arg-symbol)
+                                         (make-default-resolver arg-symbol)))))
                        arglist)]
     (if (seq resolvers)
       (apply juxt resolvers)
@@ -392,11 +409,11 @@
   (if (keyword? resolver)
     (if-let [f (get standard-resolver-factories resolver)]
       [arg (f arg)]
-      (throw (ex-info (str "unknown resolver keyword: " resolver)
+      (throw (ex-info (format "Keyword %s does not identify a known argument resolver." resolver)
                {:arg arg :resolver resolver})))
     (if (ifn? resolver)
       [arg resolver]
-      (throw (ex-info (str "non-keyword, non-ifn resolver: " resolver)
+      (throw (ex-info (format "Argument resolver value `%s' is neither a keyword not a function." resolver)
                {:arg arg :resolver resolver})))))
 
 (defn- maybe-resolver-by-tag
@@ -406,22 +423,25 @@
     (case (count resolver-ks)
       0 nil
       1 (resolver-entry arg (first resolver-ks))
-      (throw (ex-info (str "ambiguously tagged formal parameter: " arg)
+      (throw (ex-info (format "Parameter `%s' has conflicting keywords identifying its argument resolution strategy: %s."
+                              arg
+                              (str/join ", " (resolver-ks)))
                {:arg arg :resolver-tags resolver-ks})))))
 
 (defn- resolvers-for
   [arglist resolvers-map]
   (into {}
     (keep (fn [arg]
-            (let [arg (arg-name arg)]
-              (cond
-                (contains? resolvers-map arg)
-                (let [resolver (get resolvers-map arg)]
-                  (resolver-entry arg resolver))
-                (contains? (meta arg) :io.aviso.rook/resolver)
-                (resolver-entry arg (:io.aviso.rook/resolver (meta arg)))
-                :else
-                (maybe-resolver-by-tag arg))))
+            (t/track #(format "Identifying argument resolver factory for `%s'." arg)
+                     (let [arg (arg-name arg)]
+                       (cond
+                         (contains? resolvers-map arg)
+                         (let [resolver (get resolvers-map arg)]
+                           (resolver-entry arg resolver))
+                         (contains? (meta arg) :io.aviso.rook/resolver)
+                         (resolver-entry arg (:io.aviso.rook/resolver (meta arg)))
+                         :else
+                         (maybe-resolver-by-tag arg)))))
       arglist)))
 
 (defn- add-dispatch-entries
@@ -446,35 +466,36 @@
   [{:keys [routes handlers middleware]}
    {:keys [async?]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-sym]]
-            (let [apply-middleware (if async?
-                                     apply-middleware-async
-                                     apply-middleware-sync)
+            (t/track #(format "Compiling handler for `%s'." (get-in handlers [handler-sym :verb-fn-sym]))
+                     (let [apply-middleware (if async?
+                                              apply-middleware-async
+                                              apply-middleware-sync)
 
-                  {:keys [middleware-sym route-params non-route-params
-                          verb-fn-sym arglist arg-resolvers schema sync?
-                          metadata context]}
-                  (get handlers handler-sym)
+                           {:keys [middleware-sym route-params non-route-params
+                                   verb-fn-sym arglist arg-resolvers schema sync?
+                                   metadata context]}
+                           (get handlers handler-sym)
 
-                  resolve-args (arglist-resolver
-                                 arglist
-                                 (resolvers-for arglist arg-resolvers)
-                                 route-params)
+                           resolve-args (arglist-resolver
+                                          arglist
+                                          (resolvers-for arglist arg-resolvers)
+                                          route-params)
 
-                  mw (eval (get middleware middleware-sym))
+                           mw (eval (get middleware middleware-sym))
 
-                  f  (let [ef (eval verb-fn-sym)]
-                       (fn wrapped-handler [request]
-                         (apply ef (resolve-args request))))
+                           f (let [ef (eval verb-fn-sym)]
+                               (fn wrapped-handler [request]
+                                 (apply ef (resolve-args request))))
 
-                  h  (apply-middleware mw sync? f)
-                  h  (fn wrapped-with-rook-metadata [request]
-                       (h (-> request
-                            (update-in [:rook :metadata]
-                              merge (dissoc metadata :arg-resolvers))
-                            ;; FIXME
-                            (cond-> context
-                              (update-in [:context] str context)))))]
-              (add-dispatch-entries dispatch-map method pathvec h)))
+                           h (apply-middleware mw sync? f)
+                           h (fn wrapped-with-rook-metadata [request]
+                               (h (-> request
+                                      (update-in [:rook :metadata]
+                                                 merge (dissoc metadata :arg-resolvers))
+                                      ;; FIXME
+                                      (cond-> context
+                                              (update-in [:context] str context)))))]
+                       (add-dispatch-entries dispatch-map method pathvec h))))
     {}
     routes))
 
@@ -544,26 +565,28 @@
   ([context-pathvec ns-sym]
      (simple-namespace-dispatch-table context-pathvec ns-sym identity))
   ([context-pathvec ns-sym middleware]
+   (t/track
+     #(format "Identifying resource handler functions in `%s.'" ns-sym)
      (try
        (if-not (find-ns ns-sym)
          (require ns-sym))
        (catch Exception e
          (throw (ex-info "failed to require ns in namespace-dispatch-table"
-                  {:context-pathvec context-pathvec
-                   :ns              ns-sym
-                   :middleware      middleware}
-                  e))))
+                         {:context-pathvec context-pathvec
+                          :ns              ns-sym
+                          :middleware      middleware}
+                         e))))
      [(->> ns-sym
-        ns-publics
-        (keep (fn [[k v]]
-                (if (ifn? @v)
-                  (if-let [route-spec (or (:route-spec (meta v))
-                                          (path-spec->route-spec
-                                            (:path-spec (meta v)))
-                                          (get default-mappings k))]
-                    (conj route-spec (symbol (name ns-sym) (name k)))))))
-        (list* context-pathvec middleware)
-        vec)]))
+           ns-publics
+           (keep (fn [[k v]]
+                   (if (ifn? @v)
+                     (if-let [route-spec (or (:route-spec (meta v))
+                                             (path-spec->route-spec
+                                               (:path-spec (meta v)))
+                                             (get default-mappings k))]
+                       (conj route-spec (symbol (name ns-sym) (name k)))))))
+           (list* context-pathvec middleware)
+           vec)])))
 
 (defn namespace-dispatch-table
   "Similar to [[io.aviso.rook/namespace-handler]], but stops short of
