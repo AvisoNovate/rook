@@ -604,9 +604,11 @@
                 :as ns-spec]]
             (let [context-pathvec (if (vector? context-pathvec?)
                                     context-pathvec?)
-                  middleware      (if context-pathvec
-                                    middleware?
-                                    ns-sym)
+                  middleware      (let [mw? (if context-pathvec
+                                              middleware?
+                                              ns-sym)]
+                                    (if-not (vector? mw?)
+                                      mw?))
                   ns-sym          (if context-pathvec
                                     ns-sym
                                     context-pathvec?)
