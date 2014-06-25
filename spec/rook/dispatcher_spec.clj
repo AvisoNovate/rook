@@ -385,7 +385,8 @@
                         [["static"] 'static identity]
                         [["static2" :foo "asdf"] 'static2 identity]
                         [["catch-all"] 'catch-all identity]
-                        [["surprise"] 'surprise identity])
+                        [["surprise"] 'surprise identity
+                         [[:id "foo"] 'surprise-foo]])
                       rook-async/wrap-with-loopback
                       rook-async/wrap-session
                       rook-async/wrap-with-standard-middleware
@@ -479,6 +480,10 @@
     (it "should support injections and default argument resolvers"
       (let [response (http/get "http://localhost:9988/surprise")]
         (should= "This is really surprising!" (:body response))))
+
+    (it "should support nested ns-specs in namespace-handler calls with context route params"
+      (let [response (http/get "http://localhost:9988/surprise/123/foo")]
+        (should= "Surprise at id 123!" (:body response))))
 
     (after-all
       (.stop @server))))

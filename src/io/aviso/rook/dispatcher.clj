@@ -596,6 +596,36 @@
            (list* context-pathvec middleware)
            vec)])))
 
+(defn- canonicalize-ns-specs
+  "Handles unnesting of ns-specs. Also supplies nil in place of
+  missing context-pathvec and middleware arguments."
+  [outer-context-pathvec outer-middleware ns-specs]
+  (mapcat (fn [[context-pathvec? ns-sym middleware? & nested-ns-specs
+                :as ns-spec]]
+            (let [context-pathvec (if (vector? context-pathvec?)
+                                    context-pathvec?)
+                  middleware      (if context-pathvec
+                                    middleware?
+                                    ns-sym)
+                  ns-sym          (if context-pathvec
+                                    ns-sym
+                                    context-pathvec?)
+                  skip            (reduce + 1
+                                    (map #(if % 1 0)
+                                      [context-pathvec middleware]))
+                  nested          (drop skip ns-spec)]
+              (assert (symbol? ns-sym)
+                "Malformed ns-spec passed to namespace-dispatch-table")
+              (concat
+                [[(into outer-context-pathvec context-pathvec)
+                  ns-sym
+                  middleware]]
+                (canonicalize-ns-specs
+                  (into outer-context-pathvec context-pathvec)
+                  (or middleware outer-middleware)
+                  nested))))
+    ns-specs))
+
 (defn namespace-dispatch-table
   "Similar to [[io.aviso.rook/namespace-handler]], but stops short of
   producing a handler, returning a dispatch table instead. See the
@@ -612,26 +642,19 @@
                       :default-middleware identity}
         opts         (if (map? options?)
                        (merge default-opts options?))
-        ns-specs     (if opts
-                       ns-specs
-                       (cons options? ns-specs))
+        ns-specs     (canonicalize-ns-specs
+                       []
+                       nil
+                       (if opts
+                         ns-specs
+                         (cons options? ns-specs)))
         {outer-context-pathvec :context-pathvec
          default-middleware    :default-middleware}
         (or opts default-opts)]
     [(reduce into [outer-context-pathvec default-middleware]
-       (map (fn [[context-pathvec? ns-sym middleware?]]
-              (let [context-pathvec (if (vector? context-pathvec?)
-                                      context-pathvec?)
-                    middleware      (if context-pathvec
-                                      middleware?
-                                      ns-sym)
-                    ns-sym          (if context-pathvec
-                                      ns-sym
-                                      context-pathvec?)]
-                (assert (symbol? ns-sym)
-                  "Malformed ns-spec passed to namespace-dispatch-table")
-                (simple-namespace-dispatch-table
-                  (or context-pathvec [])
-                  ns-sym
-                  (or middleware default-middleware))))
+       (map (fn [[context-pathvec ns-sym middleware]]
+              (simple-namespace-dispatch-table
+                (or context-pathvec [])
+                ns-sym
+                (or middleware default-middleware)))
          ns-specs))]))
