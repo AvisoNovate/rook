@@ -82,7 +82,7 @@
 
 (def ^:private request-copy-properties
   "Properties of a Ring request that should be copied into a chained request."
-  [:server-port :server-name :remote-addr :scheme :ssl-client-cert :server-uri])
+  [:server-port :server-name :remote-addr :scheme :ssl-client-cert :server-uri :timeout-ch])
 
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.

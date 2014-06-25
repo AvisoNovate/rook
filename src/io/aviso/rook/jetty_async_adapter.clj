@@ -57,10 +57,11 @@
           ^HttpServletResponse res (::http-servlet-response request)
           ^Continuation continuation (ContinuationSupport/getContinuation req)]
       (.suspend continuation res)
-      (let [response-ch (-> request
+      (let [timeout-ch (timeout timeout-ms)
+            response-ch (-> request
                             (dissoc ::http-servlet-request ::http-servlet-response)
+                            (assoc :timeout-ch timeout-ch)
                             handler)
-            timeout-ch (timeout timeout-ms)
             responded (atom false)]
 
         (take! response-ch
@@ -73,11 +74,13 @@
         (take! timeout-ch
                (fn [_]
                  (when (compare-and-set! responded false true)
+                   ;; At this point, no longer interested in the response should it ever arrive.
+                   (close! response-ch)
+
                    (l/warnf "Request %s timed out after %,d ms."
                             (utils/summarize-request request)
                             timeout-ms)
-                   ;; At this point, no longer interested in the response should it ever arrive.
-                   (close! response-ch)
+
                    (send-async-response continuation
                                         (->
                                           (utils/response HttpServletResponse/SC_GATEWAY_TIMEOUT
