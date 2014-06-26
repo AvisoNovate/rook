@@ -129,6 +129,16 @@
                      go
                      <!!)))
 
+    (it "allows the matched clause to be a map destructuring"
+        (should= HttpServletResponse/SC_CREATED
+                 (-> (c/new-request (responder (-> (utils/response HttpServletResponse/SC_CREATED)
+                                                   (r/header "Inserted-Id" "12345"))))
+                     (c/to :get)
+                     c/send
+                     (c/then 201 [{:keys [status]} status])
+                     go
+                     <!!)))
+
     (it "can match on general :success"
         (should= HttpServletResponse/SC_NO_CONTENT
                  (-> (c/new-request (responder (utils/response HttpServletResponse/SC_NO_CONTENT)))
