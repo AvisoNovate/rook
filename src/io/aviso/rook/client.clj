@@ -12,20 +12,12 @@
   than JSON or EDN encoded strings)."
   (:refer-clojure :exclude [send])
   (:require
-    [clojure.core.async :refer [go <! chan alt! take! put! close!]]
+    [clojure.core.async :refer [go <! >! chan alt! take! put! close!]]
     [clojure.tools.logging :as l]
     [clojure.string :as str]
     [io.aviso.rook
      [async :as async]
      [utils :as utils]]))
-
-(defn pass-headers
-  "Useful in cases where the success handler is interested in the response headers, rather
-  than the body of the response. For example, many responses return no body, but interesting headers (such
-  as a 201 (Created).  In that situation, the :success callback can be overridden to this function,
-  and the success clause of the [[then]] macro will receive the useful headers, rather than the empty body."
-  [response]
-  [nil (:headers response)])
 
 (defn new-request
   "Creates a new request that will utlimately become a Ring request passed to the
@@ -43,15 +35,7 @@
   The handler is typically implemented using the `clojure.core.async` `go` or `thread` macros."
   [web-service-handler]
   {:pre [(some? web-service-handler)]}
-  {:handler   web-service-handler
-   ;; If there isn't an exact match on status code, the special keys :success and :failure
-   ;; are checked. :success matches any 2xx code, :failure matches anything else.
-   ;; :success by default returns just the body of the response in the second slot.
-   ;; :failure by default returns the entire response, in the first slot.
-   ;; In both cases, a couple of headers are scrubbed before passing the response
-   ;; through the callback.
-   :callbacks {:success (fn [response] [nil (:body response)])
-               :failure vector}})
+  {:handler web-service-handler})
 
 (defn- element-to-string
   [element]
@@ -81,7 +65,7 @@
   (to* request method path))
 
 (defn with-body-params
-  "Stores a Clojure map as the body of the request (as if EDN content was parsed into Clojure data.
+  "Stores a Clojure map as the body of the request (as if EDN content was parsed into Clojure data).
   The :params key of the Ring request will be the merge of :query-params and :body-params."
   [request params]
   (assert (map? params))
@@ -98,69 +82,32 @@
   [request headers]
   (update-in request [:ring-request :headers] merge headers))
 
-(defn with-callback
-  "Adds or replaces a callback for the given status code. A callback of nil removes the callback.
-  Instead of a specific numeric code, the keywords :success (for any 2xx status) or :failure (for
-  any non-2xx status) can be provided ... but exact status code matches take precedence.  The callbacks
-  are used by [[send]]."
-  [request status-code callback]
-  (if callback
-    (assoc-in request [:callbacks status-code] callback)
-    (update-in request [:callbacks] dissoc status-code)))
-
 (defn is-success?
   [status]
   (<= 200 status 299))
 
-(defn- identify-callback
-  [callbacks status]
-  (cond
-    (contains? callbacks status) (get callbacks status)
-    (and
-      (contains? callbacks :success)
-      (is-success? status)) (get callbacks :success)
-
-    ;; Not a success code, return the :failure key (or nil).
-    (not (is-success? status)) (get callbacks :failure)))
-
 (defn- process-async-response
-  [request uuid {:keys [status] :as response}]
+  [request uuid response]
   (assert response
           (format "Handler closed channel for request %s without sending a response." uuid))
-  (let [callback (-> request :callbacks (identify-callback status))]
-    (if-not callback
-      (throw (ex-info (format "No callback for status %d response." status)
-                      {:request-id uuid
-                       :request    request
-                       :response   response})))
-    ;; The idea here is to only present enough to let the developer know that the right
-    ;; flavor of response has been provided; often these responses can be huge.
-    (l/debugf "%s - response from %s:%n%s"
-              uuid
-              (utils/summarize-request (:ring-request request))
-              (utils/pretty-print-brief response))
-    ;; In some cases, the response from upstream is returned exactly as is; for example, this
-    ;; is the default behavior for a 401 status. However, downstream the content type will change
-    ;; from Clojure data structures to either JSON or EDN, so the content type and length is not valid.
-    ;; Content-type would get overwritten, but content-length would not, which causes the client to
-    ;; have problems (attempting to read too much or too little data from the HTTP stream).
-    (->
-      response
-      (update-in [:headers] dissoc "content-length" "content-type")
-      callback)))
+  ;; The idea here is to only present enough to let the developer know that the right
+  ;; flavor of response has been provided; often these responses can be huge.
+  (l/debugf "%s - response from %s:%n%s"
+            uuid
+            (utils/summarize-request (:ring-request request))
+            (utils/pretty-print-brief response))
+  ;; In some cases, the response from upstream is returned exactly as is; for example, this
+  ;; is the default behavior for a 401 status. However, downstream the content type will change
+  ;; from Clojure data structures to either JSON or EDN, so the content type and length is not valid.
+  ;; Content-type would get overwritten, but content-length would not, which causes the client to
+  ;; have problems (attempting to read too much or too little data from the HTTP stream).
+  (update-in response [:headers] dissoc "content-length" "content-type"))
 
 (defn send
   "Sends the request asynchronously, using the web-service-handler provided to new-request.
   Returns a channel that will receive the Ring result map.
-  When a response arrives from the handler, the correct callback is invoked.
-  The value put into the result channel is the value of the response passed through the callback.
 
-  The default callbacks produce a vector where the first value is the failure response (the entire Ring response map)
-  and the second value is the body of the success response (in which case, the first value is nil).
-
-  The intent is to use vector destructuring to determine which case occured, and proceed accordingly.
-
-  The [[then]] macro is useful for working with this result directly.
+  The [[then]] macro is useful for working with this result channel.
 
   Each request is assigned a UUID string to its :request-id key; this is to faciliate easier tracing of the request
   and response in any logged output."
@@ -178,54 +125,105 @@
                     (utils/summarize-request ring-request')
                     (-> ring-request (dissoc :request-method :uri) utils/pretty-print))
         response-ch (handler ring-request')
-        send-result-ch (chan 1)]
+        result-ch (chan 1)]
     (take! response-ch
-           #(if-let [r (process-async-response request uuid %)]
-              (put! send-result-ch r)
-              (close! send-result-ch)))
-    send-result-ch))
+           #(put! result-ch (process-async-response request uuid %)))
+    result-ch))
 
-(defn- make-body [symbol body]
-  (cond
-    (empty? body) symbol
-    (= 1 (count body)) (first body)
-    :else (cons 'do body)))
+(defn- ->cond-block
+  [response-sym [block-symbol & block-forms]]
+  `(let [~block-symbol ~response-sym] ~@block-forms))
+
+(defn- build-cond-clauses
+  [response-sym status-sym clauses]
+  (loop [cond-clauses []
+         [selector clause-block & remaining-clauses] clauses]
+    (cond
+      (nil? selector) cond-clauses
+
+      (= selector :else)
+      (recur (conj cond-clauses true (->cond-block response-sym clause-block))
+             remaining-clauses)
+
+      (= selector :success)
+      (recur (conj cond-clauses
+                   `(is-success? ~status-sym)
+                   (->cond-block response-sym clause-block))
+             remaining-clauses)
+
+      (= selector :failure)
+      (recur (conj cond-clauses
+                   `(not (is-success? ~status-sym))
+                   (->cond-block response-sym clause-block))
+             remaining-clauses)
+
+      (= selector :pass-success)
+      (recur (conj cond-clauses
+                   `(is-success? ~status-sym)
+                   response-sym)
+             ;; There is no clause block after :pass-success or :pass-failure
+             (cons clause-block remaining-clauses))
+
+      (= selector :pass-failure)
+      (recur (conj cond-clauses
+                   `(not (is-success? ~status-sym))
+                   response-sym)
+             ;; There is no clause block after :pass-success or :pass-failure
+             (cons clause-block remaining-clauses))
+
+      :else
+      (recur (conj cond-clauses
+                   `(= ~status-sym ~selector)
+                   (->cond-block response-sym clause-block))
+             remaining-clauses))))
 
 (defmacro then*
-  "Alternate version of the [[then]] macro, used when the vector returned by [[send]] is available."
-  ([result-vector success-clause]
-   `(then* ~result-vector (failure#) ~success-clause))
-  ([result-vector [failure & failure-body] [success & success-body]]
-   (assert failure "No failure symbol was provided to the then* macro")
-   (assert success "No success symbol was provided to the then* macro")
-   `(let [[~failure ~success] ~result-vector]
-      (if ~failure
-        ~(make-body failure failure-body)
-        ~(make-body success success-body)))))
+  "A macro that provide the underpinnings of the [[then]] macro; it extracts the status from the response
+  and dispatches to the first matching clause."
+  [response & clauses]
+  (let [local-response (gensym "response")
+        local-status (gensym "status")
+        cond-clauses (build-cond-clauses local-response local-status clauses)]
+    `(let [~local-response ~response
+           ~local-status (:status ~local-response)]
+       (cond
+         ~@cond-clauses
+         :else (throw (ex-info (format "Unmatched status code %d processing response." ~local-status)
+                               {:response ~local-response}))))))
 
 (defmacro then
-  "The [[send]] function returns a channel from which the eventual result can be taken; this macro makes it easy to respond
-  to either the normal success or failure cases, as determined by the __default__ callbacks. `then` makes use of `<!` and can therefore
-  only be used inside a `go` block.
+  "The [[send]] function returns a channel from which the eventual result can be taken. This macro
+  makes it easier to work with that channel, branching based on status code, and returning a new
+  result from the channel.
+
+  `then` makes use of `<!` (to park until the response form the channle is available),
+  and can therefore only be used inside a `go` block. Use [[then*]] outside of a `go` block.
 
   channel - the expression which produces the channel, e.g., the result of invoking `send`
-  failure-clause - a symbol, followed by zero or more expressions to be evaluated with the symbol bound to the failure response
-  success-clause - as with failure-clause, but with the symbol bound to the body of the success response
 
-  The body of either failure-clause or success-clause can be omitted; it defaults to the symbol, meaning that the
-  failure or success body is simply returned.
+  A clause can either be :pass-success, :pass-failure, or a status code followed by vector.
+  The first elmeent in the vector is a symbol to which the response will be bound before evaluating
+  the other forms in the vector. The result of the then block is the value of the last form
+  in the selected block.
+
+  Instead of a status code, you may use :success (any 2xx status code), :failure (any other
+  status code), or :else (which matches regardless of status code).
+
+  :pass-success is equvalent to `:success [x x]` and :pass-failure is equivalent to `:failure [x x]`.
 
   Example:
 
       (-> (c/new-request handler)
           (c/to :get :endpoint)
           (c/send)
-          (c/then (success
-                    (write-success-to-log success)
-                    success)))
+          (c/then :success [response
+                    (write-success-to-log (:body response))
+                    response]
 
-  The entire failure clause can also be omitted (as in the example)."
-  ([channel success-clause]
-   `(then ~channel (failure#) ~success-clause))
-  ([channel failure-clause success-clause]
-   `(then* (<! ~channel) ~failure-clause ~success-clause)))
+                  :pass-failure))
+
+
+  It is necessary to provide a handler for all success and failure cases; an unmatched status code
+  at runtime will cause an exception to be thrown."
+  [channel & clauses]
+  `(then* (<! ~channel) ~@clauses))

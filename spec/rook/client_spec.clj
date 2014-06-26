@@ -1,8 +1,10 @@
 (ns rook.client-spec
+  (:import (javax.servlet.http HttpServletResponse))
   (:use
-    [clojure.core.async :only [chan >!! <!!]]
+    [clojure.core.async :only [chan >!! <!! <! go]]
     speclj.core)
   (:require
+    [ring.util.response :as r]
     [io.aviso.rook
      [async :as async]
      [client :as c]
@@ -15,8 +17,11 @@
     (>!! c value)
     c))
 
-(describe "io.aviso.rook.client"
+(defn responder
+  [value]
+  (fn [request] (respond value)))
 
+(describe "io.aviso.rook.client"
 
   (it "validates that request method and URI must be specified before send"
 
@@ -55,8 +60,7 @@
                (-> (c/new-request @handler)
                    (c/to :get)
                    c/send
-                   <!!
-                   first)))
+                   <!!)))
 
   (it "can pass query parameters in the request"
       (let [params {:foo "foo" :bar ["biff baz"]}]
@@ -79,7 +83,7 @@
                 :uri            "/target"
                 :headers        {"auth" "implied"}
                 :query-params   {:page 1}
-                :body-params           {:content :magic}
+                :body-params    {:content :magic}
                 :params         {:page 1 :content :magic}}
                (-> (c/new-request #(respond (utils/response 200 %)))
                    (c/to :put :target)
@@ -88,7 +92,7 @@
                    (c/with-body-params {:content :magic})
                    c/send
                    <!!
-                   second
+                   :body
                    ;; Filter out some extra information
                    (select-keys [:request-method :uri :headers :query-params :body-params :params]))))
 
@@ -102,17 +106,8 @@
                    (c/with-body-params {:body-only :body-params :both :body-params})
                    c/send
                    <!!
-                   second
+                   :body
                    :params)))
-
-  (it "by default passes any success code through the success callback"
-      ;; We could pass 200 thru 299 to prove a point ...
-      (should= :response-body
-               (-> (c/new-request (constantly (respond (utils/response 299 :response-body))))
-                   (c/to :get)
-                   c/send
-                   <!!
-                   second)))
 
   (it "converts an exception inside a try-go block into a 500"
       (should= 500
@@ -120,7 +115,82 @@
                    (c/to :get)
                    c/send
                    <!!
-                   first
-                   :status))))
+                   :status)))
+
+  (context "then macro"
+
+    (it "can match a specific status"
+        (should= "12345"
+                 (-> (c/new-request (responder (-> (utils/response HttpServletResponse/SC_CREATED)
+                                                   (r/header "Inserted-Id" "12345"))))
+                     (c/to :get)
+                     c/send
+                     (c/then 201 [response (get-in response [:headers "Inserted-Id"])])
+                     go
+                     <!!)))
+
+    (it "can match on general :success"
+        (should= HttpServletResponse/SC_NO_CONTENT
+                 (-> (c/new-request (responder (utils/response HttpServletResponse/SC_NO_CONTENT)))
+                     (c/to :get)
+                     c/send
+                     (c/then :failure [response :not-matched]
+                             :success [response (:status response)])
+                     go
+                     <!!)))
+
+    (it "can match on general :failure"
+        (should= HttpServletResponse/SC_BAD_REQUEST
+                 (-> (c/new-request (responder (utils/response HttpServletResponse/SC_BAD_REQUEST)))
+                     (c/to :get)
+                     c/send
+                     (c/then :failure [response (:status response)]
+                             :success [response :not-matched])
+                     go
+                     <!!)))
+
+    (it "will match anything using :else"
+        (should= HttpServletResponse/SC_BAD_REQUEST
+                 (-> (c/new-request (responder (utils/response HttpServletResponse/SC_BAD_REQUEST)))
+                     (c/to :get)
+                     c/send
+                     (c/then HttpServletResponse/SC_CREATED [response :not-matched]
+                             :else [response (:status response)])
+                     go
+                     <!!)))
+
+    (it "can pass a success result through unchanged"
+        (should= (utils/response HttpServletResponse/SC_OK)
+                 (-> (c/new-request (responder (utils/response HttpServletResponse/SC_OK)))
+                     (c/to :get)
+                     c/send
+                     (c/then :pass-success)
+                     go
+                     <!!)))
+
+    (it "can pass a failure result through unchanged"
+        (should= (utils/response HttpServletResponse/SC_CONFLICT)
+                 (-> (c/new-request (responder (utils/response HttpServletResponse/SC_CONFLICT)))
+                     (c/to :get)
+                     c/send
+                     (c/then :pass-failure)
+                     go
+                     <!!)))
+
+    (it "throws an exception if there is no match"
+        (should= {:caught "Unmatched status code 400 processing response."}
+                 (->
+                   (go
+                     (try (->
+                            (c/new-request (responder (utils/response HttpServletResponse/SC_BAD_REQUEST)))
+                            (c/to :get)
+                            c/send
+                            (c/then HttpServletResponse/SC_CREATED [response :not-matched]))
+                          ;; The try must be inside the go for the exception to not just get sort of dropped.
+                          ;; Rook includes safe-go to transmute exceptions into 500 responses.
+                          ;; This proves the exception was triggered.
+                          (catch Throwable t
+                            {:caught (.getMessage t)})))
+                   <!!)))))
 
 (run-specs)
