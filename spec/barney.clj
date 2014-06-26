@@ -17,5 +17,5 @@
       (client/to :get partner id)
       client/send
       (client/then
-        (response
-          (utils/response {:message (format "%s says `%s'" partner (:message response))}))))))
+        :pass-failure
+        :success [response (utils/response {:message (format "%s says `%s'" partner (-> response :body :message))})]))))

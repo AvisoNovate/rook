@@ -131,51 +131,60 @@
     result-ch))
 
 (defn- ->cond-block
-  [response-sym [block-symbol & block-forms]]
-  `(let [~block-symbol ~response-sym] ~@block-forms))
+  [form response-sym clause-block]
+  (if-not (and
+            (vector? clause-block)
+            (< 1 (count clause-block)))
+    (throw (ex-info (format
+                      "The block for a status clause must be a vector; the first value must be a symbol (or map, for destructuring), the remaining values will be evaluated; in %s: %d."
+                      *ns*
+                      (-> form meta :line))
+                    {:clause-block clause-block})))
+  `(let [~(first clause-block) ~response-sym] ~@(rest clause-block)))
 
 (defn- build-cond-clauses
-  [response-sym status-sym clauses]
-  (loop [cond-clauses []
-         [selector clause-block & remaining-clauses] clauses]
-    (cond
-      (nil? selector) cond-clauses
+  [form response-sym status-sym clauses]
+  (let [->cond-block' (partial ->cond-block form response-sym)]
+    (loop [cond-clauses []
+           [selector clause-block & remaining-clauses] clauses]
+      (cond
+        (nil? selector) cond-clauses
 
-      (= selector :else)
-      (recur (conj cond-clauses true (->cond-block response-sym clause-block))
-             remaining-clauses)
+        (= selector :else)
+        (recur (conj cond-clauses true (->cond-block' clause-block))
+               remaining-clauses)
 
-      (= selector :success)
-      (recur (conj cond-clauses
-                   `(is-success? ~status-sym)
-                   (->cond-block response-sym clause-block))
-             remaining-clauses)
+        (= selector :success)
+        (recur (conj cond-clauses
+                     `(is-success? ~status-sym)
+                     (->cond-block' clause-block))
+               remaining-clauses)
 
-      (= selector :failure)
-      (recur (conj cond-clauses
-                   `(not (is-success? ~status-sym))
-                   (->cond-block response-sym clause-block))
-             remaining-clauses)
+        (= selector :failure)
+        (recur (conj cond-clauses
+                     `(not (is-success? ~status-sym))
+                     (->cond-block' clause-block))
+               remaining-clauses)
 
-      (= selector :pass-success)
-      (recur (conj cond-clauses
-                   `(is-success? ~status-sym)
-                   response-sym)
-             ;; There is no clause block after :pass-success or :pass-failure
-             (cons clause-block remaining-clauses))
+        (= selector :pass-success)
+        (recur (conj cond-clauses
+                     `(is-success? ~status-sym)
+                     response-sym)
+               ;; There is no clause block after :pass-success or :pass-failure
+               (cons clause-block remaining-clauses))
 
-      (= selector :pass-failure)
-      (recur (conj cond-clauses
-                   `(not (is-success? ~status-sym))
-                   response-sym)
-             ;; There is no clause block after :pass-success or :pass-failure
-             (cons clause-block remaining-clauses))
+        (= selector :pass-failure)
+        (recur (conj cond-clauses
+                     `(not (is-success? ~status-sym))
+                     response-sym)
+               ;; There is no clause block after :pass-success or :pass-failure
+               (cons clause-block remaining-clauses))
 
-      :else
-      (recur (conj cond-clauses
-                   `(= ~status-sym ~selector)
-                   (->cond-block response-sym clause-block))
-             remaining-clauses))))
+        :else
+        (recur (conj cond-clauses
+                     `(= ~status-sym ~selector)
+                     (->cond-block' clause-block))
+               remaining-clauses)))))
 
 (defmacro then*
   "A macro that provide the underpinnings of the [[then]] macro; it extracts the status from the response
@@ -183,7 +192,7 @@
   [response & clauses]
   (let [local-response (gensym "response")
         local-status (gensym "status")
-        cond-clauses (build-cond-clauses local-response local-status clauses)]
+        cond-clauses (build-cond-clauses &form local-response local-status clauses)]
     `(let [~local-response ~response
            ~local-status (:status ~local-response)]
        (cond

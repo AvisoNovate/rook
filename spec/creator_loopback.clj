@@ -9,6 +9,4 @@
   (println "creator-loopback/create")
   (-> (c/new-request loopback-handler)
       (c/to :post :creator)
-      (c/with-callback :success identity)
-      (c/with-callback :failure identity)
-      (c/send)))
+      c/send))

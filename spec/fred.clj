@@ -18,8 +18,8 @@
     (-> (c/new-request loopback-handler)
         (c/to :get partner)
         c/send
-        (c/then (response
-                  (utils/response {:message (format "%s says `%s'" partner (:message response))}))))))
+        (c/then :pass-failure
+                :success [response (utils/response {:message (format "%s says `%s'" partner (-> response :body :message))})]))))
 
 (defn show [id ^:request-key loopback-handler partner]
   (go
@@ -27,5 +27,5 @@
       (c/new-request loopback-handler)
       (c/to :get partner 123)
       c/send
-      (c/then (response
-                (utils/response {:message (format "%s says `%s'" partner (:message response))}))))))
+      (c/then :pass-failure
+              :success [response (utils/response {:message (format "%s says `%s'" partner (-> response :body :message))})]))))
