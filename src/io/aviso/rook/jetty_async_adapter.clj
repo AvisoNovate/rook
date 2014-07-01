@@ -94,6 +94,18 @@
   "Start a Jetty webserver to serve the given asynchronous handler.
 
   The asychronous handler is wrapped in some Jetty-specific continuation logic
-  and passed to the standard run-jetty."
+  and passed to the standard run-jetty.
+
+  All the standard Jetty adapter options are supported, as well as an additional one:
+
+  :timeout-ms
+  : Request timeout time, in milliseconds. Defaults to 10000 (10 seconds).
+
+  If a request can not be processed before the timeout, then a 504 (Gateway Timeout) response
+  is returned to the client. A true response that arrives after the timeout is simply discarded.
+
+  The Ring request map passed to the handler will include an extra key, :timeout-ch; this is the timeout
+  channel. It can be closed to trigger an early timeout, or used in coordination with other
+  core.async primitives to ensure that processing of a request shuts down cleanly if a timeout does occur."
   [handler {timeout-ms :async-timeout :or {timeout-ms 10000} :as options}]
   (jetty/run-jetty (wrap-with-continuation handler timeout-ms) options))
