@@ -163,7 +163,7 @@
   (-> request ::rook/injections kw))
 
 (defn wrap-restful-format
-  "Asychronous version of `ring.middleware.format/wrap-restful-format`; this implementation uses
+  "Asychronous version of `ring.middleware.format/wrap-restful-format`; this implementation
   will work properly inside an asynchronous pipeline."
   ([handler]
    (wrap-restful-format handler [:json-kw :edn]))
