@@ -9,3 +9,4 @@ build.xml
 test2junit
 doc
 .\#*
+pom.xml.asc
