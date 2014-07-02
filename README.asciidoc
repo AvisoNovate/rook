@@ -1,5 +1,7 @@
 == Rook - Sane, smart, fast, Clojure web services
 
+image:http://clojars.org/io.aviso/rook/latest-version.svg[Clojars Project, link="http://clojars.org/io.aviso/rook"]
+
 image:https://drone.io/github.com/AvisoNovate/rook/status.png[Build Status, link="https://drone.io/github.com/AvisoNovate/rook"]
 
 Rook is a set of middleware and handlers to enable metadata-based routing for https://github.com/ring-clojure/ring[Ring] web applications.
