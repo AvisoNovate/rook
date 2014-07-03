@@ -42,12 +42,6 @@
   (binding [*print-level* 4
             *print-length* 5] (pretty-print object)))
 
-(defn pprint-code
-  "Pretty prints the form using code indentation rules."
-  [form]
-  (pprint/write form :dispatch pprint/code-dispatch)
-  (prn))
-
 (defn summarize-method-and-uri
   "Formats a method (a keyword, e.g. :get) and a URI into a single string."
   [method uri]

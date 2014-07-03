@@ -14,13 +14,19 @@
             ring.middleware.params
             ring.middleware.keyword-params
             [clojure.pprint :as pp]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [clojure.pprint :as pprint])
   (:import (javax.servlet.http HttpServletResponse)))
 
+(defn pprint-code
+  "Pretty prints the form using code indentation rules."
+  [form]
+  (pprint/write form :dispatch pprint/code-dispatch)
+  (prn))
 
 (defn wrap-with-pprint-request [handler]
   (fn [request]
-    (utils/pprint-code request)
+    (pprint-code request)
     (handler request)))
 
 (defn wrap-with-pprint-response [handler]
@@ -29,11 +35,10 @@
       (if (satisfies? clojure.core.async.impl.protocols/ReadPort resp)
         (let [v (async/<!! resp)]
           (async/>!! resp v)
-          (utils/pprint-code v))
-        (utils/pprint-code resp))
+          (pprint-code v))
+        (pprint-code resp))
       (prn)
       resp)))
-
 
 (defn wrap-with-incrementer [handler atom]
   (fn [request]

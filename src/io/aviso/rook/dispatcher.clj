@@ -543,6 +543,8 @@
   : _Default: false_
   : Determines the way in which middleware is applied to the terminal
     handler. Pass in true when compiling async handlers.
+  : Note that when async is enabled, you must be careful to only apply middleware that
+    is appropriately async aware.
 
   :build-handler-fn
   : _Default: [[build-map-traversal-handler]]_
@@ -551,16 +553,20 @@
 
   :arg-resolvers
   : _Default: nil_
-  : Can be used to specify default resolvers (which will be overridden
-    by argument resolvers specified in namespace or function
-    metadata).
+  : Map of symbol to keyword or function; these define the argument resolver for arguments with
+    the matching name. The value can be a keyword (a key in resolver-factories), or
+    an argument resolver function (accept request, returns argument value).
+  : :arg-resolvers metadata on a function (or namespace) is merged into this map.
 
   :arg-symbol->resolver
-  : _Default: [[default-arg-symbol->resolver]]_
-  : Used to specify mappings from symbols to argument resolver functions.
+  : _Default: [[io.aviso.rook.dispatcher/default-arg-symbol->resolver]]_
+  : Map from symbol to an argument resolver function.
+    This is used to support the cases where an argument's name defines
+    how it is resolved.
+  : Unlike the :arg-resolvers key, the values here must be functions, not keywords.
 
   :resolver-factories
-  : _Default: [[default-resolver-factories]]_
+  : _Default: [[io.aviso.rook.dispatcher/default-resolver-factories]]_
   : Used to specify a map from keyword to argument resolver function _factory_. The keyword is a marker
     for meta data on the symbol (default markers include :header, :param, :injection, etc.). The value
     is a function that accepts a symbol and returns an argument resolver function (that accepts the Ring

@@ -21,8 +21,8 @@
   (medley/update request ::injections merge injection-map))
 
 (defn inject
-  "Merges a single keyword key and value into the map of injectable argument values. This is
-  associated with the :injection argument meta data. The key must be a symbol; the actual argument
+  "Merges a single keyword key and value into the map of injectable argument values store in the request.
+  This is associated with the :injection argument metadata. The key must be a symbol; the actual argument
   will be converted to a keyword for lookup."
   {:added "0.1.10"}
   [request key value]
@@ -80,35 +80,9 @@
      Middleware to be applied to terminal handlers found in this
      namespace.
 
-  The options map, if supplied, can include the following keys (listed
-  below with their default values):
-
-  :context-pathvec
-  : _Default: []_
-  : Top-level context-pathvec that will be prepended to
-    context-pathvecs for the individual namespaces.
-
-  :default-middleware
-  : _Default: clojure.core/identity_
-  : Default middleware used for namespaces for which no middleware
-    was specified.
-
-  :async?
-  : _Default: false_
-  : If `true`, an async handler will be returned.
-
-  :arg-symbol->resolver
-  : _Default: [[io.aviso.rook.dispatcher/default-arg-symbol->resolver]]_
-  : Map from symbol to a function of request that resolves an argument.
-    This is used to support the cases where an argument's name defines
-    how it is resolved.
-
-  :resolver-factories
-  : _Default: [[io.aviso.rook.dispatcher/default-resolver-factories]]_
-  : Used to specify a map from keyword to argument resolver function _factory_. The keyword is a marker
-    for meta data on the symbol (default markers include :header, :param, :injection, etc.). The value
-    is a function that accepts a symbol and returns an argument resolver function (that accepts the Ring
-    request and returns the argument's value).
+  The options map, if supplied, can include a number of values
+  as defined by [[dispatcher/compile-dispatch-table]] and
+  [[dispatcher/namespace-dispatch-table]].
 
   Example call:
 

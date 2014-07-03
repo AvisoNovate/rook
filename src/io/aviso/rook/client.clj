@@ -20,7 +20,7 @@
      [utils :as utils]]))
 
 (defn new-request
-  "Creates a new request that will utlimately become a Ring request passed to the
+  "Creates a new client request that will utlimately become a Ring request map passed to the
   handler function.
 
   A client request is a structure that stores a (partial) Ring request,
@@ -28,11 +28,12 @@
   the response from the handler.
 
   The API is fluid, with calls to various functions taking and returning the client request
-  as the first parameter; these can be assembled using the `->` macro.
+  as the first parameter; these can be assembled using the -> macro.
 
   The handler is passed the Ring request map and returns a core.async channel that will receive
   the Ring response map.
-  The handler is typically implemented using the `clojure.core.async` `go` or `thread` macros."
+
+  The handler is typically implemented using the clojure.core.async go or thread macros."
   [web-service-handler]
   {:pre [(some? web-service-handler)]}
   {:handler web-service-handler})
@@ -205,10 +206,10 @@
   makes it easier to work with that channel, branching based on status code, and returning a new
   result from the channel.
 
-  `then` makes use of `<!` (to park until the response form the channle is available),
-  and can therefore only be used inside a `go` block. Use [[then*]] outside of a `go` block.
+  then makes use of <! (to park until the response form the channle is available),
+  and can therefore only be used inside a go block. Use [[then*]] outside of a go block.
 
-  channel - the expression which produces the channel, e.g., the result of invoking `send`
+  channel - the expression which produces the channel, e.g., the result of invoking [[send]].
 
   A clause can either be :pass-success, :pass-failure, or a status code followed by vector.
   The first elmeent in the vector is a symbol to which the response will be bound before evaluating
@@ -218,13 +219,13 @@
   Instead of a status code, you may use :success (any 2xx status code), :failure (any other
   status code), or :else (which matches regardless of status code).
 
-  :pass-success is equvalent to `:success [x x]` and :pass-failure is equivalent to `:failure [x x]`.
+  :pass-success is equvalent to :success [x x] and :pass-failure is equivalent to :failure [x x].
 
   Example:
 
       (-> (c/new-request handler)
           (c/to :get :endpoint)
-          (c/send)
+          c/send
           (c/then :success [response
                     (write-success-to-log (:body response))
                     response]
