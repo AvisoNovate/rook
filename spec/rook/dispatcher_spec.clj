@@ -262,6 +262,17 @@
         {:test1 "foo" :test2 "bar"}
         "test1=foo,id=123,test2=bar,test3=TEST#,test4=test$/123/activate,meth=:post")))
 
+  (describe "argument resolution"
+
+    (it "allows overrides of arg-resolvers"
+
+        (let [override (merge dispatcher/default-arg-symbol->resolver {'magic-value (constantly "**magic**")})
+               handler (rook/namespace-handler {:arg-symbol->resolver override}
+                                               [["magic"] 'magic ])]
+          (-> (mock/request :get "/magic")
+              handler
+              (should= "**magic**")))))
+
   (describe "async handlers"
 
     (it "should return a channel with the correct response"

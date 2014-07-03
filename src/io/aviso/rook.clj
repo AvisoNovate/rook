@@ -156,6 +156,14 @@
 
   : If `true`, an async handler will be returned.
 
+  :arg-symbol->resolver
+
+  : _Default: [[io.aviso.rook.dispatcher/default-arg-symbol->resolver]]_
+
+  : Map from symbol to a function of request that resolves an argument.
+    This is used to support the cases where an argument's name defines
+    how it is resolved.
+
   Example call:
 
       (namespace-handler

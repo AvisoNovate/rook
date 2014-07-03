@@ -357,7 +357,7 @@
    :injection    make-injection-resolver
    :resource-uri make-resource-uri-arg-resolver})
 
-(def standard-arg-resolvers
+(def default-arg-symbol->resolver
   "A map of symbol -> (function of request)."
   {'request      identity
    'params       :params
@@ -367,8 +367,8 @@
 (def ^:private standard-resolver-keywords
   (set (keys standard-resolver-factories)))
 
-(defn make-default-resolver [sym]
-  (or (get standard-arg-resolvers sym)
+(defn make-default-resolver [arg-symbol->resolver sym]
+  (or (get arg-symbol->resolver sym)
       ;; Soon we'll be getting rid of the whole concept of arg-resolvers in this particular
       ;; passion (which dates back to Rook 0.1.9 and earlier).
       (fn [request]
@@ -389,7 +389,7 @@
     arg))
 
 (defn- arglist-resolver
-  [arglist resolvers route-params]
+  [arg-symbol->resolver arglist resolvers route-params]
   (let [route-params (set route-params)
         resolvers    (map (fn [arg]
                             (let [arg-symbol (arg-name arg)]
@@ -397,7 +397,7 @@
                                        (condp contains? arg-symbol
                                          route-params (make-route-param-resolver arg-symbol)
                                          resolvers (get resolvers arg-symbol)
-                                         (make-default-resolver arg-symbol)))))
+                                         (make-default-resolver arg-symbol->resolver arg-symbol)))))
                        arglist)]
     (if (seq resolvers)
       (apply juxt resolvers)
@@ -472,7 +472,7 @@
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
-   {:keys [async?]}]
+   {:keys [async? arg-symbol->resolver]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-sym]]
             (t/track #(format "Compiling handler for `%s'." (get-in handlers [handler-sym :verb-fn-sym]))
                      (let [apply-middleware (if async?
@@ -485,6 +485,7 @@
                            (get handlers handler-sym)
 
                            resolve-args (arglist-resolver
+                                          arg-symbol->resolver
                                           arglist
                                           (resolvers-for arglist arg-resolvers)
                                           route-params)
@@ -523,6 +524,7 @@
 
 (def ^:private dispatch-table-compilation-defaults
   {:async?           false
+   :arg-symbol->resolver default-arg-symbol->resolver
    :build-handler-fn build-map-traversal-handler})
 
 (defn compile-dispatch-table
@@ -628,6 +630,10 @@
                   nested))))
     ns-specs))
 
+(def ^:private default-opts
+  {:context-pathvec    []
+   :default-middleware identity})
+
 (defn namespace-dispatch-table
   "Similar to [[io.aviso.rook/namespace-handler]], but stops short of
   producing a handler, returning a dispatch table instead. See the
@@ -640,9 +646,7 @@
 
       [:get [\"api\" \"foo\"] 'example.foo/index identity]."
   [options? & ns-specs]
-  (let [default-opts {:context-pathvec    []
-                      :default-middleware identity}
-        opts         (if (map? options?)
+  (let [opts         (if (map? options?)
                        (merge default-opts options?))
         ns-specs     (canonicalize-ns-specs
                        []
