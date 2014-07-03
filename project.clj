@@ -17,7 +17,7 @@
                  [org.clojure/tools.reader "0.8.3"]
 
                  [org.clojure/core.async "0.1.303.0-886421-alpha"]
-                 [org.clojure/tools.logging "0.2.6"]
+                 [org.clojure/tools.logging "0.3.0"]
                  [io.aviso/tracker "0.1.0"]
                  [ring "1.3.0" :exclusions [org.clojure/tools.reader]]
                  [medley "0.5.0" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
