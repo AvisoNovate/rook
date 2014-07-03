@@ -347,7 +347,7 @@
     (fn [request]
       (-> request :io.aviso.rook/injections kw))))
 
-(def standard-resolver-factories
+(def default-resolver-factories
   "A map of keyword -> (function of symbol returning a function of
   request)."
   {:request      (constantly identity)
@@ -363,9 +363,6 @@
    'params       :params
    'params*      internals/clojurized-params-arg-resolver
    'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})
-
-(def ^:private standard-resolver-keywords
-  (set (keys standard-resolver-factories)))
 
 (defn make-default-resolver [arg-symbol->resolver sym]
   (or (get arg-symbol->resolver sym)
@@ -407,7 +404,7 @@
   [arg resolver]
   (cond
     (keyword? resolver)
-    (if-let [f (get standard-resolver-factories resolver)]
+    (if-let [f (get default-resolver-factories resolver)]
       [arg (f arg)]
       (throw (ex-info (format "Keyword %s does not identify a known argument resolver." resolver)
                       {:arg arg :resolver resolver})))
@@ -422,7 +419,7 @@
 (defn- maybe-resolver-by-tag
   [arg]
   (let [meta-ks     (keys (meta arg))
-        resolver-ks (filterv standard-resolver-keywords meta-ks)]
+        resolver-ks (filterv #(contains? default-resolver-factories %) meta-ks)]
     (case (count resolver-ks)
       0 nil
       1 (resolver-entry arg (first resolver-ks))
