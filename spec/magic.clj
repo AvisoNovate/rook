@@ -1,10 +1,6 @@
  (ns magic)
 
  (defn index
-   "In this test, the magic-value is provided as an arg-resolver."
+   "In this test, the :arg-symbol->provider map is extended with 'magic-value."
    [magic-value]
    magic-value)
-
- (defn show
-   [id ^:magic extra]
-   (str id " -- " extra))

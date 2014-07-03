@@ -228,35 +228,25 @@
                                      [(assoc middleware mw-spec mw-sym) mw-sym]))
             ns (-> verb-fn-sym namespace symbol the-ns)
             ;; Seems like we should just do the *ns* binding trick once
-            ;; per namespace. Possilby as an additional map passed into
+            ;; per namespace. Possibly as an additional map passed into
             ;; analyze*
-            ns-metadata (meta ns)
-            metadata (merge (reduce-kv (fn [out k v]
-                                         (assoc out
-                                           k (if (symbol? v)
-                                               @(ns-resolve ns v)
-                                               v)))
-                                       {}
-                                       (dissoc ns-metadata :doc))
-                            (meta (resolve verb-fn-sym)))
+            ns-metadata (binding [*ns* ns]
+                          (-> ns meta eval (dissoc :doc)))
+            metadata (merge ns-metadata (meta (resolve verb-fn-sym)))
             sync? (:sync metadata)
             route-params (mapv (comp symbol name)
                                (filter keyword? pathvec))
             context (:context (meta pathvec))
             arglist (first (:arglists metadata))
-            arg-resolvers (merge
-                            extra-arg-resolvers
-                            ;; Only metadata on the namespace needs this trick (since it is unevaluated)
-                            (binding [*ns* ns]
-                              (eval (:arg-resolvers metadata))))
+            arg-resolvers (merge extra-arg-resolvers (:arg-resolvers metadata))
             handler (cond->
-                      {:middleware-sym   mw-sym
-                       :route-params     route-params
-                       :verb-fn-sym      verb-fn-sym
-                       :arglist          arglist
-                       :arg-resolvers    arg-resolvers
-                       :sync?            sync?
-                       :metadata         metadata}
+                      {:middleware-sym mw-sym
+                       :route-params   route-params
+                       :verb-fn-sym    verb-fn-sym
+                       :arglist        arglist
+                       :arg-resolvers  arg-resolvers
+                       :sync?          sync?
+                       :metadata       metadata}
                       context
                       (assoc :context (string/join "/" (cons "" context))))
             handlers' (assoc handlers handler-sym handler)]
@@ -277,10 +267,9 @@
   :arg-resolvers
 
   : _Default: nil_
-
-  : Can be used to specify default resolvers (which will be overridden
-    by argument resolvers specified in namespace or function
-    metadata)."
+  : Map of symbol to argument resolver (keyword or function) that serves
+    as a default that can be extended with function or namespace :arg-resolvers
+    metadata."
   [dispatch-table options]
   (let [extra-arg-resolvers (:arg-resolvers options)]
     (loop [routes     {}
@@ -345,7 +334,7 @@
 (defn make-injection-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
-      (-> request :io.aviso.rook/injections kw))))
+      (internals/get-injection request kw))))
 
 (def default-resolver-factories
   "A map of keyword -> (function of symbol returning a function of
@@ -364,20 +353,9 @@
    'params*      internals/clojurized-params-arg-resolver
    'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})
 
-(defn make-default-resolver [arg-symbol->resolver sym]
-  (or (get arg-symbol->resolver sym)
-      ;; Soon we'll be getting rid of the whole concept of arg-resolvers in this particular
-      ;; passion (which dates back to Rook 0.1.9 and earlier).
-      (fn [request]
-        (internals/extract-argument-value sym request (-> request :rook :arg-resolvers)))
-      ;; We're still debating whether the right behavior is to throw an exception, or
-      ;; just treat it the same as :request-key.
-      #_ (throw (ex-info (format "No default argument resolver for symbol `%s'." sym)
-               {:symbol sym
-                :available-keywords standard-resolver-keywords
-                :available-symbols (keys standard-arg-resolvers)}))))
-
-(defn- arg-name [arg]
+(defn- symbol-for-argument [arg]
+  "Returns the argument symbol for an argument; this is either the argment itself or
+  (if a map, for destructuring) the :as key of the map."
   (if (map? arg)
     (if-let [as (:as arg)]
       as
@@ -385,69 +363,96 @@
                {:arg arg})))
     arg))
 
-(defn- arglist-resolver
-  [arg-symbol->resolver arglist resolvers route-params]
-  (let [route-params (set route-params)
-        resolvers    (map (fn [arg]
-                            (let [arg-symbol (arg-name arg)]
-                              (t/track #(format "Creating argument resolver for `%s'." arg-symbol)
-                                       (condp contains? arg-symbol
-                                         route-params (make-route-param-resolver arg-symbol)
-                                         resolvers (get resolvers arg-symbol)
-                                         (make-default-resolver arg-symbol->resolver arg-symbol)))))
-                       arglist)]
-    (if (seq resolvers)
-      (apply juxt resolvers)
-      (constantly ()))))
-
-(defn- resolver-entry
-  [resolver-factories arg resolver]
+(defn- resolver-from-metadata
+  [resolver-factories arg value]
   (cond
-    (keyword? resolver)
-    (if-let [f (get resolver-factories resolver)]
-      [arg (f arg)]
-      (throw (ex-info (format "Keyword %s does not identify a known argument resolver." resolver)
-                      {:arg arg :resolver resolver :resolver-factories resolver-factories})))
+    (fn? value)
+    value
 
-    (ifn? resolver)
-    [arg resolver]
+    (keyword? value)
+    (if-let [f (get resolver-factories value)]
+      (f arg)
+      (throw (ex-info (format "Keyword %s does not identify a known argument resolver." value)
+                      {:arg arg :resolver value :resolver-factories resolver-factories})))
 
     :else
-    (throw (ex-info (format "Argument resolver value `%s' is neither a keyword not a function." resolver)
-                    {:arg arg :resolver resolver}))))
+    (throw (ex-info (format "Argument resolver value `%s' is neither a keyword not a function." value)
+                    {:arg arg :resolver value}))))
 
-(defn- maybe-resolver-by-tag
-  [resolver-factories arg]
-  (let [meta-ks     (keys (meta arg))
-        resolver-ks (filterv #(contains? resolver-factories %) meta-ks)]
+(defn- find-argument-resolver-tag
+  [resolver-factories arg arg-meta]
+  (let [resolver-ks (filterv #(contains? resolver-factories %) (keys arg-meta))]
     (case (count resolver-ks)
       0 nil
-      1 (resolver-entry resolver-factories arg (first resolver-ks))
+      1 (first resolver-ks)
       (throw (ex-info (format "Parameter `%s' has conflicting keywords identifying its argument resolution strategy: %s."
                               arg
                               (str/join ", " (resolver-ks)))
-               {:arg arg :resolver-tags resolver-ks})))))
+                      {:arg arg :resolver-tags resolver-ks})))))
 
-(defn- resolvers-for
-  "Peforms a first pass at argument resolution, looking for various meta-data or
-  naming conventions to convert from an argument, to an argument resolver factory, to
-  an argument resolver.
+(defn- identify-argument-resolver
+  "Identifies the specific argument resolver function for an argument, which can come from many sources based on
+  configuration in general, and meta-ata on the argument symbol and on the function's metadata (merged with
+  the containing namespace's metadata).
 
-  Returns a map from argument to argument resolver."
-  [resolver-factories arglist resolvers-map]
-  (into {}
-    (keep (fn [arg]
-            (t/track #(format "Identifying argument resolver factory for `%s'." arg)
-                     (let [arg (arg-name arg)]
-                       (cond
-                         (contains? resolvers-map arg)
-                         (let [resolver (get resolvers-map arg)]
-                           (resolver-entry resolver-factories arg resolver))
-                         (contains? (meta arg) :io.aviso.rook/resolver)
-                         (resolver-entry resolver-factories arg (:io.aviso.rook/resolver (meta arg)))
-                         :else
-                         (maybe-resolver-by-tag resolver-factories arg)))))
-      arglist)))
+  arg-symbol->resolver
+  : From options
+
+  resolver-factories
+  : From options.
+
+  arg-resolvers
+  : From function meta-data
+
+  route-params
+  : set of keywords
+
+  arg
+  : Argument, a symbol or a map (for destructuring)."
+  [arg-symbol->resolver resolver-factories arg-resolvers route-params arg]
+  (let [arg-symbol (symbol-for-argument arg)
+        arg-meta (meta arg-symbol)]
+    (t/track #(format "Identifying argument resolver for `%s'." arg-symbol)
+      (cond
+        ;; Check for specific meta on the argument itself.
+        (contains? arg-meta :io.aviso.rook/resolver)
+        (resolver-from-metadata resolver-factories arg-symbol (:io.aviso.rook/resolver arg-meta))
+
+        ;; Check arg-resolvers, which comes from :arg-resolvers metadata on the function or namespace
+        (contains? arg-resolvers arg-symbol)
+        (resolver-from-metadata resolver-factories arg-symbol (get arg-resolvers arg-symbol))
+
+        :else (let [resolver-tag (find-argument-resolver-tag resolver-factories arg-symbol arg-meta)]
+
+                (cond
+                  resolver-tag
+                  ((get resolver-factories resolver-tag) arg-symbol)
+
+                  (contains? arg-symbol->resolver arg-symbol)
+                  (get arg-symbol->resolver arg-symbol)
+
+                  ;; Last check: does the symbol match a keyword path param
+                  (contains? route-params arg-symbol)
+                  (make-route-param-resolver arg-symbol)
+
+                  :else
+                  (throw (ex-info (format "Unable to identify argument resolver for symbol `%s'." arg-symbol)
+                                  {:symbol           arg-symbol
+                                   :symbol-meta      arg-meta
+                                   :route-params     route-params
+                                   :resolver-tags    (keys resolver-factories)
+                                   :resolver-symbols (keys arg-symbol->resolver)}))))))))
+
+(defn- create-arglist-resolver
+  "Returns a function that is passed the Ring request and returns an array of argument values that can be applied
+  to the resource handler function."
+  [arg-symbol->resolver resolver-factories arg-resolvers route-params arg-list]
+  (if (seq arg-list)
+    (->>
+      arg-list
+      (map (partial identify-argument-resolver arg-symbol->resolver resolver-factories arg-resolvers (set route-params)))
+      (apply juxt))
+    (constantly ())))
 
 (defn- add-dispatch-entries
   [dispatch-map method pathvec handler]
@@ -481,11 +486,12 @@
                                    metadata context]}
                            (get handlers handler-sym)
 
-                           resolve-args (arglist-resolver
+                           resolve-args (create-arglist-resolver
                                           arg-symbol->resolver
-                                          arglist
-                                          (resolvers-for resolver-factories arglist arg-resolvers)
-                                          route-params)
+                                          resolver-factories
+                                          arg-resolvers
+                                          route-params
+                                          arglist)
 
                            mw (eval (get middleware middleware-sym))
 
@@ -494,7 +500,7 @@
                                  (apply ef (resolve-args request))))
 
                            h (apply-middleware mw sync? f)
-                           h (fn wrapped-with-rook-metadata [request]
+                           h (fn [request]
                                (h (-> request
                                       (update-in [:rook :metadata]
                                                  merge (dissoc metadata :arg-resolvers))
@@ -520,10 +526,10 @@
       (map-traversal-dispatcher dispatch-map))))
 
 (def ^:private dispatch-table-compilation-defaults
-  {:async?           false
+  {:async?               false
    :arg-symbol->resolver default-arg-symbol->resolver
-   :resolver-factories default-resolver-factories
-   :build-handler-fn build-map-traversal-handler})
+   :resolver-factories   default-resolver-factories
+   :build-handler-fn     build-map-traversal-handler})
 
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.

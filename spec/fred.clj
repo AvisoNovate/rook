@@ -13,7 +13,7 @@
      [utils :as utils]]))
 
 (defn index
-  [^:request-key loopback-handler partner]
+  [^:injection loopback-handler partner]
   (go
     (-> (c/new-request loopback-handler)
         (c/to :get partner)
@@ -21,7 +21,7 @@
         (c/then :pass-failure
                 :success [response (utils/response {:message (format "%s says `%s'" partner (-> response :body :message))})]))))
 
-(defn show [id ^:request-key loopback-handler partner]
+(defn show [id ^:injection loopback-handler partner]
   (go
     (->
       (c/new-request loopback-handler)

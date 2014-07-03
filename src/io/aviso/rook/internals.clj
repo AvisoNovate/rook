@@ -7,11 +7,6 @@
     [clojure.tools.logging :as l])
   (:import (javax.servlet.http HttpServletResponse)))
 
-(defn prefix-with
-  "Like concat, but with arguments reversed."
-  [coll1 coll2]
-  (concat coll2 coll1))
-
 (defn to-clojureized-keyword
   "Converts a keyword with embedded underscores into one with embedded dashes."
   [kw]
@@ -53,23 +48,6 @@
                                 (str ":" port)))))]
     (str server-uri (:context request) "/")))
 
-(defn extract-argument-value
-  "Uses the arg-resolvers to identify the resolved value for an argument. First a check for
-  the keyword version of the argument (which is a symbol) takes place. If that resolves as nil,
-  a second search occurs, using the API version of the keyword (with dashes converted to underscores)."
-  [argument request arg-resolvers]
-  (let [arg-kw (keyword (if (map? argument)
-                          (-> argument
-                              :as
-                              (or (throw (IllegalArgumentException. "map argument has no :as key")))
-                              name)
-                          (name argument)))]
-    (or
-      (some #(% arg-kw request) arg-resolvers)
-      (let [api-kw (to-api-keyword arg-kw)]
-        (if-not (= arg-kw api-kw)
-          (some #(% api-kw request) arg-resolvers))))))
-
 (defn- is-var-a-function?
   "Checks if a var resolved from a namespace is actually a function."
   [v]
@@ -77,20 +55,9 @@
       deref
       ifn?))
 
-(defn- ns-function
-  "Return the var for the given namespace and function keyword."
-  [namespace function-key]
-  (when-let [v (ns-resolve namespace (symbol (name function-key)))]
-    (when (is-var-a-function? v) ;it has to be a function all right
-      v)))
-
 (defn to-message [^Throwable t]
   (or (.getMessage t)
       (-> t .getClass .getName)))
-
-(defn wrap-with-arg-resolvers [handler arg-resolvers]
-  (fn [request]
-    (handler (update-in request [:rook :arg-resolvers] prefix-with arg-resolvers))))
 
 (defmacro safety-first
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
@@ -143,3 +110,13 @@
   [handler]
   (fn [request]
     (safe-thread request (handler request))))
+
+(defn get-injection
+  "Retrieves an injected value stored in the request. Throws an exception if the value is falsey."
+  [request injection-key]
+  {:pre [(some? request)
+         (keyword? injection-key)]}
+  (or
+    (get-in request [:io.aviso.rook/injections injection-key])
+    (throw (ex-info (format "Unable to retrieve injected value for key `%s'." injection-key)
+                    {:request request}))))

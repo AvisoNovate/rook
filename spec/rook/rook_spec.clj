@@ -25,20 +25,6 @@
 
   (context "argument resolution"
 
-    (it "should search using the API key if the natural key does not exist"
-
-        (should= :by-api-keyword
-                 (internals/extract-argument-value 'user-id
-                                                   {:params {:user_id :by-api-keyword}}
-                                                   [(fn [kw request] (get-in request [:params kw]))])))
-
-    (it "should favor the natural key over the API key"
-        (should= :by-natural-keyword
-                 (internals/extract-argument-value 'user-id
-                                                   {:params {:user-id :by-natural-keyword
-                                                             :user_id :by-api-keyword}}
-                                                   [(fn [kw request] (get-in request [:params kw]))])))
-
     (it "should use :arg-resolvers to calculate argument values"
         (let [test-mw (-> (namespace-handler ['rook-test])
                           param-handling)]
@@ -130,19 +116,19 @@
 
       (it "will use the :server-uri key if present"
           (should= "http://overrride.com/api/"
-                   (resource-uri-arg-resolver {:server-uri "http://overrride.com"
-                                               :context    "/api"})))
+                   (internals/resource-uri-for {:server-uri "http://overrride.com"
+                                                :context    "/api"})))
 
       (it "will include the port number if not matching the scheme default"
           (should= "http://server.com:81/"
-                   (resource-uri-arg-resolver {:scheme      :http
-                                               :server-port 81
-                                               :server-name "server.com"}))
+                   (internals/resource-uri-for {:scheme      :http
+                                                :server-port 81
+                                                :server-name "server.com"}))
 
           (should= "https://server.com:232/"
-                   (resource-uri-arg-resolver {:scheme      :https
-                                               :server-port 232
-                                               :server-name "server.com"})))))
+                   (internals/resource-uri-for {:scheme      :https
+                                                :server-port 232
+                                                :server-name "server.com"})))))
 
 
   (run-specs)

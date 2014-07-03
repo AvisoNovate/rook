@@ -10,7 +10,7 @@
   (utils/response {:message "ribs!"}))
 
 (defn show
-  [id ^:request-key loopback-handler partner]
+  [id ^:injection loopback-handler partner]
   (async/go
     (->
       (client/new-request loopback-handler)

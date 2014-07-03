@@ -82,7 +82,7 @@
 
 (def ^:private request-copy-properties
   "Properties of a Ring request that should be copied into a chained request."
-  [:server-port :server-name :remote-addr :scheme :ssl-client-cert :server-uri :timeout-ch])
+  [:server-port :server-name :remote-addr :scheme :ssl-client-cert :server-uri :timeout-ch :io.aviso.rook/injections])
 
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
@@ -90,29 +90,27 @@
   to interact with other resources as if via HTTP/HTTPs, but without the normal cost. Here, cost is evaluated in
   terms of the processing time to encode and decode requests, the time to perform HTTPs handshakes, and
   the number of request servicing threads that are blocked. Using async and loopbacks, nearly all of those
-  costs disappear (though, of course, the use of core.async adds its own overheads).
+  costs disappear (though, of course, the use of core.async adds its own modest overhead).
 
   Request processing should be broken up into two phases: an initial phase (synchronous or
   asynchronous) that is largely concerned with standard protocol issues
   (such as converting the body from JSON or EDN text into Clojure data) and a later,
   asynchronous phase (the routes provided to this function as handler).  Alternately, the
-  `io.aviso.rook.jetty-async-adapter` namespace can be used to create a request processing pipeline that
+  [[io.aviso.rook.jetty-async-adapter]] namespace can be used to create a request processing pipeline that
   is async end-to-end.
 
   The loopback allows this asynchronous processing to be re-entrant.
 
-  The `io.aviso.rook.client` namespace is specifically designed to allow resources to communiate with each other
+  The [[io.aviso.rook.client]] namespace is specifically designed to allow resources to communiate with each other
   via the loopback.
 
   handler
-  : delegate asynchronous handler, typically via namespace-handler and/or routes
+  : delegate asynchronous handler, typically via [[namespace-handler]]
 
   k
   : _Default: :loopback-handler_
-  : The keyword added to the Ring request to identify the loopback handler function; :loopback-handler by default
-
-  The loopback handler is exposed via `wrap-with-arg-resolvers`: resource handler functions can gain access
-  to the loopback by providing an argument with a matching name.
+  : The keyword used to identify the loopback handler function; :loopback-handler by default
+  : The loopback handler will be accessible via [[get-injection]].
 
   The loopback handler will capture some request data when first invoked (in a non-loopback request); this information
   is merged into the request map provided to the delegate handler. This includes :scheme, :server-port, :server-name,
@@ -126,41 +124,18 @@
   or posted data.
 
   Specifically, the client in a loopback will need to explicitly decide which, if any, headers are to
-  be passed through the loopback.
-
-  In addition, the `[:rook :arg-resolvers]` key is captured, since often default argument resolvers are
-  defined higher in the pipeline."
+  be passed through the loopback."
   ([handler]
    (wrap-with-loopback handler :loopback-handler))
   ([handler k]
    (fn [request]
-     (let [injections (-> request ::rook/injections)
-           captured-request-data (select-keys request request-copy-properties)]
+     (let [captured-request-data (select-keys request request-copy-properties)]
        (letfn [(handler' [nested-request]
-                         (let [wrapped (rook/wrap-with-arg-resolvers handler (rook/build-map-arg-resolver {k handler'}))
-                               request' (-> nested-request
-                                            (assoc k handler')
-                                            (assoc ::rook/injections injections)
-                                            (merge captured-request-data))]
-                           (wrapped request')))]
+                         (let [request' (-> nested-request
+                                            (merge captured-request-data)
+                                            (rook/inject k handler'))]
+                           (handler request')))]
          (handler' request))))))
-
-(defn wrap-with-injections
-  "Merges the given map into the map found at
-  `:io.aviso.rook/injections` key in the request prior to passing it
-  to the handler. May be specified multiple times in the middleware stack.
-
-  Injections thus added to the request will be preserved for requests
-  made via the loopback mechanism."
-  [handler injections]
-  (fn [request]
-    (handler (update-in request [::rook/injections] merge injections))))
-
-(defn get-injection
-  "Extracts the injection named by the given keyword from the
-  request."
-  [request kw]
-  (-> request ::rook/injections kw))
 
 (defn wrap-restful-format
   "Asychronous version of `ring.middleware.format/wrap-restful-format`; this implementation
@@ -193,7 +168,7 @@
          response-ch)))))
 
 (defn wrap-with-standard-middleware
-  "The equivalent of `io.aviso.rook/wrap-with-standard-middleware`, but for an asynchronous pipeline."
+  "The equivalent of [[rook/wrap-with-standard-middleware]], but for an asynchronous pipeline."
   [handler]
   (-> handler
       wrap-restful-format

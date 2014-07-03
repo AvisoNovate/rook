@@ -35,13 +35,6 @@
       resp)))
 
 
-(defn wrap-with-resolve-method [handler]
-  (rook/wrap-with-arg-resolvers handler
-    (fn [kw request]
-      (if (identical? kw :request-method)
-        (:request-method request)))))
-
-
 (defn wrap-with-incrementer [handler atom]
   (fn [request]
     (swap! atom inc)
@@ -234,7 +227,6 @@
           (should= expected-value
             (let [mw (fn [handler]
                        (-> handler
-                         wrap-with-resolve-method
                          ring.middleware.keyword-params/wrap-keyword-params
                          ring.middleware.params/wrap-params))
                   dt (dispatcher/namespace-dispatch-table
@@ -277,8 +269,8 @@
         (let [override (merge dispatcher/default-resolver-factories {:magic (fn [sym]
                                                                               (constantly (str "**presto[" sym "]**")))})
               handler (rook/namespace-handler {:resolver-factories override}
-                                              [["magic"] 'magic ])]
-          (-> (mock/request :get "/magic/42")
+                                              [["presto"] 'presto ])]
+          (-> (mock/request :get "/presto/42")
               handler
               (should= "42 -- **presto[extra]**")))))
 
@@ -410,8 +402,7 @@
                       rook-async/wrap-with-loopback
                       rook-async/wrap-session
                       rook-async/wrap-with-standard-middleware
-                      (rook-async/wrap-with-injections
-                        {:strange-injection "really surprising"}))]
+                      (rook/wrap-with-injection :strange-injection "really surprising"))]
         (jetty/run-async-jetty handler
           {:host "localhost" :port 9988 :join? false :async-timeout 100})))
 

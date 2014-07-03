@@ -5,8 +5,7 @@
      [client :as c]]))
 
 (defn create
-  [^:request-key loopback-handler]
-  (println "creator-loopback/create")
+  [^:injection loopback-handler]
   (-> (c/new-request loopback-handler)
       (c/to :post :creator)
       c/send))

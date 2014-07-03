@@ -3,29 +3,22 @@
   (:require
     [io.aviso.rook
      [dispatcher :as dispatcher]
-     [internals :as internals]
-     [utils :as utils]]
+     [internals :as internals]]
     [ring.middleware params format keyword-params]
-    [clojure.string :as str]
     [medley.core :as medley]))
 
-(defn get-injected-value
+(defn get-injection
   "Retrieves an injected value stored in the request. Throws an exception if the value is falsey."
-  {:added "0.1.10"}
+  {:added "0.1.11"}
   [request injection-key]
-  {:pre [(some? request)
-         (keyword? injection-key)]}
-  (or
-    (get-in request [:io.aviso.rook/injections injection-key])
-    (throw (ex-info (format "Unable to retrieve injected value for key `%s'." injection-key)
-                    {:request request}))))
+  (internals/get-injection request injection-key))
 
 (defn inject*
   "Merges the provided map of injectable argument values into the request. Keys should be keywords
   (that will match against function argument symbols, converted to keywords)."
   {:added "0.1.10"}
   [request injection-map]
-  (medley/update request :io.aviso.rook/injections merge injection-map))
+  (medley/update request ::injections merge injection-map))
 
 (defn inject
   "Merges a single keyword key and value into the map of injectable argument values. This is
@@ -46,60 +39,14 @@
         (inject key value)
         handler)))
 
-(defn build-map-arg-resolver
-  "Builds a static argument resolver around the map of keys and values; the values are the exact resolved
-  value for arguments matching the keys."
-  [arg-map]
-  (fn [arg request]
-    (get arg-map arg)))
-
-(defn build-fn-arg-resolver
-  "Builds dynamic argument resolvers that extract data from the request. The value for each key is a function;
-  the function is invoked to resolve the argument matching the key. The function is passed the Ring request map."
-  [fn-map]
-  (fn [arg request]
-    (when-let [f (get fn-map arg)]
-      (f request))))
-
-(defn request-arg-resolver
-  "A dynamic argument resolver that simply resolves the argument to the matching key in the request map."
-  [arg request]
-  (get request arg))
-
-(defn wrap-with-arg-resolvers
-  "Middleware which adds the provided argument resolvers to the `[:rook :arg-resolvers]` collection.
-  Argument resolvers are used to gain access to information in the request, or information that
-  can be computed from the request, or static information that can be injected into resource handler
-  functions."
-  [handler & arg-resolvers]
-  (internals/wrap-with-arg-resolvers handler arg-resolvers))
-
-(defn resource-uri-arg-resolver
-  "Calculates the URI for a resource (handy when creating a Location header, for example).
-  First, calculates the server URI, which is either the :server-uri key in the request _or_
-  is calculated from the request's :scheme, :server-name, and :server-port.  It should be
-  the address of the root of the server.
-
-  From there, the :context key (made available by the dispatch
-  mechanism) is used to assemble the rest of the URI.
-
-  The URI ends with a slash."
-  [request]
-  (internals/resource-uri-for request))
-
-(defn clojureized-params-arg-resolver
-  "Converts the Request :params map, changing each key from embedded underscores to embedded dashes, the
-  latter being more idiomatic Clojure.
-
-  For example, you could define a parameter as:
-
-      {:keys [user-id email new-password] :as params*}
-
-  Which will work, even if the actual keys in the :params map were :user_id, :email, and :new_password.
-
-  This reflects the default configuration, where `params*` is mapped to this function."
-  [request]
-  (internals/clojurized-params-arg-resolver request))
+(defn wrap-with-injections
+  "Wraps a request handler with injections by merging in a map."
+  {:added "0.1.11"}
+  [handler injections]
+  (fn [request]
+    (-> request
+        (inject* injections)
+        handler)))
 
 (defn wrap-with-standard-middleware
   "The standard middleware that Rook expects to be present before it is passed the Ring request."
