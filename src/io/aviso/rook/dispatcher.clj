@@ -401,13 +401,13 @@
       (constantly ()))))
 
 (defn- resolver-entry
-  [arg resolver]
+  [resolver-factories arg resolver]
   (cond
     (keyword? resolver)
-    (if-let [f (get default-resolver-factories resolver)]
+    (if-let [f (get resolver-factories resolver)]
       [arg (f arg)]
       (throw (ex-info (format "Keyword %s does not identify a known argument resolver." resolver)
-                      {:arg arg :resolver resolver})))
+                      {:arg arg :resolver resolver :resolver-factories resolver-factories})))
 
     (ifn? resolver)
     [arg resolver]
@@ -417,12 +417,12 @@
                     {:arg arg :resolver resolver}))))
 
 (defn- maybe-resolver-by-tag
-  [arg]
+  [resolver-factories arg]
   (let [meta-ks     (keys (meta arg))
-        resolver-ks (filterv #(contains? default-resolver-factories %) meta-ks)]
+        resolver-ks (filterv #(contains? resolver-factories %) meta-ks)]
     (case (count resolver-ks)
       0 nil
-      1 (resolver-entry arg (first resolver-ks))
+      1 (resolver-entry resolver-factories arg (first resolver-ks))
       (throw (ex-info (format "Parameter `%s' has conflicting keywords identifying its argument resolution strategy: %s."
                               arg
                               (str/join ", " (resolver-ks)))
@@ -434,7 +434,7 @@
   an argument resolver.
 
   Returns a map from argument to argument resolver."
-  [arglist resolvers-map]
+  [resolver-factories arglist resolvers-map]
   (into {}
     (keep (fn [arg]
             (t/track #(format "Identifying argument resolver factory for `%s'." arg)
@@ -442,11 +442,11 @@
                        (cond
                          (contains? resolvers-map arg)
                          (let [resolver (get resolvers-map arg)]
-                           (resolver-entry arg resolver))
+                           (resolver-entry resolver-factories arg resolver))
                          (contains? (meta arg) :io.aviso.rook/resolver)
-                         (resolver-entry arg (:io.aviso.rook/resolver (meta arg)))
+                         (resolver-entry resolver-factories arg (:io.aviso.rook/resolver (meta arg)))
                          :else
-                         (maybe-resolver-by-tag arg)))))
+                         (maybe-resolver-by-tag resolver-factories arg)))))
       arglist)))
 
 (defn- add-dispatch-entries
@@ -469,7 +469,7 @@
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
-   {:keys [async? arg-symbol->resolver]}]
+   {:keys [async? arg-symbol->resolver resolver-factories]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-sym]]
             (t/track #(format "Compiling handler for `%s'." (get-in handlers [handler-sym :verb-fn-sym]))
                      (let [apply-middleware (if async?
@@ -484,7 +484,7 @@
                            resolve-args (arglist-resolver
                                           arg-symbol->resolver
                                           arglist
-                                          (resolvers-for arglist arg-resolvers)
+                                          (resolvers-for resolver-factories arglist arg-resolvers)
                                           route-params)
 
                            mw (eval (get middleware middleware-sym))
@@ -522,6 +522,7 @@
 (def ^:private dispatch-table-compilation-defaults
   {:async?           false
    :arg-symbol->resolver default-arg-symbol->resolver
+   :resolver-factories default-resolver-factories
    :build-handler-fn build-map-traversal-handler})
 
 (defn compile-dispatch-table
@@ -533,26 +534,31 @@
   Supported options and their default values:
 
   :async?
-
   : _Default: false_
-
   : Determines the way in which middleware is applied to the terminal
     handler. Pass in true when compiling async handlers.
 
   :build-handler-fn
-
   : _Default: [[build-map-traversal-handler]]_
-
   : Will be called with routes, handlers, middleware and should
     produce a Ring handler.
 
   :arg-resolvers
-
   : _Default: nil_
-
   : Can be used to specify default resolvers (which will be overridden
     by argument resolvers specified in namespace or function
-    metadata)."
+    metadata).
+
+  :arg-symbol->resolver
+  : _Default: [[default-arg-symbol->resolver]]_
+  : Used to specify mappings from symbols to argument resolver functions.
+
+  :resolver-factories
+  : _Default: [[default-resolver-factories]]_
+  : Used to specify a map from keyword to argument resolver function _factory_. The keyword is a marker
+    for meta data on the symbol (default markers include :header, :param, :injection, etc.). The value
+    is a function that accepts a symbol and returns an argument resolver function (that accepts the Ring
+    request and returns the argument's value)."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults

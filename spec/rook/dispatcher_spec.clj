@@ -271,7 +271,16 @@
                                                [["magic"] 'magic ])]
           (-> (mock/request :get "/magic")
               handler
-              (should= "**magic**")))))
+              (should= "**magic**"))))
+
+    (it "allows overrides of :resolver-factories"
+        (let [override (merge dispatcher/default-resolver-factories {:magic (fn [sym]
+                                                                              (constantly (str "**presto[" sym "]**")))})
+              handler (rook/namespace-handler {:resolver-factories override}
+                                              [["magic"] 'magic ])]
+          (-> (mock/request :get "/magic/42")
+              handler
+              (should= "42 -- **presto[extra]**")))))
 
   (describe "async handlers"
 

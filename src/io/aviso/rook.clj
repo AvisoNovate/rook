@@ -137,32 +137,31 @@
   below with their default values):
 
   :context-pathvec
-
   : _Default: []_
-
   : Top-level context-pathvec that will be prepended to
     context-pathvecs for the individual namespaces.
 
   :default-middleware
-
   : _Default: clojure.core/identity_
-
   : Default middleware used for namespaces for which no middleware
     was specified.
 
   :async?
-
   : _Default: false_
-
   : If `true`, an async handler will be returned.
 
   :arg-symbol->resolver
-
   : _Default: [[io.aviso.rook.dispatcher/default-arg-symbol->resolver]]_
-
   : Map from symbol to a function of request that resolves an argument.
     This is used to support the cases where an argument's name defines
     how it is resolved.
+
+  :resolver-factories
+  : _Default: [[io.aviso.rook.dispatcher/default-resolver-factories]]_
+  : Used to specify a map from keyword to argument resolver function _factory_. The keyword is a marker
+    for meta data on the symbol (default markers include :header, :param, :injection, etc.). The value
+    is a function that accepts a symbol and returns an argument resolver function (that accepts the Ring
+    request and returns the argument's value).
 
   Example call:
 
