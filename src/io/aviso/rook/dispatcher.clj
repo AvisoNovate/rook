@@ -263,7 +263,7 @@
   dispatch table; a route-spec* is a route-spec with keywords replaced
   by symbols in the pathvec.
 
-  `options` should be a map of options or `nil`. Currently only one
+  options should be a map of options or nil. Currently only one
   option is supported:
 
   :arg-resolvers
