@@ -617,8 +617,7 @@
   "Handles unnesting of ns-specs. Also supplies nil in place of
   missing context-pathvec and middleware arguments."
   [outer-context-pathvec outer-middleware ns-specs]
-  (mapcat (fn [[context-pathvec? ns-sym middleware? & nested-ns-specs
-                :as ns-spec]]
+  (mapcat (fn [[context-pathvec? ns-sym middleware? :as ns-spec]]
             (let [context-pathvec (if (vector? context-pathvec?)
                                     context-pathvec?)
                   middleware      (let [mw? (if context-pathvec
