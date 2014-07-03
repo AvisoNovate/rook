@@ -49,7 +49,7 @@
 
   The extra logging and debugging middleware is added around the root handler (or the
   reloading handler that creates the root handler)."
-  [creator {:keys [reload log debug]} & creator-args]
+  [{:keys [reload log debug]} creator & creator-args]
   (let [handler (if reload
                   (-> #(apply creator creator-args) reloading-handler)
                   (apply creator creator-args))]
