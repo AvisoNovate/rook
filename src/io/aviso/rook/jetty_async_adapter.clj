@@ -13,7 +13,7 @@
      [response :as r]]
     [ring.adapter.jetty :as jetty]))
 
-(defn customized-proxy-handler
+(defn- customized-proxy-handler
   [handler]
   (proxy [AbstractHandler] []
     (handle [_ ^Request base-request request response]
