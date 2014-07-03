@@ -219,9 +219,9 @@
   (if-let [[method pathvec verb-fn-sym mw-spec] dispatch-table-entry]
     (t/track
       (format "Analyzing resource handler function `%s'." verb-fn-sym)
-      (let [handler-sym (gensym "handler_sym__")
+      (let [handler-key (gensym "handler-key__")
             routes' (assoc routes
-                      [method (keywords->symbols pathvec)] handler-sym)
+                      [method (keywords->symbols pathvec)] handler-key)
             [middleware' middleware-key] (if (contains? middleware mw-spec)
                                    [middleware (get middleware mw-spec)]
                                    (let [mw-sym (gensym "middleware-key__")]
@@ -251,7 +251,7 @@
                        :metadata       metadata}
                       context
                       (assoc :context (string/join "/" (cons "" context))))
-            handlers' (assoc handlers handler-sym handler)]
+            handlers' (assoc handlers handler-key handler)]
         [routes' handlers' middleware']))))
 
 (defn- analyse-dispatch-table
@@ -477,8 +477,8 @@
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
    {:keys [async? arg-symbol->resolver resolver-factories]}]
-  (reduce (fn [dispatch-map [[method pathvec] handler-sym]]
-            (t/track #(format "Compiling handler for `%s'." (get-in handlers [handler-sym :verb-fn-sym]))
+  (reduce (fn [dispatch-map [[method pathvec] handler-key]]
+            (t/track #(format "Compiling handler for `%s'." (get-in handlers [handler-key :verb-fn-sym]))
                      (let [apply-middleware (if async?
                                               apply-middleware-async
                                               apply-middleware-sync)
@@ -486,7 +486,7 @@
                            {:keys [middleware-key route-params
                                    verb-fn-sym arglist arg-resolvers
                                    metadata context]}
-                           (get handlers handler-sym)
+                           (get handlers handler-key)
 
                            arglist-resolver (create-arglist-resolver
                                           arg-symbol->resolver
