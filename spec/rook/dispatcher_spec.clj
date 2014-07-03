@@ -264,7 +264,7 @@
 
   (describe "argument resolution"
 
-    (it "allows overrides of arg-resolvers"
+    (it "allows overrides of :arg-symbol->resolver"
 
         (let [override (merge dispatcher/default-arg-symbol->resolver {'magic-value (constantly "**magic**")})
                handler (rook/namespace-handler {:arg-symbol->resolver override}
