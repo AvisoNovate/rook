@@ -214,24 +214,30 @@
   [routes]
   (into (sorted-map-by compare-route-specs) routes))
 
+(defn- caching-get
+  [m k f]
+  (if (contains? m k)
+    [m (get m k)]
+    (let [new-value (f)
+          new-map (assoc m k new-value)]
+      [new-map new-value])))
+
 (defn- analyze*
-  [routes handlers middleware extra-arg-resolvers dispatch-table-entry]
+  [[routes handlers middleware namespaces-metadata] extra-arg-resolvers dispatch-table-entry]
   (if-let [[method pathvec verb-fn-sym mw-spec] dispatch-table-entry]
     (t/track
       (format "Analyzing resource handler function `%s'." verb-fn-sym)
       (let [handler-key (gensym "handler-key__")
             routes' (assoc routes
                       [method (keywords->symbols pathvec)] handler-key)
-            [middleware' middleware-key] (if (contains? middleware mw-spec)
-                                   [middleware (get middleware mw-spec)]
-                                   (let [mw-sym (gensym "middleware-key__")]
-                                     [(assoc middleware mw-spec mw-sym) mw-sym]))
-            ns (-> verb-fn-sym namespace symbol the-ns)
-            ;; Seems like we should just do the *ns* binding trick once
-            ;; per namespace. Possibly as an additional map passed into
-            ;; analyze*
-            ns-metadata (binding [*ns* ns]
-                          (-> ns meta eval (dissoc :doc)))
+            [middleware' middleware-key] (caching-get middleware mw-spec #(gensym "middleware-key__"))
+
+            ns-symbol (-> verb-fn-sym namespace symbol)
+
+            [namespaces-metadata' ns-metadata] (caching-get namespaces-metadata ns-symbol
+                                                              #(binding [*ns* (the-ns ns-symbol)]
+                                                                (-> *ns* meta eval (dissoc :doc))))
+
             metadata (merge ns-metadata (meta (resolve verb-fn-sym)))
             route-params (mapv (comp symbol name)
                                (filter keyword? pathvec))
@@ -252,7 +258,7 @@
                       context
                       (assoc :context (string/join "/" (cons "" context))))
             handlers' (assoc handlers handler-key handler)]
-        [routes' handlers' middleware']))))
+        [routes' handlers' middleware' namespaces-metadata']))))
 
 (defn- analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
@@ -274,15 +280,14 @@
     metadata."
   [dispatch-table options]
   (let [extra-arg-resolvers (:arg-resolvers options)]
-    (loop [routes     {}
-           handlers   {}
-           middleware {}
+    (loop [analyze-state nil
            entries    (seq (unnest-dispatch-table dispatch-table))]
-      (if-let [[routes' handlers' middleware'] (analyze* routes handlers middleware extra-arg-resolvers (first entries))]
-        (recur routes' handlers' middleware' (next entries))
-        {:routes     (sorted-routes routes)
-         :handlers   handlers
-         :middleware (set/map-invert middleware)}))))
+      (if-let [analyze-state' (analyze* analyze-state extra-arg-resolvers (first entries))]
+        (recur analyze-state' (next entries))
+        (let [[routes handlers middleware] analyze-state]
+          {:routes     (sorted-routes routes)
+           :handlers   handlers
+           :middleware (set/map-invert middleware)})))))
 
 (defn- map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
