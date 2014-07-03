@@ -233,10 +233,11 @@
             ns-metadata (binding [*ns* ns]
                           (-> ns meta eval (dissoc :doc)))
             metadata (merge ns-metadata (meta (resolve verb-fn-sym)))
-            sync? (:sync metadata)
             route-params (mapv (comp symbol name)
                                (filter keyword? pathvec))
             context (:context (meta pathvec))
+            ;; Should it be an error if there is more than one airty on the function? We ignore
+            ;; all but the first.
             arglist (first (:arglists metadata))
             ;; :arg-resolvers is an option passed to compile-dispatch-table,
             ;; and metadata is merged onto that.
@@ -247,7 +248,6 @@
                        :verb-fn-sym    verb-fn-sym
                        :arglist        arglist
                        :arg-resolvers  arg-resolvers
-                       :sync?          sync?
                        :metadata       metadata}
                       context
                       (assoc :context (string/join "/" (cons "" context))))
@@ -484,7 +484,7 @@
                                               apply-middleware-sync)
 
                            {:keys [middleware-sym route-params
-                                   verb-fn-sym arglist arg-resolvers sync?
+                                   verb-fn-sym arglist arg-resolvers
                                    metadata context]}
                            (get handlers handler-sym)
 
@@ -501,7 +501,7 @@
                                (fn wrapped-handler [request]
                                  (apply ef (resolve-args request))))
 
-                           h (apply-middleware mw sync? f)
+                           h (apply-middleware mw (:sync metadata) f)
                            h (fn [request]
                                (h (-> request
                                       (update-in [:rook :metadata]
