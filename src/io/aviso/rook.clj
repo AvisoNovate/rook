@@ -75,7 +75,7 @@
      A context pathvec to be prepended to pathvecs for all entries
      emitted for this namespace.
 
-   - middleware? (clojure.core/identity or as supplied in options?):
+   - middleware? ([[dispatcher/default-namespace-middleware]] or as supplied in options?):
 
      Middleware to be applied to terminal handlers found in this
      namespace.
@@ -97,3 +97,30 @@
   [options? & ns-specs]
   (dispatcher/compile-dispatch-table (if (map? options?) options?)
     (apply dispatcher/namespace-dispatch-table options? ns-specs)))
+
+(defn- convert-middleware-form
+  [handler-sym metadata-sym form]
+  `(or
+     ~(if (list? form)
+        (list* (first form) handler-sym metadata-sym (rest form))
+        (list form handler-sym metadata-sym))
+     ~handler-sym))
+
+(defmacro middleware->
+  "Assembles multiple namespace middleware forms into a single namespace middleware. Each middleware form
+  is either a list or a single form, that will be wrapped as a list.
+
+  The list is modified so that the first two values passed in are previous handler and the metadata (associated
+  with the resource handler function).
+
+  The form should evaluate to a new handler, or the old handler. As a convienience, the form may
+  evaluate to nil, which will keep the original handler passed in.
+
+  Returns a function that accepts a handler and middleware and invokes each middleware form in turn."
+  [& middlewares]
+  (let [handler-sym (gensym "handler")
+        metadata-sym (gensym "metadata")]
+    `(fn [~handler-sym ~metadata-sym]
+       (let [~@(interleave (repeat handler-sym)
+                           (map (partial convert-middleware-form handler-sym metadata-sym) middlewares))]
+         ~handler-sym))))

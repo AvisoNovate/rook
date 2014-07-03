@@ -76,9 +76,9 @@
   (internals/ring-handler->async-handler handler))
 
 (defn wrap-with-schema-validation
-  "The asynchronous version of schema validation, triggered by :schema metadata."
-  [handler]
-  (sv/wrap-with-schema-validation handler result->channel))
+  "The asynchronous version of schema validation."
+  [handler metadata]
+  (sv/wrap-with-schema-validation handler metadata result->channel))
 
 (def ^:private request-copy-properties
   "Properties of a Ring request that should be copied into a chained request."

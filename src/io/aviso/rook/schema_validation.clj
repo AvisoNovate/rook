@@ -77,20 +77,18 @@
       [nil (assoc request :params params')])))
 
 (defn wrap-with-schema-validation
-  "Wraps a handler with validation, which is triggered by the `[:rook :metadata :schema]` key in the
-  request.
+  "Wraps a handler with validation, which is triggered by the :schema key in the
+  metadata.
 
-  The two-argument version includes a function used to wrap the bad request response;
+  The three-argument version includes a function used to wrap the bad request response;
   this is identity in the normal case (and is provided to support async processing)."
-  ([handler]
-   (wrap-with-schema-validation handler identity))
-  ([handler response-wrapper]
-   (fn [request]
-     (or
-       (when-let [schema (-> request :rook :metadata :schema)]
-         (let [[failures new-request] (validate-against-schema request schema)]
-           (if failures
-             (-> failures wrap-invalid-response response-wrapper)
-             (handler new-request))))
-       (handler request)))))
+  ([handler metadata]
+   (wrap-with-schema-validation handler metadata identity))
+  ([handler metadata response-wrapper]
+   (when-let [schema (:schema metadata)]
+     (fn [request]
+       (let [[failures new-request] (validate-against-schema request schema)]
+         (if failures
+           (-> failures wrap-invalid-response response-wrapper)
+           (handler new-request)))))))
 

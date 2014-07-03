@@ -62,6 +62,13 @@
    }
   )
 
+(defn default-namespace-middleware
+  "Default namespace middleware that ignores the metadata and returns the handler unchanged.
+  Namespace middleware is slightly different than Ring middleware, as the metadata from
+  the function is available. Namespace middleware may also return nil."
+  [handler metadata]
+  handler)
+
 (defn- request-route-spec
   "Takes a Ring request map and returns `[method pathvec]`, where method
   is a request method keyword and pathvec is a vector of path
@@ -153,21 +160,6 @@
            (symbol (name %))
            %)
     xs))
-
-(defn- apply-middleware-sync
-  "Applies middleware to handler in a synchronous fashion. Ignores
-  sync?."
-  [middleware sync? handler]
-  (middleware handler))
-
-(defn- apply-middleware-async
-  "Applies middleware to handler in a synchronous or asynchronous
-  fashion depending on whether sync? is truthy."
-  [middleware sync? handler]
-  (middleware
-    (if sync?
-      (internals/ring-handler->async-handler handler)
-      handler)))
 
 (defn- variable? [x]
   (or (keyword? x) (symbol? x)))
@@ -484,11 +476,7 @@
    {:keys [async? arg-symbol->resolver resolver-factories]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-key]]
             (t/track #(format "Compiling handler for `%s'." (get-in handlers [handler-key :verb-fn-sym]))
-                     (let [apply-middleware (if async?
-                                              apply-middleware-async
-                                              apply-middleware-sync)
-
-                           {:keys [middleware-key route-params
+                     (let [{:keys [middleware-key route-params
                                    verb-fn-sym arglist arg-resolvers
                                    metadata context]}
                            (get handlers handler-key)
@@ -502,19 +490,24 @@
 
                            middleware (get middleware middleware-key)
 
-                           handler' (let [resource-handler-fn (eval verb-fn-sym)]
-                               (fn [request]
-                                 (apply resource-handler-fn (arglist-resolver request))))
+                           resource-handler-fn (eval verb-fn-sym)
 
-                           wrapped-handler (apply-middleware middleware (:sync metadata) handler')
+                           request-handler (fn [request]
+                                             (apply resource-handler-fn (arglist-resolver request)))
 
-                           context-maintaining-handler (fn [request]
-                               (wrapped-handler (-> request
-                                      (update-in [:rook :metadata]
-                                                 merge (dissoc metadata :arg-resolvers))
-                                      ;; FIXME
-                                      (cond-> context
-                                              (update-in [:context] str context)))))]
+
+                           request-handler' (if (and async? (:sync metadata))
+                                              (internals/ring-handler->async-handler request-handler)
+                                              request-handler)
+
+                           middleware-applied (or (middleware request-handler' metadata) request-handler')
+
+                           context-maintaining-handler (if context
+                                                         (fn [request]
+                                                           (-> request
+                                                               (update-in [:context] str context)
+                                                               middleware-applied))
+                                                         middleware-applied)]
                        (add-dispatch-entries dispatch-map method pathvec context-maintaining-handler))))
     {}
     routes))
@@ -596,7 +589,7 @@
   ([ns-sym]
      (simple-namespace-dispatch-table [] ns-sym))
   ([context-pathvec ns-sym]
-     (simple-namespace-dispatch-table context-pathvec ns-sym identity))
+     (simple-namespace-dispatch-table context-pathvec ns-sym default-namespace-middleware))
   ([context-pathvec ns-sym middleware]
    (t/track
      #(format "Identifying resource handler functions in `%s.'" ns-sym)
@@ -654,7 +647,7 @@
 
 (def ^:private default-opts
   {:context-pathvec    []
-   :default-middleware identity})
+   :default-middleware default-namespace-middleware})
 
 (defn namespace-dispatch-table
   "Similar to [[io.aviso.rook/namespace-handler]], but stops short of
