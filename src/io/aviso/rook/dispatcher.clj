@@ -488,7 +488,7 @@
                                    metadata context]}
                            (get handlers handler-sym)
 
-                           resolve-args (create-arglist-resolver
+                           arglist-resolver (create-arglist-resolver
                                           arg-symbol->resolver
                                           resolver-factories
                                           arg-resolvers
@@ -497,19 +497,20 @@
 
                            middleware (get middleware middleware-key)
 
-                           f (let [ef (eval verb-fn-sym)]
-                               (fn wrapped-handler [request]
-                                 (apply ef (resolve-args request))))
+                           handler' (let [resource-handler-fn (eval verb-fn-sym)]
+                               (fn [request]
+                                 (apply resource-handler-fn (arglist-resolver request))))
 
-                           h (apply-middleware middleware (:sync metadata) f)
-                           h (fn [request]
-                               (h (-> request
+                           wrapped-handler (apply-middleware middleware (:sync metadata) handler')
+
+                           context-maintaining-handler (fn [request]
+                               (wrapped-handler (-> request
                                       (update-in [:rook :metadata]
                                                  merge (dissoc metadata :arg-resolvers))
                                       ;; FIXME
                                       (cond-> context
                                               (update-in [:context] str context)))))]
-                       (add-dispatch-entries dispatch-map method pathvec h))))
+                       (add-dispatch-entries dispatch-map method pathvec context-maintaining-handler))))
     {}
     routes))
 
