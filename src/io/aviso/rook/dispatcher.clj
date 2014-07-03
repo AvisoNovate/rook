@@ -238,6 +238,8 @@
                                (filter keyword? pathvec))
             context (:context (meta pathvec))
             arglist (first (:arglists metadata))
+            ;; :arg-resolvers is an option passed to compile-dispatch-table,
+            ;; and metadata is merged onto that.
             arg-resolvers (merge extra-arg-resolvers (:arg-resolvers metadata))
             handler (cond->
                       {:middleware-sym mw-sym
