@@ -222,9 +222,9 @@
       (let [handler-sym (gensym "handler_sym__")
             routes' (assoc routes
                       [method (keywords->symbols pathvec)] handler-sym)
-            [middleware' mw-sym] (if (contains? middleware mw-spec)
+            [middleware' middleware-key] (if (contains? middleware mw-spec)
                                    [middleware (get middleware mw-spec)]
-                                   (let [mw-sym (gensym "mw_sym__")]
+                                   (let [mw-sym (gensym "middleware-key__")]
                                      [(assoc middleware mw-spec mw-sym) mw-sym]))
             ns (-> verb-fn-sym namespace symbol the-ns)
             ;; Seems like we should just do the *ns* binding trick once
@@ -243,7 +243,7 @@
             ;; and metadata is merged onto that.
             arg-resolvers (merge extra-arg-resolvers (:arg-resolvers metadata))
             handler (cond->
-                      {:middleware-sym mw-sym
+                      {:middleware-key middleware-key
                        :route-params   route-params
                        :verb-fn-sym    verb-fn-sym
                        :arglist        arglist
@@ -483,7 +483,7 @@
                                               apply-middleware-async
                                               apply-middleware-sync)
 
-                           {:keys [middleware-sym route-params
+                           {:keys [middleware-key route-params
                                    verb-fn-sym arglist arg-resolvers
                                    metadata context]}
                            (get handlers handler-sym)
@@ -495,13 +495,13 @@
                                           route-params
                                           arglist)
 
-                           mw (eval (get middleware middleware-sym))
+                           middleware (get middleware middleware-key)
 
                            f (let [ef (eval verb-fn-sym)]
                                (fn wrapped-handler [request]
                                  (apply ef (resolve-args request))))
 
-                           h (apply-middleware mw (:sync metadata) f)
+                           h (apply-middleware middleware (:sync metadata) f)
                            h (fn [request]
                                (h (-> request
                                       (update-in [:rook :metadata]

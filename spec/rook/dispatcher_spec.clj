@@ -95,12 +95,15 @@
              (resp/response (str "Created " x))))))
 
 
-(def default-middleware identity)
+(defn default-middleware
+  "Pretty much identity, but seperate to faciliate some of the tests."
+  [handler]
+  handler)
 
 (def simple-dispatch-table
-  [[:get  ["foo"]     'example.foo/index  `default-middleware]
-   [:post ["foo"]     'example.foo/create `default-middleware]
-   [:get  ["foo" :id] 'example.foo/show   `default-middleware]])
+  [[:get  ["foo"]     'example.foo/index  default-middleware]
+   [:post ["foo"]     'example.foo/create default-middleware]
+   [:get  ["foo" :id] 'example.foo/show   default-middleware]])
 
 (describe "io.aviso.rook.dispatcher"
 
@@ -120,25 +123,25 @@
     (it "should correctly unnest DTs WITHOUT default middleware"
 
       (let [dt [(into [["api"]] simple-dispatch-table)]]
-        (should= [[:get  ["api" "foo"]     'example.foo/index  `default-middleware]
-                  [:post ["api" "foo"]     'example.foo/create `default-middleware]
-                  [:get  ["api" "foo" :id] 'example.foo/show   `default-middleware]]
+        (should= [[:get  ["api" "foo"]     'example.foo/index  default-middleware]
+                  [:post ["api" "foo"]     'example.foo/create default-middleware]
+                  [:get  ["api" "foo" :id] 'example.foo/show   default-middleware]]
           (dispatcher/unnest-dispatch-table dt))))
 
     (it "should correctly unnest DTs WITH default middleware and empty context pathvec"
 
-      (let [dt [(into [[] `default-middleware]
+      (let [dt [(into [[] default-middleware]
                   (mapv pop simple-dispatch-table))]]
         (should= simple-dispatch-table
           (dispatcher/unnest-dispatch-table dt))))
 
     (it "should correctly unnest DTs WITH default middleware and non-empty context pathvec"
 
-      (let [dt [(into [["api"] `default-middleware]
+      (let [dt [(into [["api"] default-middleware]
                   (mapv pop simple-dispatch-table))]]
-        (should= [[:get  ["api" "foo"]     'example.foo/index  `default-middleware]
-                  [:post ["api" "foo"]     'example.foo/create `default-middleware]
-                  [:get  ["api" "foo" :id] 'example.foo/show   `default-middleware]]
+        (should= [[:get  ["api" "foo"]     'example.foo/index  default-middleware]
+                  [:post ["api" "foo"]     'example.foo/create default-middleware]
+                  [:get  ["api" "foo" :id] 'example.foo/show   default-middleware]]
           (dispatcher/unnest-dispatch-table dt)))))
 
   (describe "compile-dispatch-table"
@@ -157,14 +160,15 @@
         (should= {:status 200 :headers {} :body "Created 123"}
           create-response)))
 
-    (it "should inject the middleware"
+    (it "should inject the default middleware"
 
       (let [a (atom 0)]
         (with-redefs [default-middleware (fn [handler]
                                            (fn [request]
                                              (swap! a inc)
                                              (handler request)))]
-          (let [handler (dispatcher/compile-dispatch-table simple-dispatch-table)]
+          (let [local-dispatch-table [[:get ["foo"] 'example.foo/index default-middleware]]
+                handler (dispatcher/compile-dispatch-table local-dispatch-table)]
             (handler (mock/request :get "/foo"))
             (should= 1 @a))))))
 
@@ -174,7 +178,7 @@
 
       (let [dt (set (dispatcher/unnest-dispatch-table
                       (dispatcher/namespace-dispatch-table
-                        [["foo"] 'example.foo `default-middleware])))]
+                        [["foo"] 'example.foo default-middleware])))]
         (should= (set simple-dispatch-table) dt)))
 
     (it "should respect the :context-pathvec option"
@@ -182,7 +186,7 @@
       (let [dt (set (dispatcher/unnest-dispatch-table
                       (dispatcher/namespace-dispatch-table
                         {:context-pathvec ["api"]}
-                        [["foo"] 'example.foo `default-middleware])))]
+                        [["foo"] 'example.foo default-middleware])))]
         (should= (set (map (fn [[_ pathvec :as entry]]
                              (update-in entry [1] #(into ["api"] %)))
                         simple-dispatch-table))
@@ -219,7 +223,7 @@
       (let [dt (dispatcher/unnest-dispatch-table
                  (dispatcher/namespace-dispatch-table
                    {:context-pathvec    ["foo"]
-                    :default-middleware `default-middleware}
+                    :default-middleware default-middleware}
                    ['example.foo]))]
         (should= (set simple-dispatch-table)
           (set dt)))))
@@ -284,7 +288,7 @@
     (it "should return a channel with the correct response"
 
       (let [handler (rook/namespace-handler {:async? true}
-                      [[] 'barney `default-middleware])]
+                      [[] 'barney default-middleware])]
         (should= {:message "ribs!"}
           (-> (mock/request :get "/") handler async/<!! :body))))
 
