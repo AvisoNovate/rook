@@ -5,9 +5,9 @@
 (defn make-dispatch-table [& syms]
   (reduce into []
     (map #(dispatcher/namespace-dispatch-table
-            [(str %)]
-            (symbol (str "rook-stress-test.resources." %))
-            `identity)
+            [[(str %)]
+             (symbol (str "rook-stress-test.resources." %))
+             identity])
       syms)))
 
 (def syms (mapv #(str "example" %) (range 64)))
@@ -30,26 +30,16 @@
 (def dispatch-table
   (apply make-dispatch-table 'foo 'bar 'baz 'quux syms))
 
-(def pattern-matching-handler
-  (dispatcher/compile-dispatch-table
-    {:build-handler-fn dispatcher/build-pattern-matching-handler}
-    dispatch-table))
-
-(def map-traversal-handler
-  (dispatcher/compile-dispatch-table
-    {:build-handler-fn dispatcher/build-map-traversal-handler}
-    dispatch-table))
+(def rook-handler
+  (dispatcher/compile-dispatch-table dispatch-table))
 
 (defonce js (atom #{}))
 
 (defn start []
   (locking js
     (swap! js conj
-      (jetty/run-jetty pattern-matching-handler
-        {:port 6001 :host "localhost" :join? false}))
-    (swap! js conj
-      (jetty/run-jetty map-traversal-handler
-        {:port 6002 :host "localhost" :join? false}))))
+      (jetty/run-jetty rook-handler
+        {:port 6001 :host "localhost" :join? false}))))
 
 (defn stop []
   (locking js

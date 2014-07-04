@@ -4,6 +4,6 @@
   :license {:name "Apache Software License 2.0"
             :url "http://www.apache.org/licenses/LICENSE-2.0.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [io.aviso/rook "0.1.10-SNAPSHOT"]
+                 [io.aviso/rook "0.1.10"]
                  [ring "1.2.2"]]
   :jvm-opts ^:replace [])
