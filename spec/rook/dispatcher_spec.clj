@@ -35,8 +35,8 @@
       (if (satisfies? clojure.core.async.impl.protocols/ReadPort resp)
         (let [v (async/<!! resp)]
           (async/>!! resp v)
-          (pprint-code v))
-        (pprint-code resp))
+          (utils/pprint-code v))
+        (utils/pprint-code resp))
       (prn)
       resp)))
 
