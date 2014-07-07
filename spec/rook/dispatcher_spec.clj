@@ -18,15 +18,9 @@
             [clojure.pprint :as pprint])
   (:import (javax.servlet.http HttpServletResponse)))
 
-(defn pprint-code
-  "Pretty prints the form using code indentation rules."
-  [form]
-  (pprint/write form :dispatch pprint/code-dispatch)
-  (prn))
-
 (defn wrap-with-pprint-request [handler]
   (fn [request]
-    (pprint-code request)
+    (utils/pprint-code request)
     (handler request)))
 
 (defn wrap-with-pprint-response [handler]
@@ -268,17 +262,17 @@
 
     (it "allows overrides of :arg-symbol->resolver"
 
-        (let [override (merge dispatcher/default-arg-symbol->resolver {'magic-value (constantly "**magic**")})
-              handler (rook/namespace-handler {:arg-symbol->resolver override}
+        (let [override ^:replace {'magic-value (constantly "**magic**")}
+              handler (rook/namespace-handler {:arg-resolvers override}
                                               [["magic"] 'magic])]
           (-> (mock/request :get "/magic")
               handler
               (should= "**magic**"))))
 
     (it "allows overrides of :resolver-factories"
-        (let [override (merge dispatcher/default-resolver-factories {:magic (fn [sym]
-                                                                              (constantly (str "**presto[" sym "]**")))})
-              handler (rook/namespace-handler {:resolver-factories override}
+        (let [override ^:replace {:magic (fn [sym]
+                                           (constantly (str "**presto[" sym "]**")))}
+              handler (rook/namespace-handler {:arg-resolvers override}
                                               [["presto"] 'presto])]
           (-> (mock/request :get "/presto/42")
               handler

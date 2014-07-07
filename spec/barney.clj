@@ -1,5 +1,5 @@
 (ns barney
-  {:arg-resolvers {'partner (constantly :betty)}}
+  {:arg-resolvers {:partner (fn [_] (constantly :betty))}}
   (:require [io.aviso.rook.utils :as utils]
             [io.aviso.rook.client :as client]
             [clojure.core.async :as async]))
@@ -10,7 +10,7 @@
   (utils/response {:message "ribs!"}))
 
 (defn show
-  [id ^:injection loopback-handler partner]
+  [id ^:injection loopback-handler ^:partner partner]
   (async/go
     (->
       (client/new-request loopback-handler)

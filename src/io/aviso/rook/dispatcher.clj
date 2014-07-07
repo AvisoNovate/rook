@@ -215,7 +215,7 @@
       [new-map new-value])))
 
 (defn- analyze*
-  [[routes handlers middleware namespaces-metadata] extra-arg-resolvers dispatch-table-entry]
+  [[routes handlers middleware namespaces-metadata] arg-resolvers dispatch-table-entry]
   (if-let [[method pathvec verb-fn-sym mw-spec] dispatch-table-entry]
     (t/track
       (format "Analyzing resource handler function `%s'." verb-fn-sym)
@@ -239,7 +239,7 @@
             arglist (first (:arglists metadata))
             ;; :arg-resolvers is an option passed to compile-dispatch-table,
             ;; and metadata is merged onto that.
-            arg-resolvers (merge extra-arg-resolvers (:arg-resolvers metadata))
+            arg-resolvers (merge arg-resolvers (:arg-resolvers metadata))
             handler (cond->
                       {:middleware-key middleware-key
                        :route-params   route-params
@@ -251,6 +251,8 @@
                       (assoc :context (string/join "/" (cons "" context))))
             handlers' (assoc handlers handler-key handler)]
         [routes' handlers' middleware' namespaces-metadata']))))
+
+(declare default-arg-resolvers)
 
 (defn- analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
@@ -267,14 +269,19 @@
   :arg-resolvers
 
   : _Default: nil_
-  : Map of symbol to argument resolver (keyword or function) that serves
-    as a default that can be extended with function or namespace :arg-resolvers
-    metadata."
+  : Map of symbol to argument resolver (keyword or function) that
+    serves as a default that can be extended with function or
+    namespace :arg-resolvers metadata. Metadata attached to this map
+    will be examined; if it contains a truthy value at the key
+    of :replace, default arg resolvers will be excluded."
   [dispatch-table options]
-  (let [extra-arg-resolvers (:arg-resolvers options)]
+  (let [extra-arg-resolvers (:arg-resolvers options)
+        arg-resolvers (if (:replace (meta extra-arg-resolvers))
+                        extra-arg-resolvers
+                        (merge default-arg-resolvers extra-arg-resolvers))]
     (loop [analyze-state nil
            entries    (seq (unnest-dispatch-table dispatch-table))]
-      (if-let [analyze-state' (analyze* analyze-state extra-arg-resolvers (first entries))]
+      (if-let [analyze-state' (analyze* analyze-state arg-resolvers (first entries))]
         (recur analyze-state' (next entries))
         (let [[routes handlers middleware] analyze-state]
           {:routes     (sorted-routes routes)
@@ -335,25 +342,29 @@
     (fn [request]
       (internals/get-injection request kw))))
 
-(def default-resolver-factories
+(def default-arg-resolvers
   "A map of keyword -> (function of symbol returning a function of
-  request)."
+  request) or symbol -> (function of request). Functions of the former
+  kind are used as \"resolver factories\" (they will be passed arg
+  symbols and expected to produce resolvers in return); functions of
+  the latter kind are used as resolvers. A keyword in the value
+  position would cause a repeated lookup."
   {:request      (constantly identity)
    :request-key  make-request-key-resolver
    :header       make-header-arg-resolver
    :param        make-param-arg-resolver
    :injection    make-injection-resolver
-   :resource-uri make-resource-uri-arg-resolver})
-
-(def default-arg-symbol->resolver
-  "A map of symbol -> (function of request)."
-  {'request      identity
-   'params       :params
+   :resource-uri make-resource-uri-arg-resolver
+   'request      identity
+   'params       (make-request-key-resolver :params)
    'params*      internals/clojurized-params-arg-resolver
    'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})
 
+(def ^:private default-factory-keys
+  (set (filter keyword? (keys default-arg-resolvers))))
+
 (defn- symbol-for-argument [arg]
-  "Returns the argument symbol for an argument; this is either the argment itself or
+  "Returns the argument symbol for an argument; this is either the argument itself or
   (if a map, for destructuring) the :as key of the map."
   (if (map? arg)
     (if-let [as (:as arg)]
@@ -362,94 +373,99 @@
                {:arg arg})))
     arg))
 
-(defn- resolver-from-metadata
-  [resolver-factories arg value]
-  (cond
-    (fn? value)
-    value
+(defn- find-factory [arg-resolvers tag]
+  (loop [tag tag]
+    (if (keyword? tag)
+      (recur (get arg-resolvers tag))
+      tag)))
 
-    (keyword? value)
-    (if-let [f (get resolver-factories value)]
+(defn- find-resolver
+  [arg-resolvers arg hint]
+  (cond
+    (fn? hint)
+    hint
+
+    (keyword? hint)
+    (if-let [f (find-factory arg-resolvers hint)]
       (f arg)
-      (throw (ex-info (format "Keyword %s does not identify a known argument resolver." value)
-                      {:arg arg :resolver value :resolver-factories resolver-factories})))
+      (throw (ex-info (format "Keyword %s does not identify a known argument resolver." hint)
+               {:arg arg :resolver hint :arg-resolvers arg-resolvers})))
 
     :else
-    (throw (ex-info (format "Argument resolver value `%s' is neither a keyword not a function." value)
-                    {:arg arg :resolver value}))))
+    (throw (ex-info (format "Argument resolver value `%s' is neither a keyword not a function." hint)
+             {:arg arg :resolver hint}))))
 
 (defn- find-argument-resolver-tag
-  [resolver-factories arg arg-meta]
-  (let [resolver-ks (filterv #(contains? resolver-factories %) (keys arg-meta))]
+  [arg-resolvers arg arg-meta]
+  (let [resolver-ks (filterv #(contains? arg-resolvers %)
+                      (filter keyword? (keys arg-meta)))]
     (case (count resolver-ks)
       0 nil
       1 (first resolver-ks)
       (throw (ex-info (format "Parameter `%s' has conflicting keywords identifying its argument resolution strategy: %s."
                               arg
-                              (str/join ", " (resolver-ks)))
+                              (str/join ", " resolver-ks))
                       {:arg arg :resolver-tags resolver-ks})))))
 
 (defn- identify-argument-resolver
   "Identifies the specific argument resolver function for an argument, which can come from many sources based on
-  configuration in general, and meta-ata on the argument symbol and on the function's metadata (merged with
+  configuration in general, metadata on the argument symbol and on the function's metadata (merged with
   the containing namespace's metadata).
 
-  arg-symbol->resolver
-  : From options
-
-  resolver-factories
-  : From options.
-
   arg-resolvers
-  : From function meta-data
+  : See the docstring on
+    [[io.aviso.rook.dispatcher/default-arg-resolvers]]. The map passed
+    to this function will have been extended with user-supplied
+    resolvers and/or resolver factories.
 
   route-params
   : set of keywords
 
   arg
   : Argument, a symbol or a map (for destructuring)."
-  [arg-symbol->resolver resolver-factories arg-resolvers route-params arg]
+  [arg-resolvers route-params arg]
   (let [arg-symbol (symbol-for-argument arg)
         arg-meta (meta arg-symbol)]
     (t/track #(format "Identifying argument resolver for `%s'." arg-symbol)
       (cond
-        ;; Check for specific meta on the argument itself.
+        ;; route param resolution takes precedence
+        (contains? route-params arg)
+        (make-route-param-resolver arg-symbol)
+
+        ;; explicit ::rook/resolver metadata takes precedence for non-route params
         (contains? arg-meta :io.aviso.rook/resolver)
-        (resolver-from-metadata resolver-factories arg-symbol (:io.aviso.rook/resolver arg-meta))
+        (find-resolver arg-resolvers arg-symbol (:io.aviso.rook/resolver arg-meta))
 
-        ;; Check arg-resolvers, which comes from :arg-resolvers metadata on the function or namespace
-        (contains? arg-resolvers arg-symbol)
-        (resolver-from-metadata resolver-factories arg-symbol (get arg-resolvers arg-symbol))
+        :else
+        (if-let [resolver-tag (find-argument-resolver-tag
+                                arg-resolvers arg-symbol arg-meta)]
+          ;; explicit tags attached to the arg symbol itself come next
+          (find-resolver arg-resolvers arg-symbol resolver-tag)
 
-        :else (let [resolver-tag (find-argument-resolver-tag resolver-factories arg-symbol arg-meta)]
+          ;; non-route-param name-based resolution is implicit and
+          ;; should not override explicit tags, so this check comes
+          ;; last; NB. the value at arg-symbol might be a keyword
+          ;; identifying a resolver factory, so we still need to call
+          ;; find-resolver
+          (if (contains? arg-resolvers arg-symbol)
+            (find-resolver arg-resolvers arg-symbol (get arg-resolvers arg-symbol))
 
-                (cond
-                  resolver-tag
-                  ((get resolver-factories resolver-tag) arg-symbol)
-
-                  (contains? arg-symbol->resolver arg-symbol)
-                  (get arg-symbol->resolver arg-symbol)
-
-                  ;; Last check: does the symbol match a keyword path param
-                  (contains? route-params arg-symbol)
-                  (make-route-param-resolver arg-symbol)
-
-                  :else
-                  (throw (ex-info (format "Unable to identify argument resolver for symbol `%s'." arg-symbol)
-                                  {:symbol           arg-symbol
-                                   :symbol-meta      arg-meta
-                                   :route-params     route-params
-                                   :resolver-tags    (keys resolver-factories)
-                                   :resolver-symbols (keys arg-symbol->resolver)}))))))))
+            ;; only static resolution is supported
+            (throw (ex-info
+                     (format "Unable to identify argument resolver for symbol `%s'." arg-symbol)
+                     {:symbol           arg-symbol
+                      :symbol-meta      arg-meta
+                      :route-params     route-params
+                      :arg-resolvers    arg-resolvers}))))))))
 
 (defn- create-arglist-resolver
-  "Returns a function that is passed the Ring request and returns an array of argument values that can be applied
-  to the resource handler function."
-  [arg-symbol->resolver resolver-factories arg-resolvers route-params arg-list]
-  (if (seq arg-list)
+  "Returns a function that is passed the Ring request and returns an array of argument values which
+  the resource handler function can be applied to."
+  [arg-resolvers route-params arglist]
+  (if (seq arglist)
     (->>
-      arg-list
-      (map (partial identify-argument-resolver arg-symbol->resolver resolver-factories arg-resolvers (set route-params)))
+      arglist
+      (map (partial identify-argument-resolver arg-resolvers (set route-params)))
       (apply juxt))
     (constantly ())))
 
@@ -473,20 +489,24 @@
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
-   {:keys [async? arg-symbol->resolver resolver-factories]}]
+   {:keys [async? arg-resolvers]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-key]]
-            (t/track #(format "Compiling handler for `%s'." (get-in handlers [handler-key :verb-fn-sym]))
+            (t/track #(format "Compiling handler for `%s'."
+                        (get-in handlers [handler-key :verb-fn-sym]))
                      (let [{:keys [middleware-key route-params
-                                   verb-fn-sym arglist arg-resolvers
-                                   metadata context]}
+                                   verb-fn-sym arglist
+                                   metadata context]
+                            extra-resolvers :arg-resolvers}
                            (get handlers handler-key)
 
                            arglist-resolver (create-arglist-resolver
-                                          arg-symbol->resolver
-                                          resolver-factories
-                                          arg-resolvers
-                                          route-params
-                                          arglist)
+                                              (if (:replace (meta extra-resolvers))
+                                                extra-resolvers
+                                                (merge
+                                                  arg-resolvers
+                                                  extra-resolvers))
+                                              (set route-params)
+                                              arglist)
 
                            middleware (get middleware middleware-key)
 
@@ -496,11 +516,11 @@
                                              (apply resource-handler-fn (arglist-resolver request)))
 
 
-                           request-handler' (if (and async? (:sync metadata))
-                                              (internals/ring-handler->async-handler request-handler)
-                                              request-handler)
+                           request-handler (if (and async? (:sync metadata))
+                                             (internals/ring-handler->async-handler request-handler)
+                                             request-handler)
 
-                           middleware-applied (or (middleware request-handler' metadata) request-handler')
+                           middleware-applied (or (middleware request-handler metadata) request-handler)
 
                            context-maintaining-handler (if context
                                                          (fn [request]
@@ -527,10 +547,9 @@
       (map-traversal-dispatcher dispatch-map))))
 
 (def ^:private dispatch-table-compilation-defaults
-  {:async?               false
-   :arg-symbol->resolver default-arg-symbol->resolver
-   :resolver-factories   default-resolver-factories
-   :build-handler-fn     build-map-traversal-handler})
+  {:async?           false
+   :arg-resolvers    default-arg-resolvers
+   :build-handler-fn build-map-traversal-handler})
 
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.
@@ -553,25 +572,14 @@
     produce a Ring handler.
 
   :arg-resolvers
-  : _Default: nil_
-  : Map of symbol to keyword or function; these define the argument resolver for arguments with
-    the matching name. The value can be a keyword (a key in resolver-factories), or
-    an argument resolver function (accept request, returns argument value).
-  : :arg-resolvers metadata on a function (or namespace) is merged into this map.
-
-  :arg-symbol->resolver
-  : _Default: [[io.aviso.rook.dispatcher/default-arg-symbol->resolver]]_
-  : Map from symbol to an argument resolver function.
-    This is used to support the cases where an argument's name defines
-    how it is resolved.
-  : Unlike the :arg-resolvers key, the values here must be functions, not keywords.
-
-  :resolver-factories
-  : _Default: [[io.aviso.rook.dispatcher/default-resolver-factories]]_
-  : Used to specify a map from keyword to argument resolver function _factory_. The keyword is a marker
-    for meta data on the symbol (default markers include :header, :param, :injection, etc.). The value
-    is a function that accepts a symbol and returns an argument resolver function (that accepts the Ring
-    request and returns the argument's value)."
+  : _Default: [[io.aviso.rook.dispatcher/default-arg-resolvers]]_
+  : Map of symbol to (keyword or function of request) or keyword
+    to (function of symbol returning function of request). Entries of
+    the former provide argument resolvers to be used when resolving
+    arguments named by the given symbol; in the keyword case, a known
+    resolver factory will be used. Entries of the latter type
+    introduce custom resolver factories. Tag with {:replace true} to
+    exclude default resolvers and resolver factories."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults
