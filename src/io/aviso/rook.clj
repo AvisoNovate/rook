@@ -13,6 +13,12 @@
   [request injection-key]
   (internals/get-injection request injection-key))
 
+(defn find-injection
+  "Retrieves an optional injected value from the request, returning nil if the value does not exist."
+  {:added "0.1.11"}
+  [request injection-key]
+  (get-in request [::injections injection-key]))
+
 (defn inject*
   "Merges the provided map of injectable argument values into the request. Keys should be keywords
   (that will match against function argument symbols, converted to keywords)."
@@ -96,7 +102,7 @@
         [[\"quux\"] 'example.quux special-middleware])."
   [options? & ns-specs]
   (dispatcher/compile-dispatch-table (if (map? options?) options?)
-    (apply dispatcher/namespace-dispatch-table options? ns-specs)))
+                                     (apply dispatcher/namespace-dispatch-table options? ns-specs)))
 
 (defn- convert-middleware-form
   [handler-sym metadata-sym form]
