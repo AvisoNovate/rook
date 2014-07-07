@@ -252,7 +252,7 @@
             handlers' (assoc handlers handler-key handler)]
         [routes' handlers' middleware' namespaces-metadata']))))
 
-(declare default-arg-resolvers)
+(declare default-arg-resolver-factories default-arg-resolvers)
 
 (defn- analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
@@ -278,7 +278,16 @@
   (let [extra-arg-resolvers (:arg-resolvers options)
         arg-resolvers (if (:replace (meta extra-arg-resolvers))
                         extra-arg-resolvers
-                        (merge default-arg-resolvers extra-arg-resolvers))]
+                        (if (:replace-factories (meta extra-arg-resolvers))
+                          (if (:replace-resolvers (meta extra-arg-resolvers))
+                            extra-arg-resolvers
+                            (merge default-arg-resolvers extra-arg-resolvers))
+                          (if (:replace-resolvers (meta extra-arg-resolvers))
+                            (merge default-arg-resolver-factories extra-arg-resolvers)
+                            (merge
+                              default-arg-resolver-factories
+                              default-arg-resolvers
+                              extra-arg-resolvers))))]
     (loop [analyze-state nil
            entries    (seq (unnest-dispatch-table dispatch-table))]
       (if-let [analyze-state' (analyze* analyze-state arg-resolvers (first entries))]
@@ -342,20 +351,26 @@
     (fn [request]
       (internals/get-injection request kw))))
 
-(def default-arg-resolvers
+;;; these two maps will typically be merged, but the user can ask for
+;;; either to be left out
+
+(def default-arg-resolver-factories
   "A map of keyword -> (function of symbol returning a function of
-  request) or symbol -> (function of request). Functions of the former
-  kind are used as \"resolver factories\" (they will be passed arg
-  symbols and expected to produce resolvers in return); functions of
-  the latter kind are used as resolvers. A keyword in the value
-  position would cause a repeated lookup."
+  request). The functions stored in this map will be used as
+  \"resolver factories\" (they will be passed arg symbols and expected
+  to produce resolvers in return). A keyword in the value position
+  would cause a repeated lookup."
   {:request      (constantly identity)
    :request-key  make-request-key-resolver
    :header       make-header-arg-resolver
    :param        make-param-arg-resolver
    :injection    make-injection-resolver
-   :resource-uri make-resource-uri-arg-resolver
-   'request      identity
+   :resource-uri make-resource-uri-arg-resolver})
+
+(def default-arg-resolvers
+  "A map of symbol -> (function of request). The functions will be
+  used as argument resolvers."
+  {'request      identity
    'params       (make-request-key-resolver :params)
    'params*      internals/clojurized-params-arg-resolver
    'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})

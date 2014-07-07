@@ -260,18 +260,18 @@
 
   (describe "argument resolution"
 
-    (it "allows overrides of :arg-symbol->resolver"
+    (it "supports overriding default arg resolvers"
 
-        (let [override ^:replace {'magic-value (constantly "**magic**")}
+        (let [override ^:replace-resolvers {'magic-value (constantly "**magic**")}
               handler (rook/namespace-handler {:arg-resolvers override}
                                               [["magic"] 'magic])]
           (-> (mock/request :get "/magic")
               handler
               (should= "**magic**"))))
 
-    (it "allows overrides of :resolver-factories"
-        (let [override ^:replace {:magic (fn [sym]
-                                           (constantly (str "**presto[" sym "]**")))}
+    (it "supports overriding default arg resolver factories"
+        (let [override ^:replace-factories {:magic (fn [sym]
+                                                     (constantly (str "**presto[" sym "]**")))}
               handler (rook/namespace-handler {:arg-resolvers override}
                                               [["presto"] 'presto])]
           (-> (mock/request :get "/presto/42")
