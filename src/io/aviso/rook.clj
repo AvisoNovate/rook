@@ -106,17 +106,19 @@
         (list form handler-sym metadata-sym))
      ~handler-sym))
 
-(defmacro middleware->
+(defmacro compose-middleware
   "Assembles multiple namespace middleware forms into a single namespace middleware. Each middleware form
   is either a list or a single form, that will be wrapped as a list.
 
-  The list is modified so that the first two values passed in are previous handler and the metadata (associated
+  The list is modified so that the first two values passed in are the previous handler and the metadata (associated
   with the resource handler function).
 
   The form should evaluate to a new handler, or the old handler. As a convienience, the form may
   evaluate to nil, which will keep the original handler passed in.
 
-  Returns a function that accepts a handler and middleware and invokes each middleware form in turn."
+  Returns a function that accepts a handler and middleware and invokes each middleware form in turn.
+
+  This is patterned on Clojure's -> threading macro, with some significant differences."
   [& middlewares]
   (let [handler-sym (gensym "handler")
         metadata-sym (gensym "metadata")]

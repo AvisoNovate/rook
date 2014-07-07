@@ -21,24 +21,24 @@
 
 (def request {:uri "/"})
 
-(describe "io.aviso.rook/middleware->"
+(describe "io.aviso.rook/compose-middleware"
 
   (it "can wrap a handler with a middleware"
-      (let [middleware (middleware-> wrap-with-gnip)
+      (let [middleware (compose-middleware wrap-with-gnip)
             handler' (middleware terminal-handler {:gnip :gnop})]
         (should-not-be-same terminal-handler handler')
         (should= {:uri "/" :gnip :gnop}
                  (handler' request))))
 
   (it "leaves a handler alone if middleware returns nil"
-      (let [middleware (middleware-> wrap-with-gnip)
+      (let [middleware (compose-middleware wrap-with-gnip)
             handler' (middleware terminal-handler {})]
         (should-be-same terminal-handler handler')
         (should= request
                  (handler' request))))
 
   (it "can pass parameters to the middleware"
-      (let [middleware (middleware->
+      (let [middleware (compose-middleware
                          (wrap-with-plug :alpha)
                          (wrap-with-plug :beta)
                          (wrap-with-plug :gamma))
