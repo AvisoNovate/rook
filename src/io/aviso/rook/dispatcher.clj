@@ -230,7 +230,9 @@
                                                               #(binding [*ns* (the-ns ns-symbol)]
                                                                 (-> *ns* meta eval (dissoc :doc))))
 
-            metadata (merge ns-metadata (meta (resolve verb-fn-sym)))
+            metadata (merge ns-metadata
+                            {:function (str verb-fn-sym)}
+                            (meta (resolve verb-fn-sym)))
             route-params (mapv (comp symbol name)
                                (filter keyword? pathvec))
             context (:context (meta pathvec))
