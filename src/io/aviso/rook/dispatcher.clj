@@ -594,7 +594,9 @@
     arguments named by the given symbol; in the keyword case, a known
     resolver factory will be used. Entries of the latter type
     introduce custom resolver factories. Tag with {:replace true} to
-    exclude default resolvers and resolver factories."
+    exclude default resolvers and resolver factories; tag with
+    {:replace-resolvers true} or {:replace-factories true} to leave
+    out default resolvers or resolver factories, respectively."
   ([dispatch-table]
      (compile-dispatch-table
        dispatch-table-compilation-defaults
