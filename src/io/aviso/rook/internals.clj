@@ -4,7 +4,8 @@
     [io.aviso.rook.utils :as utils]
     [medley.core :as medley]
     [clojure.core.async :as async]
-    [clojure.tools.logging :as l])
+    [clojure.tools.logging :as l]
+    [ring.util.response :as r])
   (:import (javax.servlet.http HttpServletResponse)))
 
 (defn to-clojureized-keyword
@@ -69,12 +70,12 @@
   `(try
      ~@body
      (catch Throwable t#
-       (let [r# ~request]
-         (l/errorf t# "Exception processing request %s (%s)"
-                   (:request-id r# (or "<INCOMING>"))
-                   (utils/summarize-request r#)))
-       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                       {:exception (to-message t#)}))))
+            (let [r# ~request]
+              (l/errorf t# "Exception processing request %s (%s)"
+                        (:request-id r# (or "<INCOMING>"))
+                        (utils/summarize-request r#)))
+            (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                            {:exception (to-message t#)}))))
 
 (defmacro safe-go
   "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by [[safety-first]] if it must
@@ -120,3 +121,11 @@
     (get-in request [:io.aviso.rook/injections injection-key])
     (throw (ex-info (format "Unable to retrieve injected value for key `%s'." injection-key)
                     {:request request}))))
+
+(defn throwable->failure-response
+  "Wraps a throwable into a 500 (Internal Server Error) response."
+  {:since "0.1.11"}
+  [t]
+  (-> (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                      (to-message t))
+      (r/content-type "text/plain")))

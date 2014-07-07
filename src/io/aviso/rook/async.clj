@@ -24,7 +24,7 @@
     perform its own async operations, is more challenging.
     The delegated handler should be invoked inside a [[safe-go]] block, so that the result from the handler
     can be obtained without blocking."
-    (:import (javax.servlet.http HttpServletResponse))
+  (:import (javax.servlet.http HttpServletResponse))
   (:require
     [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
     [ring.middleware
@@ -34,8 +34,10 @@
     [io.aviso.rook :as rook]
     [io.aviso.rook
      [schema-validation :as sv]
+     [response-validation :as rv]
      [utils :as utils]
-     [internals :as internals]]))
+     [internals :as internals]]
+    [clojure.tools.logging :as l]))
 
 (defmacro safety-first
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
@@ -150,9 +152,9 @@
          (take! (try
                   (req-handler request)
                   (catch Throwable t
-                    (result->channel
-                      (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                                      {:exception (internals/to-message t)}))))
+                         (result->channel
+                           (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                                           {:exception (internals/to-message t)}))))
                 (fn [handler-response]
                   (if handler-response
                     (put! response-ch
@@ -194,3 +196,22 @@
                     (put! response-ch (session/session-response handler-response request' options'))
                     (close! response-ch))))
          response-ch)))))
+
+(defn wrap-with-response-validation
+  "The async version of [[rv/wrap-with-response-validation]]."
+  {:since "0.1.11"}
+  ([handler metadata]
+   (wrap-with-response-validation handler metadata true))
+  ([handler metadata enabled]
+   (if enabled
+     (if-let [responses (:responses metadata)]
+       (fn [request]
+         (let [response-ch (chan 1)]
+           (take! (handler request)
+                  (fn [response]
+                    (put! response-ch (try
+                                        (rv/ensure-matching-response* response (:function metadata) responses)
+                                        (catch Throwable t
+                                               (l/error t (internals/to-message t))
+                                               (internals/throwable->failure-response t))))))
+           response-ch))))))
