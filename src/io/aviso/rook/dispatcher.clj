@@ -628,7 +628,7 @@
      (simple-namespace-dispatch-table context-pathvec ns-sym default-namespace-middleware))
   ([context-pathvec ns-sym middleware]
    (t/track
-     #(format "Identifying resource handler functions in `%s.'" ns-sym)
+     #(format "Identifying resource handler functions in `%s'." ns-sym)
      (try
        (if-not (find-ns ns-sym)
          (require ns-sym))
