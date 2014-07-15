@@ -40,7 +40,9 @@
             [clojure.set :as set]
             [io.aviso.tracker :as t]
             [io.aviso.rook.internals :as internals]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [clojure.tools.logging :as l]
+            [io.aviso.rook.utils :as utils]))
 
 (def ^:private default-mappings
 
@@ -544,8 +546,15 @@
                                                            (-> request
                                                                (update-in [:context] str context)
                                                                middleware-applied))
-                                                         middleware-applied)]
-                       (add-dispatch-entries dispatch-map method pathvec context-maintaining-handler))))
+                                                         middleware-applied)
+
+                           logging-handler (fn [request]
+                                             (l/debugf "Matched %s to %s"
+                                                       (utils/summarize-request request)
+                                                       verb-fn-sym)
+                                             (context-maintaining-handler request))]
+
+                       (add-dispatch-entries dispatch-map method pathvec logging-handler))))
     {}
     routes))
 
