@@ -53,15 +53,15 @@
   provided by the values."
 
   {
-   'new     [:get    ["new"]]
-   'edit    [:get    [:id "edit"]]
-   'show    [:get    [:id]]
-   'update  [:put    [:id]]
-   'patch   [:patch  [:id]]
-   'destroy [:delete [:id]]
-   'index   [:get    []]
-   'create  [:post   []]
-   }
+    'new     [:get ["new"]]
+    'edit    [:get [:id "edit"]]
+    'show    [:get [:id]]
+    'update  [:put [:id]]
+    'patch   [:patch [:id]]
+    'destroy [:delete [:id]]
+    'index   [:get []]
+    'create  [:post []]
+    }
   )
 
 (defn default-namespace-middleware
@@ -89,7 +89,7 @@
   [request]
   [(:request-method request)
    (mapv #(java.net.URLDecoder/decode ^String % "UTF-8")
-     (next (string/split (:uri request) #"/" 0)))])
+         (next (string/split (:uri request) #"/" 0)))])
 
 (defn path-spec->route-spec
   "Takes a path-spec in the format `[:method \"/path/:param\"]` and
@@ -127,41 +127,41 @@
   without introducing a separate route."
   [dispatch-table]
   (letfn [(unnest-entry [default-middleware [x :as entry]]
-            (cond
-              (keyword? x)
-              (let [[method pathvec verb-fn middleware & nested-table] entry]
-                (if nested-table
-                  (let [mw (or middleware default-middleware)]
-                    (into [[method pathvec verb-fn mw]]
-                      (unnest-table pathvec mw nested-table)))
-                  (cond-> [entry]
-                    (nil? middleware) (assoc-in [0 3] default-middleware))))
+                        (cond
+                          (keyword? x)
+                          (let [[method pathvec verb-fn middleware & nested-table] entry]
+                            (if nested-table
+                              (let [mw (or middleware default-middleware)]
+                                (into [[method pathvec verb-fn mw]]
+                                      (unnest-table pathvec mw nested-table)))
+                              (cond-> [entry]
+                                      (nil? middleware) (assoc-in [0 3] default-middleware))))
 
-              (vector? x)
-              (let [[context-pathvec & maybe-middleware+entries] entry
-                    middleware (if-not (vector?
-                                         (first maybe-middleware+entries))
-                                 (first maybe-middleware+entries))
-                    entries    (if middleware
-                                 (next maybe-middleware+entries)
-                                 maybe-middleware+entries)]
-                (unnest-table context-pathvec middleware entries))))
+                          (vector? x)
+                          (let [[context-pathvec & maybe-middleware+entries] entry
+                                middleware (if-not (vector?
+                                                     (first maybe-middleware+entries))
+                                             (first maybe-middleware+entries))
+                                entries (if middleware
+                                          (next maybe-middleware+entries)
+                                          maybe-middleware+entries)]
+                            (unnest-table context-pathvec middleware entries))))
           (unnest-table [context-pathvec default-middleware entries]
-            (mapv (fn [[_ pathvec :as unnested-entry]]
-                    (assoc unnested-entry 1
-                           (with-meta (into context-pathvec pathvec)
-                             {:context (into context-pathvec
-                                         (:context (meta pathvec)))})))
-              (mapcat (partial unnest-entry default-middleware) entries)))]
+                        (mapv (fn [[_ pathvec :as unnested-entry]]
+                                (assoc unnested-entry 1
+                                                      (with-meta (into context-pathvec pathvec)
+                                                                 {:context (into context-pathvec
+                                                                                 (:context (meta pathvec)))})))
+                              (mapcat (partial unnest-entry default-middleware) entries)))]
     (unnest-table [] nil dispatch-table)))
 
 (defn- keywords->symbols
   "Converts keywords in xs to symbols, leaving other items unchanged."
   [xs]
   (mapv #(if (keyword? %)
-           (symbol (name %))
-           %)
-    xs))
+          (symbol (name %))
+          %)
+        xs))
 
 (defn- variable? [x]
   (or (keyword? x) (symbol? x)))
@@ -216,6 +216,11 @@
           new-map (assoc m k new-value)]
       [new-map new-value])))
 
+(def ^:private suppress-metadata-keys
+  "Keys to suppress when producing debugging output about function metadata; the goal is to present
+  just the non-standard metadata."
+  (cons :function (-> #'map meta keys)))
+
 (defn- analyze*
   [[routes handlers middleware namespaces-metadata] arg-resolvers dispatch-table-entry]
   (if-let [[method pathvec verb-fn-sym mw-spec] dispatch-table-entry]
@@ -229,12 +234,18 @@
             ns-symbol (-> verb-fn-sym namespace symbol)
 
             [namespaces-metadata' ns-metadata] (caching-get namespaces-metadata ns-symbol
-                                                              #(binding [*ns* (the-ns ns-symbol)]
-                                                                (-> *ns* meta eval (dissoc :doc))))
+                                                            #(binding [*ns* (the-ns ns-symbol)]
+                                                              (-> *ns* meta eval (dissoc :doc))))
 
             metadata (merge ns-metadata
                             {:function (str verb-fn-sym)}
                             (meta (resolve verb-fn-sym)))
+
+
+            _ (l/tracef "Analyzing function `%s' w/ metadata: %s"
+                        (:function metadata)
+                        (utils/pretty-print (apply dissoc metadata suppress-metadata-keys)))
+
             route-params (mapv (comp symbol name)
                                (filter keyword? pathvec))
             context (:context (meta pathvec))
@@ -293,7 +304,7 @@
                               default-arg-resolvers
                               extra-arg-resolvers))))]
     (loop [analyze-state nil
-           entries    (seq (unnest-dispatch-table dispatch-table))]
+           entries (seq (unnest-dispatch-table dispatch-table))]
       (if-let [analyze-state' (analyze* analyze-state arg-resolvers (first entries))]
         (recur analyze-state' (next entries))
         (let [[routes handlers middleware] analyze-state]
@@ -307,25 +318,25 @@
   not-found-response argument defaults to nil; pass in a closed
   channel for async operation."
   ([dispatch-map]
-     (map-traversal-dispatcher dispatch-map nil))
+   (map-traversal-dispatcher dispatch-map nil))
   ([dispatch-map not-found-response]
-     (fn rook-map-traversal-dispatcher [request]
-       (loop [pathvec      (second (request-route-spec request))
-              dispatch     dispatch-map
-              route-params {}]
-         (if-let [seg (first pathvec)]
-           (if (contains? dispatch seg)
-             (recur (next pathvec) (get dispatch seg) route-params)
-             (if-let [v (::param-name dispatch)]
-               (recur (next pathvec) (::param-next dispatch)
-                 (assoc route-params v seg))
-               ;; no match on path
-               not-found-response))
-           (if-let [h (or (get dispatch (:request-method request))
-                          (get dispatch :all))]
-             (h (assoc request :route-params route-params))
-             ;; unsupported method for path
-             not-found-response))))))
+   (fn rook-map-traversal-dispatcher [request]
+     (loop [pathvec (second (request-route-spec request))
+            dispatch dispatch-map
+            route-params {}]
+       (if-let [seg (first pathvec)]
+         (if (contains? dispatch seg)
+           (recur (next pathvec) (get dispatch seg) route-params)
+           (if-let [v (::param-name dispatch)]
+             (recur (next pathvec) (::param-next dispatch)
+                    (assoc route-params v seg))
+             ;; no match on path
+             not-found-response))
+         (if-let [h (or (get dispatch (:request-method request))
+                        (get dispatch :all))]
+           (h (assoc request :route-params route-params))
+           ;; unsupported method for path
+           not-found-response))))))
 
 (defn make-header-arg-resolver [sym]
   (fn [request]
@@ -389,7 +400,7 @@
     (if-let [as (:as arg)]
       as
       (throw (ex-info "map argument has no :as key"
-               {:arg arg})))
+                      {:arg arg})))
     arg))
 
 (defn- find-factory [arg-resolvers tag]
@@ -408,16 +419,16 @@
     (if-let [f (find-factory arg-resolvers hint)]
       (f arg)
       (throw (ex-info (format "Keyword %s does not identify a known argument resolver." hint)
-               {:arg arg :resolver hint :arg-resolvers arg-resolvers})))
+                      {:arg arg :resolver hint :arg-resolvers arg-resolvers})))
 
     :else
     (throw (ex-info (format "Argument resolver value `%s' is neither a keyword not a function." hint)
-             {:arg arg :resolver hint}))))
+                    {:arg arg :resolver hint}))))
 
 (defn- find-argument-resolver-tag
   [arg-resolvers arg arg-meta]
   (let [resolver-ks (filterv #(contains? arg-resolvers %)
-                      (filter keyword? (keys arg-meta)))]
+                             (filter keyword? (keys arg-meta)))]
     (case (count resolver-ks)
       0 nil
       1 (first resolver-ks)
@@ -472,10 +483,10 @@
             ;; only static resolution is supported
             (throw (ex-info
                      (format "Unable to identify argument resolver for symbol `%s'." arg-symbol)
-                     {:symbol           arg-symbol
-                      :symbol-meta      arg-meta
-                      :route-params     route-params
-                      :arg-resolvers    arg-resolvers}))))))))
+                     {:symbol        arg-symbol
+                      :symbol-meta   arg-meta
+                      :route-params  route-params
+                      :arg-resolvers arg-resolvers}))))))))
 
 (defn- create-arglist-resolver
   "Returns a function that is passed the Ring request and returns an array of argument values which
@@ -490,20 +501,20 @@
 
 (defn- add-dispatch-entries
   [dispatch-map method pathvec handler]
-  (let [pathvec'      (mapv #(if (variable? %) ::param-next %) pathvec)
+  (let [pathvec' (mapv #(if (variable? %) ::param-next %) pathvec)
         dispatch-path (conj pathvec' method)
         binding-names (filter variable? pathvec)
         binding-paths (keep-indexed
                         (fn [i seg]
                           (if (variable? seg)
                             (-> (subvec pathvec' 0 i)
-                              (into [])
-                              (conj ::param-name))))
+                                (into [])
+                                (conj ::param-name))))
                         pathvec)]
     (reduce (fn [dispatch-map [name path]]
               (assoc-in dispatch-map path (keyword name)))
-      (assoc-in dispatch-map dispatch-path handler)
-      (map vector binding-names binding-paths))))
+            (assoc-in dispatch-map dispatch-path handler)
+            (map vector binding-names binding-paths))))
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
@@ -511,52 +522,52 @@
    {:keys [async? arg-resolvers]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-key]]
             (t/track #(format "Compiling handler for `%s'."
-                        (get-in handlers [handler-key :verb-fn-sym]))
-                     (let [{:keys [middleware-key route-params
-                                   verb-fn-sym arglist
-                                   metadata context]
-                            extra-resolvers :arg-resolvers}
-                           (get handlers handler-key)
+                              (get-in handlers [handler-key :verb-fn-sym]))
+              (let [{:keys           [middleware-key route-params
+                                      verb-fn-sym arglist
+                                      metadata context]
+                     extra-resolvers :arg-resolvers}
+                    (get handlers handler-key)
 
-                           arglist-resolver (create-arglist-resolver
-                                              (if (:replace (meta extra-resolvers))
-                                                extra-resolvers
-                                                (merge
-                                                  arg-resolvers
-                                                  extra-resolvers))
-                                              (set route-params)
-                                              arglist)
+                    arglist-resolver (create-arglist-resolver
+                                       (if (:replace (meta extra-resolvers))
+                                         extra-resolvers
+                                         (merge
+                                           arg-resolvers
+                                           extra-resolvers))
+                                       (set route-params)
+                                       arglist)
 
-                           middleware (get middleware middleware-key)
+                    middleware (get middleware middleware-key)
 
-                           resource-handler-fn (eval verb-fn-sym)
+                    resource-handler-fn (eval verb-fn-sym)
 
-                           request-handler (fn [request]
-                                             (apply resource-handler-fn (arglist-resolver request)))
+                    request-handler (fn [request]
+                                      (apply resource-handler-fn (arglist-resolver request)))
 
 
-                           request-handler (if (and async? (:sync metadata))
-                                             (internals/ring-handler->async-handler request-handler)
-                                             request-handler)
+                    request-handler (if (and async? (:sync metadata))
+                                      (internals/ring-handler->async-handler request-handler)
+                                      request-handler)
 
-                           middleware-applied (or (middleware request-handler metadata) request-handler)
+                    middleware-applied (or (middleware request-handler metadata) request-handler)
 
-                           context-maintaining-handler (if context
-                                                         (fn [request]
-                                                           (-> request
-                                                               (update-in [:context] str context)
-                                                               middleware-applied))
-                                                         middleware-applied)
+                    context-maintaining-handler (if context
+                                                  (fn [request]
+                                                    (-> request
+                                                        (update-in [:context] str context)
+                                                        middleware-applied))
+                                                  middleware-applied)
 
-                           logging-handler (fn [request]
-                                             (l/debugf "Matched %s to %s"
-                                                       (utils/summarize-request request)
-                                                       verb-fn-sym)
-                                             (context-maintaining-handler request))]
+                    logging-handler (fn [request]
+                                      (l/debugf "Matched %s to %s"
+                                                (utils/summarize-request request)
+                                                verb-fn-sym)
+                                      (context-maintaining-handler request))]
 
-                       (add-dispatch-entries dispatch-map method pathvec logging-handler))))
-    {}
-    routes))
+                (add-dispatch-entries dispatch-map method pathvec logging-handler))))
+          {}
+          routes))
 
 (defn build-map-traversal-handler
   "Returns a form evaluating to a Ring handler that handles dispatch
@@ -569,7 +580,7 @@
   (let [dispatch-map (build-dispatch-map analysed-dispatch-table opts)]
     (if (:async? opts)
       (map-traversal-dispatcher dispatch-map
-        (doto (async/chan) (async/close!)))
+                                (doto (async/chan) (async/close!)))
       (map-traversal-dispatcher dispatch-map))))
 
 (def ^:private dispatch-table-compilation-defaults
@@ -609,23 +620,23 @@
     {:replace-resolvers true} or {:replace-factories true} to leave
     out default resolvers or resolver factories, respectively."
   ([dispatch-table]
-     (compile-dispatch-table
-       dispatch-table-compilation-defaults
-       dispatch-table))
+   (compile-dispatch-table
+     dispatch-table-compilation-defaults
+     dispatch-table))
   ([options dispatch-table]
-     (let [options       (merge dispatch-table-compilation-defaults options)
-           build-handler (:build-handler-fn options)
-           analysed-dispatch-table (analyse-dispatch-table
-                                     dispatch-table options)]
-       (build-handler analysed-dispatch-table options))))
+   (let [options (merge dispatch-table-compilation-defaults options)
+         build-handler (:build-handler-fn options)
+         analysed-dispatch-table (analyse-dispatch-table
+                                   dispatch-table options)]
+     (build-handler analysed-dispatch-table options))))
 
 (defn- simple-namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
   format intelligible to compile-dispatch-table."
   ([ns-sym]
-     (simple-namespace-dispatch-table [] ns-sym))
+   (simple-namespace-dispatch-table [] ns-sym))
   ([context-pathvec ns-sym]
-     (simple-namespace-dispatch-table context-pathvec ns-sym default-namespace-middleware))
+   (simple-namespace-dispatch-table context-pathvec ns-sym default-namespace-middleware))
   ([context-pathvec ns-sym middleware]
    (t/track
      #(format "Identifying resource handler functions in `%s'." ns-sym)
@@ -633,11 +644,11 @@
        (if-not (find-ns ns-sym)
          (require ns-sym))
        (catch Exception e
-         (throw (ex-info "failed to require ns in namespace-dispatch-table"
-                         {:context-pathvec context-pathvec
-                          :ns              ns-sym
-                          :middleware      middleware}
-                         e))))
+              (throw (ex-info "failed to require ns in namespace-dispatch-table"
+                              {:context-pathvec context-pathvec
+                               :ns              ns-sym
+                               :middleware      middleware}
+                              e))))
      [(->> ns-sym
            ns-publics
            (keep (fn [[k v]]
@@ -657,20 +668,20 @@
   (mapcat (fn [[context-pathvec? ns-sym middleware? :as ns-spec]]
             (let [context-pathvec (if (vector? context-pathvec?)
                                     context-pathvec?)
-                  middleware      (let [mw? (if context-pathvec
-                                              middleware?
-                                              ns-sym)]
-                                    (if-not (vector? mw?)
-                                      mw?))
-                  ns-sym          (if context-pathvec
-                                    ns-sym
-                                    context-pathvec?)
-                  skip            (reduce + 1
-                                    (map #(if % 1 0)
-                                      [context-pathvec middleware]))
-                  nested          (drop skip ns-spec)]
+                  middleware (let [mw? (if context-pathvec
+                                         middleware?
+                                         ns-sym)]
+                               (if-not (vector? mw?)
+                                 mw?))
+                  ns-sym (if context-pathvec
+                           ns-sym
+                           context-pathvec?)
+                  skip (reduce + 1
+                               (map #(if % 1 0)
+                                    [context-pathvec middleware]))
+                  nested (drop skip ns-spec)]
               (assert (symbol? ns-sym)
-                "Malformed ns-spec passed to namespace-dispatch-table")
+                      "Malformed ns-spec passed to namespace-dispatch-table")
               (concat
                 [[(into outer-context-pathvec context-pathvec)
                   ns-sym
@@ -679,7 +690,7 @@
                   (into outer-context-pathvec context-pathvec)
                   (or middleware outer-middleware)
                   nested))))
-    ns-specs))
+          ns-specs))
 
 (def ^:private default-opts
   {:context-pathvec    []
@@ -697,21 +708,21 @@
 
       [:get [\"api\" \"foo\"] 'example.foo/index identity]."
   [options? & ns-specs]
-  (let [opts         (if (map? options?)
-                       (merge default-opts options?))
-        ns-specs     (canonicalize-ns-specs
-                       []
-                       nil
-                       (if opts
-                         ns-specs
-                         (cons options? ns-specs)))
+  (let [opts (if (map? options?)
+               (merge default-opts options?))
+        ns-specs (canonicalize-ns-specs
+                   []
+                   nil
+                   (if opts
+                     ns-specs
+                     (cons options? ns-specs)))
         {outer-context-pathvec :context-pathvec
          default-middleware    :default-middleware}
         (or opts default-opts)]
     [(reduce into [outer-context-pathvec default-middleware]
-       (map (fn [[context-pathvec ns-sym middleware]]
-              (simple-namespace-dispatch-table
-                (or context-pathvec [])
-                ns-sym
-                (or middleware default-middleware)))
-         ns-specs))]))
+             (map (fn [[context-pathvec ns-sym middleware]]
+                    (simple-namespace-dispatch-table
+                      (or context-pathvec [])
+                      ns-sym
+                      (or middleware default-middleware)))
+                  ns-specs))]))
