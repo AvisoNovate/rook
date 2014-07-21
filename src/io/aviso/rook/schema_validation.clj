@@ -62,7 +62,7 @@
   as many of the values are provided as string query parameters, but need to be other types).
 
   Validation may either fail or succeed.  For a failure, an error response must be sent
-  to the client. For success, the cooerced parameters must be passed to the next handler.
+  to the client. For success, the coerced parameters must be passed to the next handler.
 
   Returns a tuple:
 

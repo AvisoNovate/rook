@@ -44,31 +44,31 @@
           (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
           (should= "validation-error" (-> response :body :error))))
 
-    (describe "cooercions"
+    (describe "coercions"
 
-      (it "should cooerce strings to s/Int"
+      (it "should coerce strings to s/Int"
           (should-be-valid {:params {:number (int 5)}}
                            (validate-against-schema {:params {:number "5"}}
                                                     {:number s/Int})))
 
-      (it "should cooerce strings to s/Bool"
+      (it "should coerce strings to s/Bool"
           (should-be-valid {:params {:t true :f false}}
                            (validate-against-schema {:params {:t "true" :f "false"}}
                                                     {:t s/Bool
                                                      :f s/Bool})))
 
-      (it "should cooerce strings to keywords"
+      (it "should coerce strings to keywords"
           (should-be-valid {:params {:languages [:english :french]}}
                            (validate-against-schema {:params {:languages ["english" "french"]}}
                                                     {:languages [(s/enum :english :french)]})))
 
-      (it "should cooerce strings to s/Inst"
+      (it "should coerce strings to s/Inst"
           (let [now (current-instant)]
             (should-be-valid {:params {:date now}}
                              (validate-against-schema {:params {:date (format-instant now)}}
                                                       {:date s/Inst}))))
 
-      (it "should cooerce strings to s/Uuid"
+      (it "should coerce strings to s/Uuid"
           (let [uuid (UUID/randomUUID)]
 
             (should-be-valid {:params {:id uuid}}
@@ -117,7 +117,5 @@
                      handler
                      <!!
                      :status))))))
-
-
 
 (run-specs)
