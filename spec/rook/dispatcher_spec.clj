@@ -1,5 +1,6 @@
 (ns rook.dispatcher-spec
   (:use speclj.core
+        clojure.pprint
         [clojure.template :only [do-template]])
   (:require [io.aviso.rook.dispatcher :as dispatcher]
             [io.aviso.rook.client :as client]
@@ -221,7 +222,18 @@
                       :default-middleware default-middleware}
                      ['example.foo]))]
           (should= (set simple-dispatch-table)
-                   (set dt)))))
+                   (set dt))))
+
+
+    (it "should report invalid namespace specs well"
+        (try
+          (dispatcher/namespace-dispatch-table {}
+                                               ;; A simple, comment error: example.foo is nested incorrectly.
+                                               [[:post "/foo" 'example.foo]])
+          (should-fail)
+          (catch Throwable t
+            (should-contain "Parsing namespace specification `[[:post \"/foo\" example.foo]]'."
+                            (-> t .getData :operation-trace))))))
 
   (describe "compiled handlers using map traversal"
 
