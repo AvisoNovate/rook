@@ -98,6 +98,7 @@
   [path-spec]
   (if-not (nil? path-spec)
     (let [[method path] path-spec
+          _ (assert (instance? String path))
           paramify (fn [seg]
                      (if (.startsWith ^String seg ":")
                        (keyword (subs seg 1))
@@ -653,11 +654,12 @@
            ns-publics
            (keep (fn [[k v]]
                    (if (ifn? @v)
-                     (if-let [route-spec (or (:route-spec (meta v))
-                                             (path-spec->route-spec
-                                               (:path-spec (meta v)))
-                                             (get default-mappings k))]
-                       (conj route-spec (symbol (name ns-sym) (name k)))))))
+                     (t/track #(format "Building route mapping for `%s/%s'." ns-sym k)
+                       (if-let [route-spec (or (:route-spec (meta v))
+                                               (path-spec->route-spec
+                                                 (:path-spec (meta v)))
+                                               (get default-mappings k))]
+                         (conj route-spec (symbol (name ns-sym) (name k))))))))
            (list* context-pathvec middleware)
            vec)])))
 
