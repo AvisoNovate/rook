@@ -42,9 +42,14 @@
                  :body
                  (should= "Response from xyz/pdq was unexpected status code 400."))))
 
-      (it "does not validate when the responses value is nil"
+      (it "does not validate when the response body for the status is nil"
           (let [response {:status 201 :body {:player :white}}]
 
+            (should-be-same response
+                            (ensure-matching-response response nil @responses))))
+
+      (it "passes 5xx responses through unchanged"
+          (let [response {:status 504 :body {:other-system "foo"}}]
             (should-be-same response
                             (ensure-matching-response response nil @responses)))))
 
@@ -53,15 +58,15 @@
       (it "returns nil when not enabled"
 
           (should-be-nil
-                   (wrap-with-response-validation :handler nil false)))
+            (wrap-with-response-validation :handler nil false)))
 
       (it "returns nil when :responses not present"
-          (should-be-nil (wrap-with-response-validation :handler nil)  ))
+          (should-be-nil (wrap-with-response-validation :handler nil)))
 
       (it "returns a validating handler when :responses present"
           (let [handler (constantly {:status 200 :body {:player :purple}})
-                wrapped (wrap-with-response-validation handler {:function "inline/handler"
-                                                           :responses @responses})
+                wrapped (wrap-with-response-validation handler {:function  "inline/handler"
+                                                                :responses @responses})
                 actual-response (wrapped nil)]
             (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                      (actual-response :status)))))
@@ -74,12 +79,12 @@
             (async/wrap-with-response-validation :handler nil false)))
 
       (it "returns nil when :responses not present"
-          (should-be-nil (async/wrap-with-response-validation :handler nil)  ))
+          (should-be-nil (async/wrap-with-response-validation :handler nil)))
 
       (it "returns a validating handler when :responses present"
           (let [handler (fn [request] (thread {:status 200 :body {:player :purple}}))
-                wrapped (async/wrap-with-response-validation handler {:function "inline/handler"
-                                                                :responses @responses})
+                wrapped (async/wrap-with-response-validation handler {:function  "inline/handler"
+                                                                      :responses @responses})
                 actual-response (<!! (wrapped nil))]
             (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                      (actual-response :status)))))))

@@ -6,29 +6,43 @@
   (:require
     [clojure.tools.logging :as l]
     [schema.core :as schema]
-    [io.aviso.rook.internals :as internals]
+    [io.aviso.rook.internals :as internals :refer [cond-let]]
     [io.aviso.rook.utils :as utils]))
 
 (defn ensure-matching-response*
   [response fn-name responses]
-  (let [status (:status response)]
-    (if-not (contains? responses status)
-      (throw (ex-info (format "Response from %s was unexpected status code %d." fn-name status)
-                      {:function  fn-name
-                       :response  response
-                       :responses responses})))
+  (cond-let
+
+    [status (:status response)]
+
+    ;; Any 5xx status goes through unchanged
+    (<= 500 status 599)
+    response
+
+    (not (contains? responses status))
+    (throw (ex-info (format "Response from %s was unexpected status code %d." fn-name status)
+                    {:function  fn-name
+                     :response  response
+                     :responses responses}))
 
     ;; The schema may be nil to indicate an empty response (no body, just headers).
     ;; Since we just validate the body, there's no work to do. Perhaps we should
     ;; validate that the body is, in fact, empty.
 
-    (if-let [response-schema (get responses status)]
-      (if-let [failure (schema/check response-schema (:body response))]
-        (throw (ex-info (format "Response validation failiure for %s: %s" fn-name (pr-str failure))
-                        {:function        fn-name
-                         :failure         failure
-                         :response        response
-                         :response-schema response-schema}))))
+    [response-schema (get responses status)]
+    (nil? response-schema)
+    response
+
+    [failure (schema/check response-schema (:body response))]
+
+    failure
+    (throw (ex-info (format "Response validation failiure for %s: %s" fn-name (pr-str failure))
+                    {:function        fn-name
+                     :failure         failure
+                     :response        response
+                     :response-schema response-schema}))
+
+    :else
     response))
 
 (defn ensure-matching-response

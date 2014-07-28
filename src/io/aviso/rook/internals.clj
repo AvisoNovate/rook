@@ -129,3 +129,18 @@
   (-> (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                       (to-message t))
       (r/content-type "text/plain")))
+
+(defmacro cond-let
+  "A merging of cond and let.  Each term is either a vector
+  (in which case, it acts like let) or a condition expression followed by the value
+  for that expression. An empty cond-let returns nil."
+  [& forms]
+  (when forms
+    (if (vector? (first forms))
+      `(let ~(first forms)
+         (cond-let ~@(rest forms)))
+      (if-not (next forms)
+        (throw (IllegalArgumentException. "cond-let requires a result form to follow each test form"))
+        `(if ~(first forms)
+           ~(second forms)
+           (cond-let ~@(drop 2 forms)))))))
