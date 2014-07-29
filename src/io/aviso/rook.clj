@@ -122,7 +122,8 @@
   The form should evaluate to a new handler, or the old handler. As a convienience, the form may
   evaluate to nil, which will keep the original handler passed in.
 
-  Returns a function that accepts a handler and middleware and invokes each middleware form in turn.
+  Returns a function that accepts a handler and middleware and invokes each middleware form in turn, returning
+  a final handler function.
 
   This is patterned on Clojure's -> threading macro, with some significant differences."
   [& middlewares]
