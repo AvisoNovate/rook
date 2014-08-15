@@ -413,7 +413,8 @@
                                 [["static2" :foo "asdf"] 'static2 dispatcher/default-namespace-middleware]
                                 [["catch-all"] 'catch-all dispatcher/default-namespace-middleware]
                                 [["surprise"] 'surprise dispatcher/default-namespace-middleware
-                                 [[:id "foo"] 'surprise-foo]])
+                                 [[:id "foo"] 'surprise-foo]]
+                                [["foobar"] 'foobar])
                               rook-async/wrap-with-loopback
                               rook-async/wrap-session
                               rook-async/wrap-with-standard-middleware
@@ -442,23 +443,24 @@
           ;; this is actually client error, but we don't guard against it
           (should= 500 (:status response))
           (should= {:exception "EOF while reading"} (:body response))))
-    (it "can manage server-side session state"
-        (let [k (utils/new-uuid)
-              v (utils/new-uuid)
-              uri "http://localhost:9988/sessions/"
-              store (cookies/cookie-store)
 
-              response (http/post (str uri k "/" v)
-                                  {:accept       :edn
-                                   :cookie-store store})
-              response' (http/get (str uri k)
-                                  {:accept           :edn
-                                   :cookie-store     store
-                                   :throw-exceptions false})]
-          (should= 200 (:status response))
-          (should= (pr-str {:result :ok}) (:body response))
-          (should= 200 (:status response'))
-          (should= v (-> response' :body edn/read-string :result))))
+    (it "can manage server-side session state"
+      (let [k (utils/new-uuid)
+            v (utils/new-uuid)
+            uri "http://localhost:9988/sessions/"
+            store (cookies/cookie-store)
+
+            response (http/post (str uri k "/" v)
+                       {:accept       :edn
+                        :cookie-store store})
+            response' (http/get (str uri k)
+                        {:accept           :edn
+                         :cookie-store     store
+                         :throw-exceptions false})]
+        (should= 200 (:status response))
+        (should= (pr-str {:result :ok}) (:body response))
+        (should= 200 (:status response'))
+        (should= v (-> response' :body edn/read-string :result))))
 
     (it "handles a slow handler timeout"
         (let [response (http/get "http://localhost:9988/slow"
@@ -509,6 +511,12 @@
     (it "should support nested ns-specs in namespace-handler calls with context route params"
         (let [response (http/get "http://localhost:9988/surprise/123/foo")]
           (should= "Surprise at id 123!" (:body response))))
+
+    (it "should support routes using different route param names in the same position"
+      (let [foo-response (http/get "http://localhost:9988/foobar/123/foo")
+            bar-response (http/get "http://localhost:9988/foobar/456/bar")]
+        (should= "foo-id is 123" (:body foo-response))
+        (should= "bar-id is 456" (:body bar-response))))
 
     (after-all
       (.stop @server))))
