@@ -324,18 +324,18 @@
    (fn rook-map-traversal-dispatcher [request]
      (loop [pathvec (second (request-route-spec request))
             dispatch dispatch-map
-            route-params {}]
+            route-params []]
        (if-let [seg (first pathvec)]
          (if (contains? dispatch seg)
            (recur (next pathvec) (get dispatch seg) route-params)
-           (if-let [v (::param-name dispatch)]
-             (recur (next pathvec) (::param-next dispatch)
-                    (assoc route-params v seg))
+           (if-let [dispatch' (::param dispatch)]
+             (recur (next pathvec) dispatch' (conj route-params seg))
              ;; no match on path
              not-found-response))
          (if-let [h (or (get dispatch (:request-method request))
                         (get dispatch :all))]
-           (h (assoc request :route-params route-params))
+           (h (assoc request
+                :route-params (zipmap (:route-params (meta h)) route-params)))
            ;; unsupported method for path
            not-found-response))))))
 
@@ -502,20 +502,11 @@
 
 (defn- add-dispatch-entries
   [dispatch-map method pathvec handler]
-  (let [pathvec' (mapv #(if (variable? %) ::param-next %) pathvec)
+  (let [pathvec'      (mapv #(if (variable? %) ::param %) pathvec)
         dispatch-path (conj pathvec' method)
-        binding-names (filter variable? pathvec)
-        binding-paths (keep-indexed
-                        (fn [i seg]
-                          (if (variable? seg)
-                            (-> (subvec pathvec' 0 i)
-                                (into [])
-                                (conj ::param-name))))
-                        pathvec)]
-    (reduce (fn [dispatch-map [name path]]
-              (assoc-in dispatch-map path (keyword name)))
-            (assoc-in dispatch-map dispatch-path handler)
-            (map vector binding-names binding-paths))))
+        route-params  (filterv variable? pathvec)]
+    (assoc-in dispatch-map dispatch-path
+      (with-meta handler {:route-params (mapv keyword route-params)}))))
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
