@@ -332,10 +332,11 @@
              (recur (next pathvec) dispatch' (conj route-params seg))
              ;; no match on path
              not-found-response))
-         (if-let [h (or (get dispatch (:request-method request))
-                        (get dispatch :all))]
-           (h (assoc request
-                :route-params (zipmap (:route-params (meta h)) route-params)))
+         (if-let [{:keys [handler route-param-keys]}
+                  (or (get dispatch (:request-method request))
+                      (get dispatch :all))]
+           (handler (assoc request
+                      :route-params (zipmap route-param-keys route-params)))
            ;; unsupported method for path
            not-found-response))))))
 
@@ -506,7 +507,8 @@
         dispatch-path (conj pathvec' method)
         route-params  (filterv variable? pathvec)]
     (assoc-in dispatch-map dispatch-path
-      (with-meta handler {:route-params (mapv keyword route-params)}))))
+      {:handler handler
+       :route-param-keys (mapv keyword route-params)})))
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
