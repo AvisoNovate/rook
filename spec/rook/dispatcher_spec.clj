@@ -108,6 +108,14 @@
         (should= [:get ["foo" :id]]
                  (dispatcher/path-spec->route-spec [:get "/foo/:id"]))))
 
+  (describe "pathvec->path"
+
+    (it "should correctly convert pathvecs to paths"
+      (should= "/"        (dispatcher/pathvec->path []))
+      (should= "/foo"     (dispatcher/pathvec->path ["foo"]))
+      (should= "/foo/bar" (dispatcher/pathvec->path ["foo" "bar"]))
+      (should= "/foo/:id" (dispatcher/pathvec->path ["foo" :id]))))
+
   (describe "unnest-dispatch-table"
 
     (it "should leave tables with no nesting unchanged"

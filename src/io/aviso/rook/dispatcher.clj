@@ -105,6 +105,20 @@
                        seg))]
       [method (mapv paramify (next (string/split path #"/" 0)))])))
 
+(defn pathvec->path [pathvec]
+  (if (seq pathvec)
+    (string/join "/" (cons nil pathvec))
+    "/"))
+
+(defn route-spec->path-spec
+  "Takes a route-spec in the format `[:method [\"path\" :param ...]]`
+  and returns the equivalent path-spec in the format `[:method
+  \"/path/:param\"]`. If passed nil as input, returns nil."
+  [route-spec]
+  (if-not (nil? route-spec)
+    (let [[method pathvec] route-spec]
+      [method (pathvec->path pathvec)])))
+
 (defn unnest-dispatch-table
   "Given a nested dispatch table:
 
