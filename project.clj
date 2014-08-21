@@ -21,7 +21,9 @@
                  [ring "1.3.0" :exclusions [org.clojure/tools.reader]]
                  [medley "0.5.0" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                  [ring-middleware-format "0.3.2" :excludes [cheshire]]
-                 [prismatic/schema "0.2.4" :exclusions [potemkin]]]
+                 [prismatic/schema "0.2.4" :exclusions [potemkin]]
+                 [metosin/ring-swagger "0.11.0"]
+                 [metosin/ring-swagger-ui "2.0.17"]]
   :plugins [[speclj "3.0.2"]]
   :test-paths ["spec"]
   :codox {:src-dir-uri               "https://github.com/AvisoNovate/rook/blob/master/"

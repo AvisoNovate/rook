@@ -409,7 +409,9 @@
                               (rook/namespace-handler
                                 {:async?             true
                                  :default-middleware rook-async/wrap-with-schema-validation
-                                 :arg-resolvers      {'strange-injection :injection}}
+                                 :arg-resolvers      {'strange-injection :injection}
+                                 ;; just to make sure Swagger support doesn't break things
+                                 :swagger            true}
                                 [["fred"] 'fred]
                                 [["barney"] 'barney]
                                 [["betty"] 'betty]
@@ -528,5 +530,3 @@
 
     (after-all
       (.stop @server))))
-
-(run-specs)

@@ -284,7 +284,7 @@
 
 (declare default-arg-resolver-factories default-arg-resolvers)
 
-(defn- analyse-dispatch-table
+(defn analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
   key :routes, a map of route-spec -> handler-map at key :handlers and
   a map of middleware-symbol -> middleware-spec at key :middleware.
@@ -453,7 +453,7 @@
                               (str/join ", " resolver-ks))
                       {:arg arg :resolver-tags resolver-ks})))))
 
-(defn- identify-argument-resolver
+(defn identify-argument-resolver
   "Identifies the specific argument resolver function for an argument, which can come from many sources based on
   configuration in general, metadata on the argument symbol and on the function's metadata (merged with
   the containing namespace's metadata).
@@ -670,14 +670,14 @@
            (list* context-pathvec middleware)
            vec)])))
 
-(defn- canonicalize-ns-specs
-  "Handles unnesting of ns-specs. Also supplies nil in place of
-  missing context-pathvec and middleware arguments."
+(defn canonicalize-ns-specs
+  "Handles unnesting of ns-specs."
   [outer-context-pathvec outer-middleware ns-specs]
   (mapcat (fn [[context-pathvec? ns-sym middleware? :as ns-spec]]
             (t/track (format "Parsing namespace specification `%s'." (pr-str ns-spec))
-              (let [context-pathvec (if (vector? context-pathvec?)
-                                      context-pathvec?)
+              (let [context-pathvec (if (or (nil? context-pathvec?)
+                                            (vector? context-pathvec?))
+                                      (or context-pathvec? []))
                     middleware (let [mw? (if context-pathvec
                                            middleware?
                                            ns-sym)]
@@ -691,11 +691,11 @@
                                       [context-pathvec middleware]))
                     nested (drop skip ns-spec)]
                 (assert (symbol? ns-sym)
-                        "Malformed ns-spec passed to namespace-dispatch-table")
+                  (str "Malformed ns-spec: " (pr-str ns-sym)))
                 (concat
                   [[(into outer-context-pathvec context-pathvec)
                     ns-sym
-                    middleware]]
+                    (or middleware outer-middleware)]]
                   (canonicalize-ns-specs
                     (into outer-context-pathvec context-pathvec)
                     (or middleware outer-middleware)
@@ -716,23 +716,19 @@
   The resulting dispatch table in its unnested form will include
   entries such as
 
-      [:get [\"api\" \"foo\"] 'example.foo/index identity]."
+      [:get [\"api\" \"foo\"] 'example.foo/index ns-middleware]."
   [options? & ns-specs]
-  (let [opts (if (map? options?)
-               (merge default-opts options?))
+  (let [opts (merge default-opts (if (map? options?) options?))
+        {outer-context-pathvec :context-pathvec
+         default-middleware    :default-middleware} opts
         ns-specs (canonicalize-ns-specs
                    []
-                   nil
-                   (if opts
+                   default-middleware
+                   (if (map? options?)
                      ns-specs
-                     (cons options? ns-specs)))
-        {outer-context-pathvec :context-pathvec
-         default-middleware    :default-middleware}
-        (or opts default-opts)]
+                     (cons options? ns-specs)))]
     [(reduce into [outer-context-pathvec default-middleware]
              (map (fn [[context-pathvec ns-sym middleware]]
                     (simple-namespace-dispatch-table
-                      (or context-pathvec [])
-                      ns-sym
-                      (or middleware default-middleware)))
+                      context-pathvec ns-sym middleware))
                   ns-specs))]))

@@ -3,7 +3,8 @@
   (:require
     [io.aviso.rook
      [dispatcher :as dispatcher]
-     [internals :as internals]]
+     [internals :as internals]
+     [swagger :as swagger]]
     [ring.middleware params format keyword-params]
     [medley.core :as medley]))
 
@@ -101,8 +102,16 @@
         ;; quux has special requirements:
         [[\"quux\"] 'example.quux special-middleware])."
   [options? & ns-specs]
-  (dispatcher/compile-dispatch-table (if (map? options?) options?)
-                                     (apply dispatcher/namespace-dispatch-table options? ns-specs)))
+  (dispatcher/compile-dispatch-table
+    (if (map? options?)
+      (if (:swagger options?)
+        (assoc-in options? [:arg-resolvers 'swagger]
+          (constantly (apply swagger/namespace-swagger options? ns-specs)))
+        options?))
+    (apply dispatcher/namespace-dispatch-table options?
+      (if (:swagger options?)
+        (swagger/swaggerize-ns-specs options? ns-specs)
+        ns-specs))))
 
 (defn- convert-middleware-form
   [handler-sym metadata-sym form]
