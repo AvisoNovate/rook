@@ -142,32 +142,32 @@
   without introducing a separate route."
   [dispatch-table]
   (letfn [(unnest-entry [default-middleware [x :as entry]]
-                        (cond
-                          (keyword? x)
-                          (let [[method pathvec verb-fn middleware & nested-table] entry]
-                            (if nested-table
-                              (let [mw (or middleware default-middleware)]
-                                (into [[method pathvec verb-fn mw]]
-                                      (unnest-table pathvec mw nested-table)))
-                              (cond-> [entry]
-                                      (nil? middleware) (assoc-in [0 3] default-middleware))))
+            (cond
+              (keyword? x)
+              (let [[method pathvec verb-fn middleware & nested-table] entry]
+                (if nested-table
+                  (let [mw (or middleware default-middleware)]
+                    (into [[method pathvec verb-fn mw]]
+                      (unnest-table pathvec mw nested-table)))
+                  (cond-> [entry]
+                    (nil? middleware) (assoc-in [0 3] default-middleware))))
 
-                          (vector? x)
-                          (let [[context-pathvec & maybe-middleware+entries] entry
-                                middleware (if-not (vector?
-                                                     (first maybe-middleware+entries))
-                                             (first maybe-middleware+entries))
-                                entries (if middleware
-                                          (next maybe-middleware+entries)
-                                          maybe-middleware+entries)]
-                            (unnest-table context-pathvec middleware entries))))
+              (vector? x)
+              (let [[context-pathvec & maybe-middleware+entries] entry
+                    middleware (if-not (vector?
+                                         (first maybe-middleware+entries))
+                                 (first maybe-middleware+entries))
+                    entries (if middleware
+                              (next maybe-middleware+entries)
+                              maybe-middleware+entries)]
+                (unnest-table context-pathvec middleware entries))))
           (unnest-table [context-pathvec default-middleware entries]
-                        (mapv (fn [[_ pathvec :as unnested-entry]]
-                                (assoc unnested-entry 1
-                                                      (with-meta (into context-pathvec pathvec)
-                                                                 {:context (into context-pathvec
-                                                                                 (:context (meta pathvec)))})))
-                              (mapcat (partial unnest-entry default-middleware) entries)))]
+            (mapv (fn [[_ pathvec :as unnested-entry]]
+                    (assoc unnested-entry 1
+                           (with-meta (into context-pathvec pathvec)
+                             {:context (into context-pathvec
+                                         (:context (meta pathvec)))})))
+              (mapcat (partial unnest-entry default-middleware) entries)))]
     (unnest-table [] nil dispatch-table)))
 
 (defn- keywords->symbols
