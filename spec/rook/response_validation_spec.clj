@@ -32,7 +32,7 @@
             (should= "text/plain" (get-in actual-response [:headers "Content-Type"]))
             (->> actual-response
                  :body
-                 (should-contain "Response validation failiure for xyz/pdq"))))
+                 (should-contain "Response validation failure for xyz/pdq"))))
 
       (it "returns a 500 response if the status code isn't matched"
           (let [actual-response (ensure-matching-response {:status 400} "xyz/pdq" @responses)]

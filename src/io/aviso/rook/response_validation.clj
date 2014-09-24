@@ -37,7 +37,7 @@
     [failure (schema/check response-schema (:body response))]
 
     failure
-    (throw (ex-info (format "Response validation failiure for %s: %s" fn-name (pr-str failure))
+    (throw (ex-info (format "Response validation failure for %s: %s" fn-name (pr-str failure))
                     {:function        fn-name
                      :failure         failure
                      :response        response
