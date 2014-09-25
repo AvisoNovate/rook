@@ -15,7 +15,7 @@
                  [cheshire "5.3.1"]
                  [potemkin "0.3.8"]
                  [org.clojure/tools.reader "0.8.5"]
-                 [org.clojure/core.async "0.1.338.0-5c5012-alpha"]
+                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [org.clojure/tools.logging "0.3.0"]
                  [io.aviso/tracker "0.1.1"]
                  [ring "1.3.1" :exclusions [org.clojure/tools.reader]]
