@@ -3,16 +3,14 @@
   (:require
     [io.aviso.rook
      [dispatcher :as dispatcher]
-     [internals :as internals]
      [swagger :as swagger]]
     [ring.middleware params format keyword-params]
-    [medley.core :as medley]))
+    [medley.core :as medley]
+    [potemkin :as p]))
 
-(defn get-injection
-  "Retrieves an injected value stored in the request. Throws an exception if the value is falsey."
-  {:added "0.1.11"}
-  [request injection-key]
-  (internals/get-injection request injection-key))
+(p/import-vars
+
+  [io.aviso.rook.internals get-injection])
 
 (defn find-injection
   "Retrieves an optional injected value from the request, returning nil if the value does not exist."

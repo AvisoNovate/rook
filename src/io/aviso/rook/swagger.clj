@@ -4,7 +4,7 @@
 
   Adapter for ring-swagger. Consumes dispatch table descriptors in the
   format used by [[io.aviso.rook/namespace-handler]]."
-
+  {:since "0.1.14"}
   (:require [io.aviso.rook.dispatcher :as dispatcher]
             [ring.swagger.core :as swagger]
             [ring.swagger.ui :as ui]

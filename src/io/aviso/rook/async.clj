@@ -37,45 +37,17 @@
      [response-validation :as rv]
      [utils :as utils]
      [internals :as internals]]
-    [clojure.tools.logging :as l]))
+    [clojure.tools.logging :as l]
+    [potemkin :as p]))
 
-(defmacro safety-first
-  "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
-  is converted to a 500 response.
+(p/import-vars [io.aviso.rook.internals
 
-  The request is used when reporting the exception (it contains a :request-id
-  key set by `io.aviso.client/send`)."
-  [request & body]
-  `(internals/safety-first ~request ~@body))
-
-(defmacro safe-go
-  "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by [[safety-first]] if it must
-  fabricate a response. Requires at least one expression."
-  [request expr & more]
-  `(internals/safe-go ~request ~expr ~@more))
-
-(defmacro safe-thread
-  "Wraps the body in a [[safety-first]] block and then in a thread block. The request is used by [[safety-first]] if it must
-  fabricate a response. Requires at least one expression."
-  [request expr & more]
-  `(internals/safe-thread ~request ~expr ~@more))
-
-(defn async-handler->ring-handler
-  "Wraps an asynchronous handler function as a standard synchronous handler. The synchronous handler uses `<!!`, so it may block."
-  [async-handler]
-  (internals/async-handler->ring-handler async-handler))
-
-(defn result->channel
-  "Wraps the result from a synchronous handler into a channel. Non-nil results are `put!` on to the channel;
-  a nil result causes the channel to be `close!`ed."
-  [result]
-  (internals/result->channel result))
-
-(defn ring-handler->async-handler
-  "Wraps a syncronous Ring handler function as an asynchronous handler. The handler is invoked in another
-   thread, and a nil response is converted to a `close!` action."
-  [handler]
-  (internals/ring-handler->async-handler handler))
+                safety-first
+                safe-go
+                safe-thread
+                async-handler->ring-handler
+                result->channel
+                ring-handler->async-handler])
 
 (defn wrap-with-schema-validation
   "The asynchronous version of schema validation."
