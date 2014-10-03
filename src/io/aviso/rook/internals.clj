@@ -171,8 +171,16 @@
 
   The symbol/pred/arity triplet can be followed by additional triplets.
 
-  The special predicate :& is used to indicate consumption of all remaining values, if any, from the collection.
-  It is not followed by an arity, and must be the final term in the bindings vector.
+  Although the above description discusses triplets, there are two special predicate values
+  that are used as just a pair (symbol followed by special predicate), with no arity.
+
+  :&
+  : Used to indicate consumption of all remaining values, if any, from the collection.
+    It is not followed by an arity, and must be the final term in the bindings vector.
+
+  :+
+  : Used to consume a single value always; this is equivalent to the sequence
+    `symbol (constantly true) 1`.
 
   consume expands into a let form, so the symbol in each triplet may be a destructuring form."
   [coll bindings & body]
@@ -184,13 +192,20 @@
       `(do ~@body)
 
       (= pred :&)
-      (do
-        (if-not (= 2 binding-count)
-          (throw (ex-info "Expected just symbol and :& placeholder as last consume binding."
-                          {:symbol   symbol
-                           :pred     pred
-                           :bindings bindings})))
+      (if-not (= 2 binding-count)
+        (throw (ex-info "Expected just symbol and :& placeholder as last consume binding."
+                        {:symbol   symbol
+                         :pred     pred
+                         :bindings bindings}))
         `(let [~symbol ~coll] ~@body))
+
+      (= pred :+)
+      `(let [coll# ~coll]
+         (if (empty? coll#)
+           (throw (ex-info "consume :+ predicate on empty collection"
+                           {:symbol (quote ~symbol)}))
+           (let [~symbol (first coll#)]
+             (consume (rest coll#) ~(drop 2 bindings) ~@body))))
 
       (< binding-count 3)
       (throw (ex-info "Incorrect number of binding terms for consume."

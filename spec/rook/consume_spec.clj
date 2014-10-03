@@ -85,6 +85,21 @@
                (consume (range 1 20)
                         [alpha even? :?
                          beta :&]
-                        {:alpha alpha :beta beta}))))
+                        {:alpha alpha :beta beta})))
+
+  (it "should bind the next value from the collection for the special :+ predicate"
+      (should= {:alpha 1
+                :beta (range 2 20)}
+               (consume (range 1 20)
+                 [alpha :+
+                  beta :&]
+                 {:alpha alpha :beta beta})))
+
+  (it "should throw an error if the collection is empty for the :+ predicate"
+      (should-throw Exception "consume :+ predicate on empty collection"
+                    (consume (range 1 20)
+                      [alpha #(< % 20) :+
+                       beta :+]
+                      {:alpha alpha :beta beta}))))
 
 (run-specs)
