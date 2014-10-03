@@ -1,4 +1,4 @@
-## 0.1.15 - unreleased
+## 0.1.15 - 3 Oct 2014
 
 * The `new` and `edit` convention names for resource handler functions were removed.
 * The convention name for PUT :id has changed from `update` to `change` (to avoid future conflict with Clojure 1.7).
