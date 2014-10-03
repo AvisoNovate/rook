@@ -153,13 +153,10 @@
                                       (nil? middleware) (assoc-in [0 3] default-middleware))))
 
                           (vector? x)
-                          (let [[context-pathvec & maybe-middleware+entries] entry
-                                middleware (if-not (vector?
-                                                     (first maybe-middleware+entries))
-                                             (first maybe-middleware+entries))
-                                entries (if middleware
-                                          (next maybe-middleware+entries)
-                                          maybe-middleware+entries)]
+                          (consume entry
+                            [context-pathvec :+
+                             middleware (complement vector?) :?
+                             entries :&]
                             (unnest-table context-pathvec middleware entries))))
           (unnest-table [context-pathvec default-middleware entries]
                         (mapv (fn [[_ pathvec :as unnested-entry]]
