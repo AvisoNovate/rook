@@ -111,10 +111,10 @@
   (describe "pathvec->path"
 
     (it "should correctly convert pathvecs to paths"
-      (should= "/"        (dispatcher/pathvec->path []))
-      (should= "/foo"     (dispatcher/pathvec->path ["foo"]))
-      (should= "/foo/bar" (dispatcher/pathvec->path ["foo" "bar"]))
-      (should= "/foo/:id" (dispatcher/pathvec->path ["foo" :id]))))
+        (should= "/" (dispatcher/pathvec->path []))
+        (should= "/foo" (dispatcher/pathvec->path ["foo"]))
+        (should= "/foo/bar" (dispatcher/pathvec->path ["foo" "bar"]))
+        (should= "/foo/:id" (dispatcher/pathvec->path ["foo" :id]))))
 
   (describe "unnest-dispatch-table"
 
@@ -171,10 +171,10 @@
                                              (fn [request]
                                                (swap! a inc)
                                                (handler request)))]
-                       (let [local-dispatch-table [[:get ["foo"] 'example.foo/index default-middleware]]
-                             handler (dispatcher/compile-dispatch-table local-dispatch-table)]
-                         (handler (mock/request :get "/foo"))
-                         (should= 1 @a))))))
+            (let [local-dispatch-table [[:get ["foo"] 'example.foo/index default-middleware]]
+                  handler (dispatcher/compile-dispatch-table local-dispatch-table)]
+              (handler (mock/request :get "/foo"))
+              (should= 1 @a))))))
 
   (describe "namespace-dispatch-table"
 
@@ -206,20 +206,22 @@
 
     (it "should only use :default-middleware in absence of explicit middleware"
 
-        (let [dt (dispatcher/unnest-dispatch-table
+        (let [completely-regular-middleware (fn [handler meta])
+              very-strange-middleware (fn [handler meta])
+              dt (dispatcher/unnest-dispatch-table
                    (dispatcher/namespace-dispatch-table
-                     {:default-middleware 'very-strange-middleware}
+                     {:default-middleware very-strange-middleware}
                      [["foo"] 'example.foo]
-                     [["bar"] 'example.bar 'completely-regular-middleware]))
+                     [["bar"] 'example.bar completely-regular-middleware]))
               foos (filter (fn [[_ [seg] & _]] (= seg "foo")) dt)
               bars (filter (fn [[_ [seg] & _]] (= seg "bar")) dt)]
           (should= 3 (count foos))
           (should= 3 (count bars))
-          (should= #{'very-strange-middleware 'completely-regular-middleware}
+          (should= #{very-strange-middleware completely-regular-middleware}
                    (set (map peek dt)))
-          (should= #{'very-strange-middleware}
+          (should= #{very-strange-middleware}
                    (set (map peek foos)))
-          (should= #{'completely-regular-middleware}
+          (should= #{completely-regular-middleware}
                    (set (map peek bars)))))
 
     (it "should support ns-specs consisting of the ns symbol alone"
@@ -455,22 +457,22 @@
           (should= {:exception "EOF while reading"} (:body response))))
 
     (it "can manage server-side session state"
-      (let [k (utils/new-uuid)
-            v (utils/new-uuid)
-            uri "http://localhost:9988/sessions/"
-            store (cookies/cookie-store)
+        (let [k (utils/new-uuid)
+              v (utils/new-uuid)
+              uri "http://localhost:9988/sessions/"
+              store (cookies/cookie-store)
 
-            response (http/post (str uri k "/" v)
-                       {:accept       :edn
-                        :cookie-store store})
-            response' (http/get (str uri k)
-                        {:accept           :edn
-                         :cookie-store     store
-                         :throw-exceptions false})]
-        (should= 200 (:status response))
-        (should= (pr-str {:result :ok}) (:body response))
-        (should= 200 (:status response'))
-        (should= v (-> response' :body edn/read-string :result))))
+              response (http/post (str uri k "/" v)
+                                  {:accept       :edn
+                                   :cookie-store store})
+              response' (http/get (str uri k)
+                                  {:accept           :edn
+                                   :cookie-store     store
+                                   :throw-exceptions false})]
+          (should= 200 (:status response))
+          (should= (pr-str {:result :ok}) (:body response))
+          (should= 200 (:status response'))
+          (should= v (-> response' :body edn/read-string :result))))
 
     (it "handles a slow handler timeout"
         (let [response (http/get "http://localhost:9988/slow"
@@ -523,10 +525,12 @@
           (should= "Surprise at id 123!" (:body response))))
 
     (it "should support routes using different route param names in the same position"
-      (let [foo-response (http/get "http://localhost:9988/foobar/123/foo")
-            bar-response (http/get "http://localhost:9988/foobar/456/bar")]
-        (should= "foo-id is 123" (:body foo-response))
-        (should= "bar-id is 456" (:body bar-response))))
+        (let [foo-response (http/get "http://localhost:9988/foobar/123/foo")
+              bar-response (http/get "http://localhost:9988/foobar/456/bar")]
+          (should= "foo-id is 123" (:body foo-response))
+          (should= "bar-id is 456" (:body bar-response))))
 
     (after-all
       (.stop @server))))
+
+(run-specs)

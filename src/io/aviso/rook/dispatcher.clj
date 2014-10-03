@@ -673,33 +673,23 @@
 (defn canonicalize-ns-specs
   "Handles unnesting of ns-specs."
   [outer-context-pathvec outer-middleware ns-specs]
-  (mapcat (fn [[context-pathvec? ns-sym middleware? :as ns-spec]]
-            (t/track (format "Parsing namespace specification `%s'." (pr-str ns-spec))
-                     (let [context-pathvec (if (or (nil? context-pathvec?)
-                                                   (vector? context-pathvec?))
-                                             (or context-pathvec? []))
-                           middleware (let [mw? (if context-pathvec
-                                                  middleware?
-                                                  ns-sym)]
-                                        (if-not (vector? mw?)
-                                          mw?))
-                           ns-sym (if context-pathvec
-                                    ns-sym
-                                    context-pathvec?)
-                           skip (reduce + 1
-                                        (map #(if % 1 0)
-                                             [context-pathvec middleware]))
-                           nested (drop skip ns-spec)]
-                       (assert (symbol? ns-sym)
-                               (str "Malformed ns-spec: " (pr-str ns-sym)))
-                       (concat
-                         [[(into outer-context-pathvec context-pathvec)
-                           ns-sym
-                           (or middleware outer-middleware)]]
-                         (canonicalize-ns-specs
-                           (into outer-context-pathvec context-pathvec)
-                           (or middleware outer-middleware)
-                           nested)))))
+  (mapcat (fn [ns-spec]
+            (t/track
+              #(format "Parsing namespace specification `%s'." (pr-str ns-spec))
+              (consume ns-spec
+                [context-pathvec? #(or (nil? %) (vector? %)) :?
+                 ns-sym symbol? 1
+                 middleware fn? :?
+                 nested :&]
+                (let [context-pathvec (or context-pathvec? [])]
+                  (concat
+                    [[(into outer-context-pathvec context-pathvec)
+                      ns-sym
+                      (or middleware outer-middleware)]]
+                    (canonicalize-ns-specs
+                      (into outer-context-pathvec context-pathvec)
+                      (or middleware outer-middleware)
+                      nested))))))
           ns-specs))
 
 (def ^:private default-opts
