@@ -671,11 +671,13 @@
             (t/track
               #(format "Parsing namespace specification `%s'." (pr-str ns-spec))
               (consume ns-spec
-                [context-pathvec? #(or (nil? %) (vector? %)) :?
+                [context-pathvec? #(or (nil? %) (vector? %) (string? %)) :?
                  ns-sym symbol? 1
                  middleware fn? :?
                  nested :&]
-                (let [context-pathvec (or context-pathvec? [])]
+                (let [context-pathvec (if (string? context-pathvec?)
+                                          (vector context-pathvec?)
+                                          (or context-pathvec? []))]
                   (concat
                     [[(into outer-context-pathvec context-pathvec)
                       ns-sym
