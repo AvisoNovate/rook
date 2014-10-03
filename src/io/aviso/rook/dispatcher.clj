@@ -52,18 +52,14 @@
   "Default function -> route spec mappings.
 
   Namespace dispatch tables will by default include entries for public
-  Vars named by the keys in this map, with methods and pathvecs
+  Vars named by the keys in this map, with methods and routes
   provided by the values."
-
-  {
-    'show    [:get [:id]]
+  {'show    [:get [:id]]
     'change  [:put [:id]]
     'patch   [:patch [:id]]
     'destroy [:delete [:id]]
     'index   [:get []]
-    'create  [:post []]
-    }
-  )
+    'create  [:post []]})
 
 (defn default-namespace-middleware
   "Default namespace middleware that ignores the metadata and returns the handler unchanged.
@@ -81,7 +77,7 @@
 
       GET /foo/bar HTTP/1.1
 
-  become:
+  becomes:
 
       [:get [\"foo\" \"bar\"]]
 
@@ -660,7 +656,7 @@
            (keep (fn [[k v]]
                    (if (ifn? @v)
                      (t/track #(format "Building route mapping for `%s/%s'." ns-sym k)
-                              (if-let [route-spec (or (:route-spec (meta v))
+                              (if-let [route-spec (or (:route (meta v))
                                                       (path-spec->route-spec
                                                         (:path-spec (meta v)))
                                                       (get default-mappings k))]

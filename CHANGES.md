@@ -2,6 +2,7 @@
 
 * The `new` and `edit` convention names for resource handler functions were removed.
 * The convention name for PUT :id has changed from `update` to `change` (to avoid future conflict with Clojure 1.7).
+* The :route-spec metadata key has been renamed to just :route.
 * A new and very alpha integration with [ring-swagger](https://github.com/metosin/ring-swagger) has been introduced.
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.15+is%3Aclosed)

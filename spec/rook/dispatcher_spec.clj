@@ -55,8 +55,8 @@
             :let [foo (str "foo" i)]]
       (intern ns
               (with-meta (symbol foo)
-                         {:route-spec [:get [foo :x]]
-                          :arglists   (list '[request x])})
+                         {:route    [:get [foo :x]]
+                          :arglists (list '[request x])})
               (fn [request x]
                 {:status  200
                  :headers {}

@@ -17,19 +17,19 @@
 
 (defn prefix [pathvec]
   (string/join "_"
-    (map #(if (or (keyword? %) (symbol? %))
-            (str "_" (name %))
-            %)
-      pathvec)))
+               (map #(if (or (keyword? %) (symbol? %))
+                      (str "_" (name %))
+                      %)
+                    pathvec)))
 
 (defn get-success
   ([responses]
-     (get-success responses nil))
+   (get-success responses nil))
   ([responses not-found]
-     (let [s? (ffirst (drop-while #(< (first %) 200) (sort-by first responses)))]
-       (if (and s? (< s? 300))
-         s?
-         not-found))))
+   (let [s? (ffirst (drop-while #(< (first %) 200) (sort-by first responses)))]
+     (if (and s? (< s? 300))
+       s?
+       not-found))))
 
 ;;; FIXME
 (defn header? [arg]
@@ -54,7 +54,7 @@
               (header? arg)
               {:type :header :model {(keyword arg) String}}
               :else nil))
-      arglist)))
+          arglist)))
 
 (defn ns-spec->routes-swagger
   [options ns-spec]
@@ -65,22 +65,22 @@
     (mapv (fn [[[method pathvec] handler-key]]
             (let [path (dispatcher/pathvec->path
                          (mapv (fn [x] (if (symbol? x) (keyword x) x))
-                           pathvec))
-                  {m :metadata
+                               pathvec))
+                  {m     :metadata
                    :keys [schema route-params arglist]}
                   (get handlers handler-key)
                   ps (arglist-swagger schema (set route-params) arglist)]
-              {:method method
-               :uri path
+              {:method   method
+               :uri      path
                :metadata {:summary          (:doc m)
                           :return           (get-success (:responses m))
                           :responseMessages (for [[status schema] (:responses m)]
-                                              {:code (long status)
-                                               :message ""
+                                              {:code          (long status)
+                                               :message       ""
                                                :responseModel schema})
                           :nickname         (nickname handler-key)
                           :parameters       ps}}))
-      routes)))
+          routes)))
 
 (defn namespace-swagger
   "Takes ns-specs in the format expected by
@@ -96,7 +96,7 @@
   injections and the like will be omitted."
   [options? & ns-specs]
   (let [opts (merge default-opts
-               (if (map? options?) options?))
+                    (if (map? options?) options?))
         {outer-context-pathvec :context-pathvec
          default-middleware    :default-middleware} opts
         ns-specs (dispatcher/canonicalize-ns-specs
@@ -111,34 +111,34 @@
                     routes-swagger (ns-spec->routes-swagger
                                      opts ns-spec)]
                 (-> swagger
-                  (assoc-in [prefix :description] ns-doc)
-                  (assoc-in [prefix :routes]
-                    routes-swagger))))
-      {}
-      ns-specs)))
+                    (assoc-in [prefix :description] ns-doc)
+                    (assoc-in [prefix :routes]
+                              routes-swagger))))
+            {}
+            ns-specs)))
 
 ;;; 'swagger presumed resolvable (namespace-handler will provide an
 ;;; injection if asked to swaggerize the handler)
 
 (defn index
-  {:sync true
-   :route-spec [:get ["swagger"]]}
+  {:sync  true
+   :route [:get ["swagger"]]}
   [swagger]
   (swagger/api-listing {} swagger))
 
 (defn show
-  {:sync true
-   :route-spec [:get ["swagger" :id]]}
+  {:sync  true
+   :route [:get ["swagger" :id]]}
   [request swagger id]
   (swagger/api-declaration {} swagger id
-    (swagger/basepath request)))
+                           (swagger/basepath request)))
 
 (defn swaggerize-ns-specs
   "Adds Swagger endpoints to the given ns-specs. Intended for use by
   [[io.aviso.rook/namespace-handler]]."
   [options? ns-specs]
   (concat ns-specs
-    [[[] 'io.aviso.rook.swagger dispatcher/default-namespace-middleware]]))
+          [[[] 'io.aviso.rook.swagger dispatcher/default-namespace-middleware]]))
 
 (def swagger-ui (ui/swagger-ui "/swagger-ui" :swagger-docs "/swagger"))
 
@@ -148,16 +148,16 @@
   `:async? true` is supplied. (The wrapped handler is presumed async
   in that case and its responses are not wrapped.)"
   ([handler]
-     (wrap-with-swagger-ui handler {:async? false}))
+   (wrap-with-swagger-ui handler {:async? false}))
   ([handler {:keys [async?]}]
-     (if async?
-       (fn [request]
-         (if-let [swagger-response (swagger-ui request)]
-           (async/to-chan [swagger-response])
-           (handler request)))
-       (fn [request]
-         (or (swagger-ui request)
-             (handler request))))))
+   (if async?
+     (fn [request]
+       (if-let [swagger-response (swagger-ui request)]
+         (async/to-chan [swagger-response])
+         (handler request)))
+     (fn [request]
+       (or (swagger-ui request)
+           (handler request))))))
 
 (defmethod ring.swagger.json-schema/json-type java.lang.Integer [_]
   {:type "integer" :format "int32"})

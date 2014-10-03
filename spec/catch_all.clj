@@ -3,6 +3,6 @@
   (:require [ring.util.response :as resp]))
 
 (defn index
-  {:route-spec [:all []]}
+  {:route [:all []]}
   []
   (resp/response "Caught you!"))
