@@ -56,10 +56,8 @@
   provided by the values."
 
   {
-    'new     [:get ["new"]]
-    'edit    [:get [:id "edit"]]
     'show    [:get [:id]]
-    'update  [:put [:id]]
+    'change  [:put [:id]]
     'patch   [:patch [:id]]
     'destroy [:delete [:id]]
     'index   [:get []]
