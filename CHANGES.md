@@ -1,4 +1,4 @@
-# 0.1.15 - unreleased
+## 0.1.15 - unreleased
 
 * The `new` and `edit` convention names for resource handler functions were removed.
 * The convention name for PUT :id has changed from `update` to `change` (to avoid future conflict with Clojure 1.7).
@@ -6,13 +6,13 @@
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.15+is%3Aclosed)
 
-# 0.1.14 - 15 Aug 2014
+## 0.1.14 - 15 Aug 2014
 
 A critical bug related to dispatch and route parameters has been identified and fixed.
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=milestone%3A0.1.14+is%3Aclosed)
 
-# 0.1.13 - 28 Jul 2014
+## 0.1.13 - 28 Jul 2014
 
 This release addresses a few minor issues related to reporting errors. 
 Importantly, when using response validation, any 5xx error responses 
@@ -20,7 +20,7 @@ Importantly, when using response validation, any 5xx error responses
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=milestone%3A0.1.13+is%3Aclosed)
 
-# 0.1.12 - 21 Jul 2014
+## 0.1.12 - 21 Jul 2014
 
 This release updates a few dependencies, and adds additional debugging inside the io.aviso.rook.dispatcher namespace:
 
@@ -33,7 +33,7 @@ This extra debugging is very handy for diagnosing issues such as "is it invoking
 
 No issues were closed in this release.
 
-# 0.1.11 - 8 Jul 2014
+## 0.1.11 - 8 Jul 2014
 
 This release significantly revamped argument resolvers, including making the list of argument resolvers extensible using options to the namespace-handler, and via :arg-resolvers metadata on functions and namespaces.
 
@@ -43,7 +43,7 @@ In addition, it is now possible to add metadata defining response status code an
 
 No issues were closed for this release.
 
-# 0.1.10 - 1 Jul 2014
+## 0.1.10 - 1 Jul 2014
 
 The major change in this release is the introduction of a new dispatcher system that scales larger and operates more efficiently than Compojure; in fact Compojure and Clout are no longer dependencies of Rook.
 
@@ -55,7 +55,7 @@ Expect some more changes in 0.1.11 that close the final loops in dynamic argumen
 
 [Closed Issues](https://github.com/AvisoNovate/rook/issues?q=milestone%3A0.1.11+is%3Aclosed)
 
-# 0.1.9 - 15 May 2014
+## 0.1.9 - 15 May 2014
 
 This release refines the async support in Ring considerably; it replaces the odd 'return `false`' behavior for asynchronous handlers with the more traditional 'return `nil`' (to close the result channel).
 
@@ -78,11 +78,11 @@ Schema cooercion now understands converting strings to booleans, instants, and U
 __Note: there have been a number of refactorings; a few functions have been renamed, and in some places, key/value varargs have been replaced with a simple map.__
 
 * namespace-middleware --> wrap-namespace
-* arg-resolver-middleware -> wrap-with-arg-resolvers
+* arg-resolver-middleware --> wrap-with-arg-resolvers
 
 [Closed Issues](https://github.com/AvisoNovate/rook/issues?q=milestone%3A0.1.9+is%3Aclosed)
 
-# 0.1.8 - 31 Mar 2014
+## 0.1.8 - 31 Mar 2014
 
 This release introduces a significant new feature: Asynchronous request processing using [core.async](https://github.com/clojure/core.async). At its core is the definition of an _asynchronous handler_ (or middleware), which accepts a Ring request map and returns its response inside a channel; asynchronous handlers are typically implemented using `go` blocks.
 
