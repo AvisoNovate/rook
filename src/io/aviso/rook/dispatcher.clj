@@ -35,14 +35,17 @@
   correct argument resolution strategy at dispatch table compilation
   time."
   {:added "0.1.10"}
-  (:require [clojure.core.async :as async]
-            [clojure.string :as string]
-            [clojure.set :as set]
-            [io.aviso.tracker :as t]
-            [io.aviso.rook.internals :as internals :refer [consume]]
-            [clojure.string :as str]
-            [clojure.tools.logging :as l]
-            [io.aviso.rook.utils :as utils]))
+  (:import
+    [java.net URLDecoder])
+  (:require
+    [clojure.core.async :as async]
+    [clojure.string :as string]
+    [clojure.set :as set]
+    [io.aviso.tracker :as t]
+    [io.aviso.rook.internals :as internals :refer [consume]]
+    [clojure.string :as str]
+    [clojure.tools.logging :as l]
+    [io.aviso.rook.utils :as utils]))
 
 (def ^:private default-mappings
 
@@ -88,7 +91,7 @@
   assumed."
   [request]
   [(:request-method request)
-   (mapv #(java.net.URLDecoder/decode ^String % "UTF-8")
+   (mapv #(URLDecoder/decode ^String % "UTF-8")
          (next (string/split (:uri request) #"/" 0)))])
 
 (defn path-spec->route-spec
