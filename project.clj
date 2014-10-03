@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.1.15"
+(defproject io.aviso/rook "0.1.16-SNAPSHOT"
             :description "Sane, smart, fast, Clojure web services"
             :url "http://howardlewisship.com/io.aviso/documentation/rook"
             :license {:name "Apache Sofware License 2.0"
@@ -29,7 +29,12 @@
             :shell {:commands {"scp" {:dir "doc"}}}
             :aliases {"deploy-doc" ["shell"
                                     "scp" "-r" "." "hlship_howardlewisship@ssh.phx.nearlyfreespeech.net:io.aviso/rook"]
-                      "release"    ["do" "clean," "spec", "doc," "deploy-docs," "deploy clojars"]}
+                      "release"    ["do"
+                                    "clean,"
+                                    "spec,",
+                                    "doc,"
+                                    "deploy-doc,"
+                                    "deploy" "clojars"]}
             :test-paths ["spec"]
             :codox {:src-dir-uri               "https://github.com/AvisoNovate/rook/blob/master/"
                     :src-linenum-anchor-prefix "L"
