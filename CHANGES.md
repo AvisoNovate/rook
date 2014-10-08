@@ -2,6 +2,8 @@
 
 * Namespace paths can now be a simple string as an alternative to a vector. E.g. `(rook/namespace-handler ["users" 'org.example.resources.users])`.
 
+[Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.16+is%3Aclosed)
+
 ## 0.1.15 - 3 Oct 2014
 
 * The `new` and `edit` convention names for resource handler functions were removed.
