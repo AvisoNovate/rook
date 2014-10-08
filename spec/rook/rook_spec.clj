@@ -92,7 +92,8 @@
       (with handler (wrap-with-standard-middleware
                       (namespace-handler
                         [[] 'creator]
-                        [["nested"] 'creator])))
+                        [["nested"] 'creator]
+                        ["nested2" 'creator])))
       (with request {:scheme         :http
                      :server-name    "rook.aviso.io"
                      :server-port    80
@@ -114,6 +115,14 @@
                          h
                          (get-in [:headers "Location"])))))
 
+      (it "resolves the correct value for a nested resource when specified as a string"
+          (let [h @handler]
+            (should= "http://rook.aviso.io/nested2/<ID>"
+                     (-> @request
+                         (assoc :uri "/nested2")
+                         h
+                         (get-in [:headers "Location"])))))
+      
       (it "will use the :server-uri key if present"
           (should= "http://overrride.com/api/"
                    (internals/resource-uri-for {:server-uri "http://overrride.com"
