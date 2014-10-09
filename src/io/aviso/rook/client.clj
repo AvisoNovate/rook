@@ -48,7 +48,7 @@
   "Same as [[to]], but the paths are provided as a seq, not varargs."
   {:added "0.1.10"}
   [request method paths]
-  {:pre [(#{:put :post :get :delete :head :options} method)]}
+  {:pre [(#{:put :post :get :delete :head :options :patch} method)]}
   (-> request
       (assoc-in [:ring-request :request-method] method)
       (assoc-in [:ring-request :uri]
