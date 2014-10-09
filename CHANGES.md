@@ -1,6 +1,7 @@
 ## 0.1.16 - UNRELEASED
 
 * Namespace paths can now be a simple string as an alternative to a vector. E.g. `(rook/namespace-handler ["users" 'org.example.resources.users])`.
+* The client/then macro now supports :pass-through in condition clauses as shorthand for [response response].
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.16+is%3Aclosed)
 
@@ -21,8 +22,8 @@ A critical bug related to dispatch and route parameters has been identified and 
 
 ## 0.1.13 - 28 Jul 2014
 
-This release addresses a few minor issues related to reporting errors. 
-Importantly, when using response validation, any 5xx error responses 
+This release addresses a few minor issues related to reporting errors.
+Importantly, when using response validation, any 5xx error responses
 (usually indicating a failure inside the response handler function, or downstream from the function) are passed through unchanged.
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=milestone%3A0.1.13+is%3Aclosed)

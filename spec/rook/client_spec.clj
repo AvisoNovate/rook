@@ -139,6 +139,16 @@
                      go
                      <!!)))
 
+    (it "can pass-through the response for a matched clause"
+        (let [response (utils/response HttpServletResponse/SC_CREATED)]
+            (should= HttpServletResponse/SC_CREATED
+                     (-> (c/new-request (responder (-> response)))
+                         (c/to :get)
+                         c/send
+                         (c/then 201 :pass-through)
+                         go
+                         <!!))))
+
     (it "can match on general :success"
         (should= HttpServletResponse/SC_NO_CONTENT
                  (-> (c/new-request (responder (utils/response HttpServletResponse/SC_NO_CONTENT)))

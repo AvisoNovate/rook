@@ -133,15 +133,21 @@
 
 (defn- ->cond-block
   [form response-sym clause-block]
-  (if-not (and
-            (vector? clause-block)
-            (< 1 (count clause-block)))
-    (throw (ex-info (format
+  (cond
+      (= :pass-through clause-block)
+      `~response-sym
+
+      (or (vector? clause-block)
+          (< 1 (count clause-block)))
+      `(let [~(first clause-block) ~response-sym] ~@(rest clause-block))
+
+      :else
+      (throw (ex-info (format
                       "The block for a status clause must be a vector; the first value must be a symbol (or map, for destructuring), the remaining values will be evaluated; in %s: %d."
                       *ns*
                       (-> form meta :line))
-                    {:clause-block clause-block})))
-  `(let [~(first clause-block) ~response-sym] ~@(rest clause-block)))
+                    {:clause-block clause-block}))))
+
 
 (defn- build-cond-clauses
   [form response-sym status-sym clauses]
@@ -211,10 +217,10 @@
 
   channel - the expression which produces the channel, e.g., the result of invoking [[send]].
 
-  A clause can either be :pass-success, :pass-failure, or a status code followed by vector.
+  A clause can either be :pass-success, :pass-failure, or a status code followed by either a vector or :pass-through.
   The first elmeent in the vector is a symbol to which the response will be bound before evaluating
   the other forms in the vector. The result of the then block is the value of the last form
-  in the selected block.
+  in the selected block. A :pass-through is equivalent to a vector of [x x].
 
   Instead of a status code, you may use :success (any 2xx status code), :failure (any other
   status code), or :else (which matches regardless of status code).
