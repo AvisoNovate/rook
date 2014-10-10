@@ -50,7 +50,7 @@
 
   (with response {:status  401
                   :headers {"content-length" 100 "content-type" "application/edn"}
-                  })
+  })
   (with handler (constantly (respond @response)))
 
   (it "handles :failure by returning the full response (by default)"
@@ -186,6 +186,13 @@
                      (c/then :pass-failure)
                      go
                      <!!)))
+
+
+    (it (str "recognizes :pass as an alternative to a vector ")
+        (let [response {:status HttpServletResponse/SC_OK}]
+          (should= response
+                   (c/then* response
+                            :success :pass))))
 
     (it "throws an exception if there is no match"
         (should= {:caught "Unmatched status code 400 processing response."}

@@ -133,15 +133,20 @@
 
 (defn- ->cond-block
   [form response-sym clause-block]
-  (if-not (and
-            (vector? clause-block)
-            (< 1 (count clause-block)))
+  (cond
+    (= clause-block :pass)
+    response-sym
+
+    (and (vector? clause-block)
+         (< 1 (count clause-block)))
+    `(let [~(first clause-block) ~response-sym] ~@(rest clause-block))
+
+    :else
     (throw (ex-info (format
                       "The block for a status clause must be a vector; the first value must be a symbol (or map, for destructuring), the remaining values will be evaluated; in %s: %d."
                       *ns*
                       (-> form meta :line))
-                    {:clause-block clause-block})))
-  `(let [~(first clause-block) ~response-sym] ~@(rest clause-block)))
+                    {:clause-block clause-block}))))
 
 (defn- build-cond-clauses
   [form response-sym status-sym clauses]
@@ -202,13 +207,17 @@
 
 (defmacro then
   "The [[send]] function returns a channel from which the eventual result can be taken. This macro
-  makes it easier to work with that channel, branching based on status code, and returning a new
+  makes it easier to work with that channel, branching based on response status code, and returning a new
   result from the channel.
 
   then makes use of <! (to park until the response form the channel is available),
   and can therefore only be used inside a go block. Use [[then*]] outside of a go block.
 
-  channel - the expression which produces the channel, e.g., the result of invoking [[send]].
+  channel
+  : the expression which produces the channel, e.g., the result of invoking [[send]].
+
+  clauses
+  : indicate what status code(s) to respond to, and what to do with the response
 
   A clause can either be :pass-success, :pass-failure, or a single status code followed by vector.
   The first elmeent in the vector is a symbol to which the response will be bound before evaluating
@@ -222,20 +231,26 @@
   Instead of a specific status code, you may use :success (any 2xx status code), :failure (any other
   status code), or :else (which matches regardless of status code).
 
-  Often it is desirable to simply pass through the response unchanged; this is the purpose of
+  Often it is desirable to simply pass the response through unchanged; this is the purpose of
   the :pass-success and :pass-failure clauses.
 
-  :pass-success is equvalent to :success [x x] and :pass-failure is equivalent to :failure [x x].
+  :pass-success is equvalent to :success :pass and :pass-failure is equivalent to :failure :pass.
+
+  In addition, you may also specify :pass instead of the vector in a clause.
+  This also passes the response through unchanged.
 
   Example:
 
       (-> (c/new-request handler)
-          (c/to :get :endpoint)
+          (c/to :get :todos todo-id)
           c/send
           (c/then
+
+            HttpServletResponse/SC_NOT_MODIFIED :pass
+
             :success [response
-                       (write-success-to-log (:body response))
-                      response]
+                       (update-local-cache todo-id (:body response))
+                       response]
 
             :pass-failure))
 
