@@ -148,40 +148,39 @@
   (let [->cond-block' (partial ->cond-block form response-sym)]
     (loop [cond-clauses []
            [selector clause-block & remaining-clauses] clauses]
-      (cond
-        (nil? selector) cond-clauses
+      (case selector
+        nil cond-clauses
 
-        (= selector :else)
+        :else
         (recur (conj cond-clauses true (->cond-block' clause-block))
                remaining-clauses)
 
-        (= selector :success)
+        :success
         (recur (conj cond-clauses
                      `(is-success? ~status-sym)
                      (->cond-block' clause-block))
                remaining-clauses)
 
-        (= selector :failure)
+        :failure
         (recur (conj cond-clauses
                      `(not (is-success? ~status-sym))
                      (->cond-block' clause-block))
                remaining-clauses)
 
-        (= selector :pass-success)
+        :pass-success
         (recur (conj cond-clauses
                      `(is-success? ~status-sym)
                      response-sym)
                ;; There is no clause block after :pass-success or :pass-failure
                (cons clause-block remaining-clauses))
 
-        (= selector :pass-failure)
+        :pass-failure
         (recur (conj cond-clauses
                      `(not (is-success? ~status-sym))
                      response-sym)
                ;; There is no clause block after :pass-success or :pass-failure
                (cons clause-block remaining-clauses))
 
-        :else
         (recur (conj cond-clauses
                      `(= ~status-sym ~selector)
                      (->cond-block' clause-block))
@@ -206,18 +205,25 @@
   makes it easier to work with that channel, branching based on status code, and returning a new
   result from the channel.
 
-  then makes use of <! (to park until the response form the channle is available),
+  then makes use of <! (to park until the response form the channel is available),
   and can therefore only be used inside a go block. Use [[then*]] outside of a go block.
 
   channel - the expression which produces the channel, e.g., the result of invoking [[send]].
 
-  A clause can either be :pass-success, :pass-failure, or a status code followed by vector.
+  A clause can either be :pass-success, :pass-failure, or a single status code followed by vector.
   The first elmeent in the vector is a symbol to which the response will be bound before evaluating
   the other forms in the vector. The result of the then block is the value of the last form
   in the selected block.
 
-  Instead of a status code, you may use :success (any 2xx status code), :failure (any other
+  then is specifically designed to work within a go block; this means that within a clause,
+  it is allowed to use the non-blocking forms <!, >!, and so forth. This would not be possible
+  if the then macro worked by relating a status code to a callback function.
+
+  Instead of a specific status code, you may use :success (any 2xx status code), :failure (any other
   status code), or :else (which matches regardless of status code).
+
+  Often it is desirable to simply pass through the response unchanged; this is the purpose of
+  the :pass-success and :pass-failure clauses.
 
   :pass-success is equvalent to :success [x x] and :pass-failure is equivalent to :failure [x x].
 
@@ -226,11 +232,12 @@
       (-> (c/new-request handler)
           (c/to :get :endpoint)
           c/send
-          (c/then :success [response
-                    (write-success-to-log (:body response))
-                    response]
+          (c/then
+            :success [response
+                       (write-success-to-log (:body response))
+                      response]
 
-                  :pass-failure))
+            :pass-failure))
 
 
   It is necessary to provide a handler for all success and failure cases; an unmatched status code
