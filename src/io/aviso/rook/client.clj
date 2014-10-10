@@ -20,7 +20,7 @@
      [utils :as utils]]))
 
 (defn new-request
-  "Creates a new client request that will utlimately become a Ring request map passed to the
+  "Creates a new client request that will ultimately become a Ring request map passed to the
   handler function.
 
   A client request is a structure that stores a (partial) Ring request,
