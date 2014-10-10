@@ -65,7 +65,7 @@
   is converted to a 500 response.
 
   The request is used when reporting the exception (it contains a :request-id
-  key set by `io.aviso.client/send`)."
+  key set by [[io.aviso.rook.client/send]])."
   [request & body]
   `(try
      ~@body
@@ -79,13 +79,13 @@
 
 (defmacro safe-go
   "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by [[safety-first]] if it must
-  fabricate a response. Requires at least one expression."
+  log an error. Requires at least one expression."
   [request expr & more]
   `(async/go (safety-first ~request ~expr ~@more)))
 
 (defmacro safe-thread
   "Wraps the body in a [[safety-first]] block and then in a thread block. The request is used by [[safety-first]] if it must
-  fabricate a response. Requires at least one expression."
+  log an error. Requires at least one expression."
   [request expr & more]
   `(async/thread (safety-first ~request ~expr ~@more)))
 
