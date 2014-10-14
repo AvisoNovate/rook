@@ -3,7 +3,7 @@
   (:require
     [ring.util.response :as r]))
 
-(defn change
+(defn modify
   "This actually fails, because there's no :as on the map."
   [id {:keys [email new-password]}]
   (assert new-password)

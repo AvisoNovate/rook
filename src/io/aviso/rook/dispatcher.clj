@@ -55,11 +55,13 @@
   Vars named by the keys in this map, with methods and routes
   provided by the values."
   {'show    [:get [:id]]
-    'change  [:put [:id]]
-    'patch   [:patch [:id]]
-    'destroy [:delete [:id]]
-    'index   [:get []]
-    'create  [:post []]})
+   'modify  [:put [:id]]
+   ;; change will be removed in 0.1.17
+   'change  [:put [:id]]
+   'patch   [:patch [:id]]
+   'destroy [:delete [:id]]
+   'index   [:get []]
+   'create  [:post []]})
 
 (defn default-namespace-middleware
   "Default namespace middleware that ignores the metadata and returns the handler unchanged.
@@ -676,8 +678,8 @@
                  middleware fn? :?
                  nested :&]
                 (let [context-pathvec (if (string? context-pathvec?)
-                                          (vector context-pathvec?)
-                                          (or context-pathvec? []))]
+                                        (vector context-pathvec?)
+                                        (or context-pathvec? []))]
                   (concat
                     [[(into outer-context-pathvec context-pathvec)
                       ns-sym
