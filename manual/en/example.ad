@@ -8,7 +8,7 @@ First, you need to specify your dependencies for http://leiningen.org/[leiningen
 .project.clj
 [source,clojure]
 ----
-{{ d['rook/code/example/minimal-project.clj'] }}
+{{ d['../code/example/minimal-project.clj'] }}
 ----
 
 == Configure the Server
@@ -18,7 +18,7 @@ Next, you need to configure the server and define its handlers.
 .src/org/example/server.clj
 [source,clojure]
 ----
-{{ d['rook/code/example/src/org/example/server.clj'] }}
+{{ d['../code/example/src/org/example/server.clj'] }}
 ----
 
 == Define a Resource
@@ -28,7 +28,7 @@ Finally, you need to define a resource for the /counters URI.
 .src/org/example/resources/counters.clj
 [source,clojure]
 ----
-{{ d['rook/code/example/src/org/example/resources/counters.clj'] }}
+{{ d['../code/example/src/org/example/resources/counters.clj'] }}
 ----
 
 == Launch!
