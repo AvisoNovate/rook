@@ -1,0 +1,36 @@
+title: end-to-end
+---
+
+In the link:async.html[Async] discussion, there was a stage where the asynchronous
+request handler had to be converted into a normal, blocking, synchronous handler.
+
+That's a shame, as it means that the number of request handling threads started by
+Jetty is a limiting factor on how many simlultaneous requests can be processed.
+
+However, Jetty has an option to process requests using link:http://wiki.eclipse.org/Jetty/Feature/Continuations[_continuations_].
+The continuations approach seperates the thread that receives the incoming HTTP request from
+the thread that sends the outgoing HTTP response. In this way, a relatively small
+number of HTTP request processing threads can handle a large number
+of concurrent requests.
+
+Rook provides an alternate Ring adaptor for Jetty, using continuations, in
+the namespace io.aviso.rook.jetty-async-adapter.
+
+The function run-async-jetty does all the work; it is passed an asynchronous request handler.
+
+== Timeouts
+
+With using run-async-jetty, you can specify a request timeout. The default timeout is
+10 seconds.
+
+A request that is not processed before the timeout is sent an 504 Gateway Timeout response.
+
+The timeout is managed using a core.async channel; this channel is stored in the request
+as key :timeout-ch.
+
+== Wrapping Synchronous Handlers
+
+The function io.aviso.rook.async/ring-handler->async-handler can be used
+to wrap a synchronous handler as an asynchronous handler. This is useful when
+you application exposed a RESTful API, but also contains a normal web application
+(including, perhaps, the use of link:../twixt/[Twixt]).

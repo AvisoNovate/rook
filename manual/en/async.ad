@@ -1,0 +1,176 @@
+title: async
+---
+
+One of Rooks most exciting features is its support for asynchronous operation.
+
+The Async support is based on https://github.com/clojure/core.async[Clojure core.async].
+A reasonable understanding of core.async is expected, to understand Rook's async support.
+
+In a nutshell, when processing async, request handler functions no longer return
+a response directly; instead they must return a channel to which the response map
+will be put (using core.async's >!, >!!, or put! functions), when ready.
+
+In many cases, the request handler function will use a core.async go or thread block,
+which automates the creation of the response channel, and the writing of the
+response map into the channel.
+
+=== Async Advantages
+
+Usng async, fewer threads can handle a large load (this is especially true when
+using end-to-end async). As requests come in, they consume some memory on the heap,
+rather than tying up an entire request processing thread.
+
+Async makes it easier to apply a timeout to the processing of the entire request, as the
+request comes into the system. This makes it easier for the system to respond
+to sudden increases in load.
+
+When the system must communicate with itself, it can use link:loopbacks.html[loopbacks],
+which is an efficient way to send request and return results without involving HTTP or HTTPS; it allows for requests and responses containing Clojure data.
+
+Async allows select operations to work in parallel that would otherwise have to be serialized.
+
+=== Async Disadvantages
+
+The memory and other overhead of using async has yet to be quantified.
+
+It can be somewhat harder to debug failures in asynchronous code; this is because
+code that executes inside a go or thread block runs on a new thread.
+Exceptions that occur provide very little contextual information in their stack trace.
+
+Some middleware, including common middleware related to session management, must be rewritten for async.
+
+== Basic Async
+
+At it's simplest, async just involves a change in the call to io.aviso.rook/namespace handler.
+
+[source,clojure]
+----
+(namespace-handler
+  {:async? true}
+  [["orders"] 'org.example.resources.orders]
+  [["users"] 'org.example.resources.users])
+----
+
+The :async? flag makes a few changes:
+
+* The returned handler will take a Ring request map, and return a channel that will return 
+  a Ring response map.
+* The resource handler functions must also return a channel, not the request map.
+* Any middleware used will have to be _async aware_.
+
+If you are using this inside a typical server, via ring.adapter.jetty/run-jetty,
+you will need to make a small addition: to convert from an async response back to
+a normal response.
+
+[source,clojure]
+----
+(-> (namespace-handler
+      {:async? true}
+      [["orders"] 'org.example.resources.orders]
+      [["users"] 'org.example.resources.users])
+    async/async-handler->ring-handler
+    rook/wrap-with-standard-middleware)
+----
+
+async-handler->ring-handler is defined by the io.aviso.rook.async namespace; it uses
+a blocking take (<!!) to retrieve the response map, and returns that map.
+
+== Async Middleware
+
+NOTE: These examples are for asynchronous Ring middleware (used around the namespace handler); for link:middleware.html[namespace middleware]
+the concept is the same, but there's the extra metadata argument. Async namespace middleware
+are passed an async handler and metadata, and return a new async handler.
+
+Async middleware is just like traditional Rook middleware, except that it must
+return a channel, not a response map.
+
+As with any middleware, the function is passed a handler and returns a new handler.
+Both the original handler and the returned handler must be asynchronous.
+In most cases, the new handler delegates to the original handler, passing the request
+(or a modified version of the request).
+
+=== Simple Middleware
+
+Simple middleware will modify the request and pass it to the delegate handler,
+returning whatever the delegate handler returns ... without peeking!
+
+There is no need to rewrite simple middleware for async; it follows the async contract
+of accepting a request map and returning a channel.
+
+[source,clojure]
+----
+(defn simple-middleware
+      [handler]
+      (fn [request]
+        (-> request
+            (assoc :foo :bar)
+            handler)))
+----
+
+=== Intermediate Middleware
+
+Intermediate middleware may inspect the request and return a response, or delegate
+to the original handler.
+
+This just involves wrapping the response map using async/result->channel.
+
+[source,clojure]
+----
+(defn intermediate-middleware
+      [handler]
+      (fn [request]
+        (if (-> request ...)
+          (-> (utils/response HttpServletResponse/SC_FORBIDDEN) 
+              async/result->channel))
+          (handler request)))
+----
+
+
+=== Complex Middleware
+
+Complex middleware occurs when they middleware handler must itself perform some
+asynchronous work, or it wishes to inspect the response from the delegate handler.
+
+[source,clojure]
+----
+(defn peeking-middleware
+  [handler]
+  (fn [request]
+    (async/safe-go request
+      (let [response (-> request handler <!)]
+        (if (.... response ....)
+          (utils/response HttpServletResponse/SC_FORBIDDEN)
+          response)))))
+----
+
+This middleware invokes the delegate handler, then takes the result map from
+the channel. It then looks at the response and either returns a different response,
+or returns the response unchanged.
+
+safe-go is a macro that builds on core.async's go, but generates a 500 response if the
+body of the macro throws an exception.
+
+== Sync Resource Handler Functions
+
+In many cases, perhaps the majority of cases, the resource handler functions do not peform any asynchronous
+work; typically, they execute some number of database queries (which, since Java JDBC is a blocking API,
+can not benefit from asynchronicity). 
+
+By adding the :sync metadata to a function, the function can be implemented as synchronous code; that is
+it doesn't need to use an explicit go or thread block, and can simply return a response map (or nil), not
+a channel.
+
+.Example
+[source,clojure]
+----
+(def index 
+  {:sync true}
+  [id ^:injected db-conn]
+  ...)
+----
+
+Rook will execute this using the previously mentioned safe-thread macro (any thrown exceptions will be
+converted to a 500 response).
+
+It is common for _all_ functions in a namespace to be synchronous; in that case, you may move the :sync
+meta data to the namespace and it will apply to all functions within the namespace.

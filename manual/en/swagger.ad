@@ -1,0 +1,10 @@
+title: swagger
+---
+
+Rook's roadmap includes support for 
+link:https://helloreverb.com/developers/swagger[Swagger] as a way to document an RESTful API. 
+Integration with 
+link:https://github.com/metosin/ring-swagger[ring-swagger] is in progress. 
+
+Documentation of Swagger support is forthcoming.
+Swagger support is currently in a very alpha state.

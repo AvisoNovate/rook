@@ -1,0 +1,109 @@
+title: validation
+---
+
+Rook is capable of validating incoming requests and outgoing responses, using
+specific link:middleware.html[middleware] combine with metadata.
+
+Input validation is useful not only to protect your resource handlers from invalid inputs, but also because it leverages 
+Schema's link:https://github.com/Prismatic/schema#transformations-and-coercion[coercion] logic to ensure that content passed from the client, especially JSON
+content, is in good form when it is passed into your resource handler function.
+
+== Schema Validation
+
+The :schema metadata key is a schema that applies to the incoming request,
+specifically to the :params keys which (by the time the schema validation
+middleware is invoked), will contain the merge of any query parameters, with
+any form parameters, or the request body converted from JSON or 
+link:https://github.com/edn-format/edn[EDN] into Clojure data.
+
+[source,clojure]
+----
+(def ^:private index-schema
+  {(s/optional-key :sort)  (s/enum :name :date)
+   (s/optional-key :order) (s/enum :ascending :descending)
+   s/Any                   s/Any})
+
+(defn index
+  "Lists out all hotel rooms, sorted by name or date."
+  {:schema index-schema}
+  [^:injected db-conn
+   {sort-key :sort
+    sort-order :order
+    :as params}]
+    ...
+  )
+----
+
+By convention, the schema is defined in its own symbol, then used in the metadata of the related resource handler function.
+
+NOTE: The schema should be forgiving (that's the +s/Any+ key mapping). This is because the client may include
+arbitrary query parameters in the URL that should be ignored by the server; failing to include the +s/Any+ mapping
+can result in spurious rejections of otherwise valid requests.
+
+Schema handles basic coercion; for example JSON  doesn't have a way to specify that values are keywords, not strings. Schema can see that the enum type is of keywords, and automatically coerce a string, such as "ascending" to a keyword, :ascending.
+
+NOTE: Rook adds coercion for s/Uuid and s/Inst (instant of time) that is not, by default, present in Schema.
+
+The coerced result is assigned to the :params key of the Ring request before the resource handler is invoked. Inside the index function, sort-key and sort-order will be nil, or a keyword.
+
+Schema doesn't have a good way to identify relationships between the keys; for instance, :order without :sort isn't meaningful. In this simple example, it can be simply ignored, but in other cases, you may need logic inside
+your resource handler function to cross-validate parameter values.
+
+Schema validation is enabled by including the +io.aviso.rook.schema-validation/wrap-with-schema-validation+ middleware function.
+
+== Response Validation
+
+Response validation allows checks on the result of the resource handler function:
+
+* The response status is a declared value
+
+* That the response body matches a provided schema
+
+Response validation is typically enabled in development and some testing, but disabled in production.
+
+WARNING: It's a good idea to have at least some of your unit tests work by sending real HTTP requests
+into the resource (or, at least, to instantiate a namespace handler and pass Ring requests into it).
+This ensures that middleware, such as response validation, is applied and accurate.
+
+Response validation is enabled using the +io.aviso.rook.response-validation/wrap-with-response-validation+
+middleware.
+
+The :responses metadata is a map from status code to a schema.
+
+[source,clojure]
+----
+(def ^:private index-schema
+  {(s/optional-key :sort)  (s/enum :name :date)
+   (s/optional-key :order) (s/enum :ascending :descending)
+   s/Any                   s/Any})
+
+(def ^:private index-responses
+  {HttpServletResponse/SC_OK        {:rooms [room-schema]}
+   HttpServletResponse/SC_FORBIDDEN nil})
+
+(defn index
+  "Lists out all hotel rooms, sorted by name or date."
+  {:schema    index-schema
+   :responses index-responses}
+  [^:injected db-conn
+   {sort-key :sort
+    sort-order :order
+    :as params}]
+    ...
+  )
+----
+
+Again, by convention, the responses are stored in a seperate symbol.
+
+The index function must return either SC_OK (200) or SC_FORBIDDEN (403).
+
+For the SC_OK case, the body must have a :rooms key containing an array of rooms (each defined by
+rooms-schema, not shown).
+
+For the SC_FORBIDDEN case, the body may be omitted, or have any value. 
+The body is not validated.
+
+Any response with a 5xx status code is passed through unchanged and unvalidated. 
+It is not necessary or helpful to list those status codes.
+
+A response that is not otherwise listed in the :responses metadata is logged, and converted into a SC_INTERNAL_SERVER_ERROR (500) response.

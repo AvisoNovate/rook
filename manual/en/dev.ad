@@ -1,0 +1,96 @@
+title: dev
+---
+
+We regularly develop Rook, and application built in Rook, using a live REPL
+inside IntelliJ.
+We use link:https://cursiveclojure.com/[Cursive], an excellent IntelliJ plugin.
+
+Cursive handles most aspects of code reloading automatically, but it isn't enough on its own.
+
+== The Reload Challenge
+
+The challenge when reloading code into a _running_ server is that the server has no
+knowledge that the code has changed.
+
+Consider a server, adapted from the one on the link:getting-started.html[Getting Start] page:
+
+[source,clojure]
+----
+(ns org.example.server
+  (:require
+    [ring.adapter.jetty :as jetty]
+    [io.aviso.rook :as rook])
+
+(defn app
+  []
+  (-> (rook/namespace-handler
+        [["users"] 'org.example.resources.users])
+      rook/wrap-with-standard-middleware))
+
+(defn start-server
+   [port]
+   (let []
+     (jetty/run-jetty (app) {:port port :join? false})))
+----
+
+Once this is running, you might change the implementation of the app function, and reload the code
+using Cursive ... but your changes do not take effect.
+
+This is basic Clojure; reloading the code may create a new function and store that function inside the
+org.example.server/app Var ... but the old value, retrieved when start-server was executed, still exists.
+
+== Using the io.aviso.rook.server namespace
+
+This namespace defines a handful of functions to assist with creating a basic handler.  Using it
+we can make a few changes:
+
+[source,clojure]
+----
+(ns org.example.server
+  (:require
+    [ring.adapter.jetty :as jetty]
+    [io.aviso.rook :as rook]
+    [io.aviso.rook.serer :as server])
+
+(defn app
+  []
+  (-> (rook/namespace-handler
+        [["users"] 'org.example.resources.users])
+      rook/wrap-with-standard-middleware))
+
+(defn start-server
+   [port]
+   (let []
+     (jetty/run-jetty (server/construct-handler {:reload true} #'app) {:port port :join? false})))
+----
+
+construct-handler accepts a map of options, and a function that creates the Ring request handler.
+
+In the simple case, construct-handler just invokes the function. Additional parameters to construct-handler
+are passed to the function.
+
+When the :reload option is true, then construct-handler will rebuild the handler _on every request_.
+
+This may seem slow, it is not; Clojure is plenty fast enough to build even very large dispatchers in milliseconds, perfect for testing. footnote:[The only really slow thing in Clojure is initial startup.] 
+
+TIP: You do need to carefully consider resources such as caches and database connection pools; you
+don't want to re-create those on every request!
+
+Notice that it is the org.example.server/app Var that is passed in, not the function inside the Var.
+This dovetails with Cursive's reloading; it ensures that construct-handler will use the latest definition
+of the function.
+
+So the work cycle is:
+
+* Start the application
+* Navigate as normal
+* Make changes to source files
+* Use Cursive to reload the affected namespaces footnote:[Cursive is good about loading all changed namespaces, in dependency order]
+* Refresh in the browser and continue
+
+There are two other options for construct-handler:
+
+$$:log$$:: If true, then the request method and URI is logged before each request
+$$:debug$$:: If true, then the Ring request map is pretty-printed and logged before each request
+
+Logging is based on link:https://github.com/clojure/tools.logging[tools.logging].

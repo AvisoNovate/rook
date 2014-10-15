@@ -1,0 +1,74 @@
+title: middleware
+---
+
+Rook supports namespace middleware, wrappers around resource handler functions.
+
+Namespace middleware is intended for purposes such as:
+
+* link:validation.html[Input validation]
+* User authentication
+* Protection against denial of service attacks
+* System metrics collection
+* etc.
+
+Namespace middleware is not quite the same as traditional Ring middleware.
+
+Namespace middleware are functions that are passed a Ring handler _and_ a metadata map for a specific resource handler function.
+
+The middleware may return a new handler, or nil.  
+A nil response means the middleware declines to wrap the handler it
+was passed.
+
+Every resource handler function is wrapped as a Ring handler, then
+passed through the middleware associated with the namespace, forming
+a new handler specific to that resource handler function.
+
+For example:
+
+[source,clojure]
+----
+(defn wrap-with-authentication
+  "Adds authentication that, when the :required-permissions metadata is present, ensures that
+  the user (identified via authentication headers) has the necessary permissions.
+  Permission names may be identified as strings or keywords."
+  [handler metadata]
+  (if-let [permissions (-> metadata :required-permissions)]
+    (fn [request]
+      (check-for-permissions handler request permissions))))
+----
+
+This namespace middleware checks for the :required-permissions metadata. 
+When it is not present, it returns nil, and Rook uses the normal handler (the handler passed to the
+middleware function).
+
+When, and only when, the :required-permissions metadata is present, then the handler is wrapped with a
+new handler that performs the permission check.
+
+== Composing Middleware
+
+Often, it is desirable to compose several middleware functions into a single function.
+
+The compose-middleware macro does that. It is patterned after the Clojure -> threading macro.
+
+[source,clojure]
+----
+(compose-middleware 
+  (rv/wrap-with-response-validation development-mode)
+  sv/wrap-with-schema-validation
+  (wrap-with-activity-tracking :user)
+  wrap-with-authentication)
+----
+
+compose-middleware evaluates to a middleware function (that accepts a handler and metadata, as above).
+
+Each form inside compose-middleware is converted to a list, if it is not already one.
+
+Each form is modified so that the first two parameters passed are the current handler and the metadata.
+
+compose-middleware chains these expressions together along with the logic for handling a nil value from
+any composed middleware expression.
+
+The result is a function that accepts an initial handler and metadata, and returns the final handler.
+
+
+  

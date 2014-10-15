@@ -1,0 +1,177 @@
+title: arguments
+---
+
+The link:getting-started.html[Getting Started] page showed how Rook can not only
+invoke your function, but pass it specific data needed by the function. 
+So far, we've just seen that keywords in the request path can be provided as arguments.
+
+That's just the tip of of the iceberg.
+Rook is designed so that you can write your resource handler function as pure functions
+footnote:[Pure in the sense of not relying on globals, not pure as in "side effect free".]
+The goal here is to make you code testable and agile.
+
+Rook uses a set of naming conventions and metdata to determine the value to
+in each argument to your function. This is called _argument resolution_.
+
+Deep down, the standard case is that each argument will be resolved as a function applied
+to the Ring request; this usually means getting a key from the map, or navigating a
+path starting from the Ring request. 
+
+The trick, of course, is to ensure that the _correct_ argument resolver function is identified (or constructed) for each argument.
+
+Let's start with the some default behaviors.
+
+== Path Keywords
+
+Arguments whose name matches a keyword in the path resolve to the value from the path, as a string. This is a route parameter, and the values are stored as a map in the Ring request as :route-params.
+
+== Convention Names
+
+The name of the argument itself may be all Rook needs to resolve the argument.
+
+.Convention Names
+|===
+|Argument Symbol |Argument Value
+
+|request
+|The Ring request map.
+
+|params
+|The contents of the Ring request :params key. This contains all submitted query and form parameters.
+
+|params*
+|Same as params, but with the top-level keys 'Clojureized' footnote:[Embedded underscore are converted to dashes, e.g. :user_id to :user-id. This can be convienient when exposing
+a resource designed to be easily accessible using JSON and client-side JavaScript.]
+
+|resource-uri
+|The URI for the namespace containing the function. See the notes on
+link:resource-uri.html[calculating the Resource URI].
+|===
+
+TIP: It is ok to use map destructuring on an argument, but then you must use the :as key to identify its name, so that Rook can determine the argument's name, for determining argument resolution.
+
+.Example
+[source,clojure]
+----
+(defn index [{:keys [page sort per-page] :as params}]
+  ...)
+----
+
+Here, Rook uses the argument's name, params, to determine what to inject (the :params key of the Ring request map).
+The argument is destructured to get the individual query parameters passed in the request.
+
+== Argument Tagging
+
+Another way to specify argument resolution is with metadata tags. The presence of the tag indicate a particular resolution (the value is ignored, but is usually the constant true).
+
+.Metadata Tags
+|===
+|Tag |Argument Value
+
+|:request
+|The Ring request itself. The name of the argument is ignored.
+
+|:request-key
+|The argument symbol is converted to a keyword, 
+ the resolved value is the value in the Ring request map for that key.
+
+|:header
+|The argument symbol is converted to a string, and used to access a value in the :headers map of the Ring request.
+
+|:param
+|The argument symbol is converted to a keyword, and used to access a value in the :params map of the Ring request.
+
+|:injection
+|The argument symbol is converted to a keyword, and used to access an link:injection.html[injection] associated with the Ring request.
+
+|:resource-uri
+|The argument is resolved to the containing namespace's link:resource-uri.html[resource URI].
+
+|===
+
+.Example
+
+[source,clojure]
+----
+(defn index
+  [id
+   ^:header if-modified-since
+   ^:injection db-connection]
+   ...)
+----
+
+In this example, the id argument is resolved from a route param (because the convention route for functions named 'index' has a :id keyword).  The link:http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.25[if-modified-since] argument is a header (with matching name), and the db-connection parameter is a injected value. We'll discuss how to link:injection.html[configure injection] in a later section.
+
+WARNING: You should have at most one of these tags on any single parameter; having multiple
+will result in a runtime exception.
+
+== Argument Resolver Metadata
+
+An argument may have metadata with key :io.aviso.rook/resolver.
+
+The value for this metadata is either a keyword from the list of Metadata tags _or_ an
+argument resolver function.
+
+This feature is not used very often.
+
+== Namespace Argument Resolver Metadata
+
+The namespace may define a map used to identify argument resolvers, as key :arg-resolvers.
+
+The keys of this map are symbols; the values for the map are either a tag keyword, or an
+argument resolver function.
+
+In this way, a common argument used in many resource handler functions can have its
+argument resolution strategy defined once. In the example above, the if-modified-since argument may appear in multiple functions, and would only need to be linked as a :header
+once.
+
+.Example
+[source,clojure]
+----
+(ns org.example.users
+  "Rook resource for accessing users."
+  {:arg-resolvers 
+    {'if-modified-since :header
+     'db-connection :injection}})
+
+(defn index 
+  [id if-modified-since db-connection] 
+  ...)     
+----
+
+The keys for argument resolvers may be keywords or symbols.
+
+For keywords, this defines an argument tag; the value for the keyword
+is the argument resolver function factory.
+
+An argument resolver function factory is passed the argument's symbol (such as if-modified-since or db-connection, in the above example). It returns an argument resolver function: that function is passed the Ring request and returns the
+resolved value for the argument.
+
+For symbols, the defines a convention. The value may be a keyword, or it may be an argument resolver function (not a factory, but a direct function).
+
+The argument resolvers specified in metadata are merged onto the argument resolvers optionally specified as an option to the namespace-handler function.
+
+== Specifying global defaults for arguments
+
+When defining the namespace handler, the first argument may be a map of
+options. The :arg-resolvers key is merged into the default set.
+
+.Example
+[source,clojure]
+----
+(namespace-handler {:arg-resolvers {'if-modified-since :header}}
+  [["users"] 'org.example.resources.users])
+----
+
+
+== Resolver Priority
+
+Finding the argument resolver for an argument involves checks in the following order:
+
+* As a route parameter
+* The :io.aviso.rook/resolver metadata on the argument
+* By metadata tag
+* By convention name
+
+WARNING: Each argument to a request handler function *must* have an argument resolver or an exception will
+be thrown when constructing the namespace handler.
