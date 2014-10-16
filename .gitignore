@@ -10,3 +10,5 @@ test2junit
 doc
 .\#*
 pom.xml.asc
+.dexy
+manual/output-site
