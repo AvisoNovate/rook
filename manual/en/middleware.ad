@@ -1,4 +1,4 @@
-title: middleware
+title: Middleware
 ---
 
 Rook supports namespace middleware, wrappers around resource handler functions.

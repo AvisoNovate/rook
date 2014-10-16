@@ -2,7 +2,7 @@
  :description "Sane, smart, fast, Clojure web services."
  :github      "AvisoNovate/rook"
  :api         "http://howardlewisship.com/io.aviso/rook/"
- :page-order  ["index"
+ :pages       ["index"
                "example"
                "getting-started"
                "arguments"
@@ -15,18 +15,4 @@
                "loopbacks"
                "swagger"
                "dev"
-               ]
- :page-names  {"index"           "About Rook"
-               "dev"             "Developer Features"
-               "arguments"       "Function Arguments"
-               "async"           "Async"
-               "end-to-end"      "End To End Async"
-               "example"         "Example"
-               "getting-started" "Getting Started"
-               "injection"       "Injection"
-               "loopbacks"       "Async Loopbacks"
-               "middleware"      "Middleware"
-               "namespaces"      "Namespaces"
-               "swagger"         "Swagger"
-               "validation"      "Validation"
-              }}
+               ] }

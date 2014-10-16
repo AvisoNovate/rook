@@ -1,4 +1,4 @@
-title: loopbacks
+title: Async Loopbacks
 ---
 
 Rook encourages you to write a RESTful API based on resources; that's the whole point

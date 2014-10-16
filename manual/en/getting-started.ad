@@ -1,4 +1,4 @@
-title: getting-started
+title: Getting Started
 ---
 
 The basic idea in Rook is that incoming URIs are matched to a specific Clojure namespace, and then to _resource handler functions_ within the namespace.

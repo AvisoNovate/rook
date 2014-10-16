@@ -1,4 +1,4 @@
-title: validation
+title: Validation
 ---
 
 Rook is capable of validating incoming requests and outgoing responses, using
