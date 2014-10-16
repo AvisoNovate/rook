@@ -1,6 +1,7 @@
 {:name        "Rook Manual"
  :description "Sane, smart, fast, Clojure web services."
  :github      "AvisoNovate/rook"
+ :api         "http://howardlewisship.com/io.aviso/rook/"
  :page-order  ["index"
                "example"
                "getting-started"
