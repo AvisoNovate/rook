@@ -220,13 +220,16 @@
   : indicate what status code(s) to respond to, and what to do with the response
 
   A clause can either be :pass-success, :pass-failure, or a single status code followed by vector.
-  The first elmeent in the vector is a symbol to which the response will be bound before evaluating
+  The first element in the vector is a symbol to which the response will be bound before evaluating
   the other forms in the vector. The result of the then block is the value of the last form
   in the selected block.
 
+  Instead of a vector, the symbol :pass means that the response simply passes though as the
+  result of the then block.
+
   then is specifically designed to work within a go block; this means that within a clause,
-  it is allowed to use the non-blocking forms <!, >!, and so forth. This would not be possible
-  if the then macro worked by relating a status code to a callback function.
+  it is allowed to use the non-blocking forms <!, >!, and so forth (this would not be possible
+  if the then macro worked by relating a status code to a callback function).
 
   Instead of a specific status code, you may use :success (any 2xx status code), :failure (any other
   status code), or :else (which matches regardless of status code).
@@ -236,8 +239,6 @@
 
   :pass-success is equvalent to :success :pass and :pass-failure is equivalent to :failure :pass.
 
-  In addition, you may also specify :pass instead of the vector in a clause.
-  This also passes the response through unchanged.
 
   Example:
 
