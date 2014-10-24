@@ -90,20 +90,6 @@
    (mapv #(URLDecoder/decode ^String % "UTF-8")
          (next (string/split (:uri request) #"/" 0)))])
 
-(defn path-spec->route-spec
-  "Takes a path-spec in the format `[:method \"/path/:param\"]` and
-  returns the equivalent route-spec in the format `[:method
-  [\"path\" :param]]`. If passed nil as input, returns nil."
-  [path-spec]
-  (if-not (nil? path-spec)
-    (let [[method path] path-spec
-          _ (assert (instance? String path))
-          paramify (fn [seg]
-                     (if (.startsWith ^String seg ":")
-                       (keyword (subs seg 1))
-                       seg))]
-      [method (mapv paramify (next (string/split path #"/" 0)))])))
-
 (defn pathvec->path [pathvec]
   (if (seq pathvec)
     (string/join "/" (cons nil pathvec))
@@ -658,9 +644,7 @@
            (keep (fn [[k v]]
                    (if (ifn? @v)
                      (t/track #(format "Building route mapping for `%s/%s'." ns-sym k)
-                              (if-let [route-spec (or (:route (meta v))
-                                                      (path-spec->route-spec
-                                                        (:path-spec (meta v)))
+                              (if-let [route-spec (or (-> v meta :route)
                                                       (get default-mappings k))]
                                 (conj route-spec (symbol (name ns-sym) (name k))))))))
            (list* context-pathvec middleware)

@@ -7,14 +7,14 @@
    [clojure.tools.logging :as l]))
 
 (defn store
-  {:path-spec [:post "/:key/:value"]}
+  {:route [:post [:key :value]]}
   [key value request]
   (l/debugf "Storing key/value `%s' / `%s'" key value)
   (-> (utils/response {:result :ok})
       (assoc :session (-> request :session (assoc key value)))))
 
 (defn retrieve
-  {:path-spec [:get "/:key"]}
+  {:route [:get [:key]]}
   [key request]
   (l/debugf "Retrieving key `%s'" key)
   ;; Not returning a :session key in the response means, "keep the original session as-is".

@@ -2,6 +2,8 @@
 
 * Namespace paths can now be a simple string as an alternative to a vector. E.g. `(rook/namespace-handler ["users" 'org.example.resources.users])`.
 * The convention name for PUT :id has changed from `change` to `update`.  `update` is still supported, but will be removed in 0.1.17.
+* Improvements to the io.aviso.rook.client/then macro
+* Removed support for the :path-spec metadata
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.16+is%3Aclosed)
 

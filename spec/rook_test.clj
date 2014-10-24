@@ -11,8 +11,7 @@
    :body   (str "id=" id)})
 
 (defn activate
-  {:route-spec [:post [:id "activate"]]
-   :path-spec [:post "/:id/activate"]}
+  {:route [:post [:id "activate"]]}
   [^:param test1
    id
    ^:request request
@@ -31,7 +30,7 @@
        ",meth=" request-method))
 
 (defn check-if-modified
-  {:path-spec [:post "/:id/if-modified-since"]}
+  {:route [:post [:id "if-modified-since"]]}
   [id ^:header if-modified-since]
-  {:id id
+  {:id                id
    :if-modified-since if-modified-since})

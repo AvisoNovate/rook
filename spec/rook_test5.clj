@@ -8,7 +8,7 @@
 ;;; then by line, last.
 
 (defn show-default
-  {:path-spec [:get "/default"]}
+  {:route [:get ["default"]]}
   [])
 
 (defn show

@@ -75,10 +75,7 @@ A route spec consists of a vector of two values; the first is a keyword for the 
 The second value is itself a vector of path elements. The path elements can be strings, or
 keywords.
 
-The keyword is one of :get, :put, :post, :delete, :patch, or a special value, :all (which matches any HTTP method).
-
-$$:path-spec$$::
-A path spec consists of two values: the HTTP method keyword, and a string, such as "/:id/activate".  The string is parsed apart to form the same data as a route spec.
+The HTTP method keyword is one of :get, :put, :post, :delete, :patch, or a special value, :all (which matches any HTTP method).
 
 .Example
 
@@ -91,18 +88,6 @@ If you want to match a URI such as PUT +/users/_12345_/activate+, you would map 
   [id]
   ...)
 ----
-
-Alternately, you can use :path-spec metadata:
-
-[source,clojure]
-----
-(defn activate
-  {:path-spec [:put "/:id/activate"]]}
-  [id]
-  ...)
-----
-
-WARNING: It is likely that support for :path-spec may be removed.
 
 == A minimal server
 
@@ -119,7 +104,7 @@ several reasons), but it will suffice to show the essentials:
 (defn start-server
    [port]
    (let [handler (-> (rook/namespace-handler
-                       [["users"] 'org.example.resources.users])
+                       ["users" 'org.example.resources.users])
                       rook/wrap-with-standard-middleware)]
      (jetty/run-jetty handler {:port port :join? false})))
 ----
