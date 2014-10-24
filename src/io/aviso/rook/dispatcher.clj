@@ -146,9 +146,9 @@
           (unnest-table [context-pathvec default-middleware entries]
                         (mapv (fn [[_ pathvec :as unnested-entry]]
                                 (assoc unnested-entry 1
-                                                      (with-meta (into context-pathvec pathvec)
-                                                                 {:context (into context-pathvec
-                                                                                 (:context (meta pathvec)))})))
+                                       (with-meta (into context-pathvec pathvec)
+                                                  {:context (into context-pathvec
+                                                                  (:context (meta pathvec)))})))
                               (mapcat (partial unnest-entry default-middleware) entries)))]
     (unnest-table [] nil dispatch-table)))
 
@@ -225,7 +225,7 @@
       (format "Analyzing endpoint function `%s'." verb-fn-sym)
       (let [handler-key (gensym "handler-key__")
             routes' (assoc routes
-                      [method (keywords->symbols pathvec)] handler-key)
+                           [method (keywords->symbols pathvec)] handler-key)
             [middleware' middleware-key] (caching-get middleware mw-spec #(gensym "middleware-key__"))
 
             ns-symbol (-> verb-fn-sym namespace symbol)
@@ -635,9 +635,9 @@
          (require ns-sym))
        (catch Exception e
          (throw (ex-info "failed to require ns in namespace-dispatch-table"
-                         {:context-pathvec context-pathvec
-                          :ns              ns-sym
-                          :middleware      middleware}
+                         {:context    context-pathvec
+                          :ns         ns-sym
+                          :middleware middleware}
                          e))))
      [(->> ns-sym
            ns-publics
@@ -675,7 +675,7 @@
           ns-specs))
 
 (def ^:private default-opts
-  {:context-pathvec    []
+  {:context            []
    :default-middleware default-namespace-middleware})
 
 (defn namespace-dispatch-table
@@ -695,7 +695,7 @@
   (consume arguments
     [options map? :?
      ns-specs :&]
-    (let [{outer-context-pathvec :context-pathvec
+    (let [{outer-context-pathvec :context
            default-middleware    :default-middleware} (merge default-opts options)
           ns-specs' (canonicalize-ns-specs
                       []

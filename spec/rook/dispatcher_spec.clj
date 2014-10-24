@@ -179,11 +179,11 @@
                           [["foo"] 'example.foo default-middleware])))]
           (should= (set simple-dispatch-table) dt)))
 
-    (it "should respect the :context-pathvec option"
+    (it "should respect the :context option"
 
         (let [dt (set (dispatcher/unnest-dispatch-table
                         (dispatcher/namespace-dispatch-table
-                          {:context-pathvec ["api"]}
+                          {:context ["api"]}
                           [["foo"] 'example.foo default-middleware])))]
           (should= (set (map (fn [[_ pathvec :as entry]]
                                (update-in entry [1] #(into ["api"] %)))
@@ -222,7 +222,7 @@
 
         (let [dt (dispatcher/unnest-dispatch-table
                    (dispatcher/namespace-dispatch-table
-                     {:context-pathvec    ["foo"]
+                     {:context            ["foo"]
                       :default-middleware default-middleware}
                      ['example.foo]))]
           (should= (set simple-dispatch-table)

@@ -117,14 +117,14 @@ It is common to want to place your resources under a common prefix; such as +/ap
 
 Rook doesn't use link:https://github.com/weavejester/compojure[Compojure] (which has a context macro for this purpose).
 
-Instead another namespace-handler option can be used:  :context-pathvec.
+Instead another namespace-handler option can be used, :context.
 
 This value is a series of path elements that are prefixed to any paths.
 
 [source,clojure]
 ----
 (namespace-handler
-  {:context-path-vec ["api"]
+  {:context            ["api"]
    :default-middleware auth-middleware}
   ["hotels" 'org.example.resources.hotels
     [[:hotel-id "rooms"] 'org.example.resources.rooms]])

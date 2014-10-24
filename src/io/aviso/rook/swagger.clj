@@ -97,7 +97,7 @@
   [options? & ns-specs]
   (let [opts (merge default-opts
                     (if (map? options?) options?))
-        {outer-context-pathvec :context-pathvec
+        {outer-context-pathvec :context
          default-middleware    :default-middleware} opts
         ns-specs (dispatcher/canonicalize-ns-specs
                    []

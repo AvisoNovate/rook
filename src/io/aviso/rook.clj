@@ -92,7 +92,7 @@
   Example call:
 
       (namespace-handler
-        {:context-pathvec    [\"api\"]
+        {:context            [\"api\"]
          :default-middleware basic-middleware}
         ;; foo & bar use basic middleware:
         [[\"foo\"]  'example.foo]
@@ -104,12 +104,12 @@
     (if (map? options?)
       (if (:swagger options?)
         (assoc-in options? [:arg-resolvers 'swagger]
-          (constantly (apply swagger/namespace-swagger options? ns-specs)))
+                  (constantly (apply swagger/namespace-swagger options? ns-specs)))
         options?))
     (apply dispatcher/namespace-dispatch-table options?
-      (if (:swagger options?)
-        (swagger/swaggerize-ns-specs options? ns-specs)
-        ns-specs))))
+           (if (:swagger options?)
+             (swagger/swaggerize-ns-specs options? ns-specs)
+             ns-specs))))
 
 (defn- convert-middleware-form
   [handler-sym metadata-sym form]
