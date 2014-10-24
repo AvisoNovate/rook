@@ -9,7 +9,7 @@
 
 ## 0.1.15 - 3 Oct 2014
 
-* The `new` and `edit` convention names for resource handler functions were removed.
+* The `new` and `edit` convention names for endpoint functions were removed.
 * The convention name for PUT :id has changed from `update` to `change` (to avoid future conflict with Clojure 1.7).
 * The :route-spec metadata key has been renamed to just :route.
 * A new and very alpha integration with [ring-swagger](https://github.com/metosin/ring-swagger) has been introduced.
@@ -35,7 +35,7 @@ Importantly, when using response validation, any 5xx error responses
 This release updates a few dependencies, and adds additional debugging inside the io.aviso.rook.dispatcher namespace:
 
 * With debug enabled, there is a message identifying how each incoming request is matched to a function
-* With trace enabled, there is a message (at startup) identifying the merged metadata for each resource handler function
+* With trace enabled, there is a message (at startup) identifying the merged metadata for each endpoint function
 
 The merged metadata is the merge of the function's metadata with the containing namespace's. An attempt is made to eliminate common keys (such as :doc, :line, etc.) so that it's just the custom metadata provided on the function itself (or inherited from the namespace).
 
@@ -47,9 +47,9 @@ No issues were closed in this release.
 
 This release significantly revamped argument resolvers, including making the list of argument resolvers extensible using options to the namespace-handler, and via :arg-resolvers metadata on functions and namespaces.
 
-Middleware for namespaces is no longer simple Ring middleware; the middleware is passed both the handler to wrap and the merged metadata for the resource handler function. This encourages the middleware to only wrap handlers for which it applies, leading to improved runtime efficiency. A new function, compose-middleware makes it easy to string together several middleware expressions, similar to how -> is used for Ring middleware.
+Middleware for namespaces is no longer simple Ring middleware; the middleware is passed both the handler to wrap and the merged metadata for the endpoint function. This encourages the middleware to only wrap handlers for which it applies, leading to improved runtime efficiency. A new function, compose-middleware makes it easy to string together several middleware expressions, similar to how -> is used for Ring middleware.
 
-In addition, it is now possible to add metadata defining response status code and corresponding body schemas; this is useful in development to ensure that your resource handler functions are returning the values you expect.
+In addition, it is now possible to add metadata defining response status code and corresponding body schemas; this is useful in development to ensure that your endpoint functions are returning the values you expect.
 
 No issues were closed for this release.
 
@@ -59,7 +59,7 @@ The major change in this release is the introduction of a new dispatcher system 
 
 [Documentation for Rook](http://howardlewisship.com/io.aviso/documentation/rook) has been greatly expanded and moved out of the project.
 
-We've also gone a long way towards improved efficiency; there's a new and improved system for matching resource handler function arguments to a _resolver_ that provides the value for the argument. This is now done computed once, when building the dispatcher, rather than computed by a search every time a resource handler function is invoked.
+We've also gone a long way towards improved efficiency; there's a new and improved system for matching endpoint function arguments to a _resolver_ that provides the value for the argument. This is now done computed once, when building the dispatcher, rather than computed by a search every time a endpoint function is invoked.
 
 Expect some more changes in 0.1.11 that close the final loops in dynamic argument resolution, as well as making the argument resolution more extensible.
 
@@ -73,11 +73,11 @@ Synchronous handlers are now explicitly invoked in a new `thread` block; previou
 
 There's new middleware for supporting Ring sessions in a fully async pipeline.
 
-*All* request handler arguments are resolved uniformly via the `:arg-resolvers` list; this includes previously hard-coded arguments such as `request`.
+*All* endpoint function arguments are resolved uniformly via the `:arg-resolvers` list; this includes previously hard-coded arguments such as `request`.
 
 The default list of argument resolvers now includes the ability to resolve Ring request headers, for example: An argument named `content-type` will map to the `"content-type"` Ring request header.
 
-Request handler function arguments may now be destructured maps; as long as the `:as` keyword is there (to provide a name for argument resolution). This is useful for extracting a large number of values from the Ring request `:params` map.
+Endpoint function arguments may now be destructured maps; as long as the `:as` keyword is there (to provide a name for argument resolution). This is useful for extracting a large number of values from the Ring request `:params` map.
 
 A default argument resolver for `params*` will resolve to the same as `params`, but with the map keys _Clojurized_ (underscores replaced with dashes).
 
@@ -104,7 +104,7 @@ Other features:
 
 *  Validation of incoming request parameters using [Prismatic Schema](https://github.com/prismatic/schema)
 * `io.aviso.rook.client` namespace to streamline cooperation between resources via the asynchronous loopback
-* Metadata from the containing namespace is merged into metadata for individual resource handler functions
+* Metadata from the containing namespace is merged into metadata for individual endpoint functions
 
 [Closed Issues](https://github.com/AvisoNovate/rook/issues?q=milestone%3A0.1.8+is%3Aclosed)
 

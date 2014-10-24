@@ -4,7 +4,7 @@
 
       [method [path-segment ...]]
 
-  to resource handler functions. The recognized format is described at
+  to endpoint functions. The recognized format is described at
   length in the docstrings of the [[unnest-dispatch-table]] and
   [[request-route-spec]] functions exported by this namespace.
 
@@ -29,9 +29,9 @@
    - such compound dispatch tables can be compiled using
      [[compile-dispatch-table]].
 
-  The individual resource handler functions are expected to support a
+  The individual endpoint functions are expected to support a
   single arity only. The arglist for that arity and the metadata on
-  the resource handler function will be examined to determine the
+  the endpoint function will be examined to determine the
   correct argument resolution strategy at dispatch table compilation
   time."
   {:added "0.1.10"}
@@ -222,7 +222,7 @@
   [[routes handlers middleware namespaces-metadata] arg-resolvers dispatch-table-entry]
   (if-let [[method pathvec verb-fn-sym mw-spec] dispatch-table-entry]
     (t/track
-      (format "Analyzing resource handler function `%s'." verb-fn-sym)
+      (format "Analyzing endpoint function `%s'." verb-fn-sym)
       (let [handler-key (gensym "handler-key__")
             routes' (assoc routes
                       [method (keywords->symbols pathvec)] handler-key)
@@ -488,7 +488,7 @@
 
 (defn- create-arglist-resolver
   "Returns a function that is passed the Ring request and returns an array of argument values which
-  the resource handler function can be applied to."
+  the endpoint function can be applied to."
   [arg-resolvers route-params arglist]
   (if (seq arglist)
     (->>
@@ -629,7 +629,7 @@
    (simple-namespace-dispatch-table context-pathvec ns-sym default-namespace-middleware))
   ([context-pathvec ns-sym middleware]
    (t/track
-     #(format "Identifying resource handler functions in `%s'." ns-sym)
+     #(format "Identifying endpoint functions in `%s'." ns-sym)
      (try
        (if-not (find-ns ns-sym)
          (require ns-sym))

@@ -5,10 +5,10 @@ In the link:async.html[Async] discussion, there was a stage where the asynchrono
 request handler had to be converted into a normal, blocking, synchronous handler.
 
 That's a shame, as it means that the number of request handling threads started by
-Jetty is a limiting factor on how many simlultaneous requests can be processed.
+Jetty is a limiting factor on how many simultaneous requests can be processed.
 
 However, Jetty has an option to process requests using link:http://wiki.eclipse.org/Jetty/Feature/Continuations[_continuations_].
-The continuations approach seperates the thread that receives the incoming HTTP request from
+The continuations approach separates the thread that receives the incoming HTTP request from
 the thread that sends the outgoing HTTP response. In this way, a relatively small
 number of HTTP request processing threads can handle a large number
 of concurrent requests.

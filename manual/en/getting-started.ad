@@ -1,7 +1,7 @@
 title: Getting Started
 ---
 
-The basic idea in Rook is that incoming URIs are matched to a specific Clojure namespace, and then to _resource handler functions_ within the namespace.
+The basic idea in Rook is that incoming URIs are matched to a specific Clojure namespace, and then to _endpoint functions_ within the namespace.
 
 The exact mapping within a namespace is based on a set of conventions that can be overridden or tuned using metadata.
 
@@ -48,7 +48,7 @@ Rook applies a naming convention to functions, so simply naming a function with 
 
 
 Keywords in the path, such as `:id` for the `show` function, represent values that
-can be provided to the resource handler functions; it's just a matter of providing
+can be provided to the endpoint functions; it's just a matter of providing
 a argument with a matching name:
 
 [source,clojure]
@@ -57,10 +57,10 @@ a argument with a matching name:
   ...)
 ----
 
-Rook has a well-thought out system for providing resource handler functions with
+Rook has a well-thought out system for providing endpoint functions with
 any data or dependencies they may require, not just keywords from the request path.
 
-A request handler function should return a Ring response map (with keys :status, :headers, and :body).
+An endpoint function should return a Ring response map (with keys :status, :headers, and :body).
 
 .PUT vs. PATCH
 NOTE:  One interpretation of REST is that the PUT method is used to replace the entirety of a resource,
@@ -68,7 +68,8 @@ whereas PATCH is used to modify selected properties of the resource.
 
 == Metadata
 
-Any public function in a resource namespace may be a request handler function; for those not covered by the conventions, it's just a matter of providing the correct metadata.
+Any public function in a resource namespace may be an endpoint function;
+for those not covered by the conventions, it's just a matter of providing the correct metadata.
 
 $$:route-spec$$::
 A route spec consists of a vector of two values; the first is a keyword for the HTTP method.
@@ -113,6 +114,6 @@ The namespace-handler function is provided with details about one or more namesp
 
 The wrap-with-standard-middleware function uses standard Ring middleware to handle JSON or EDN requests, to parse query and form parameters, and to convert parameter keys from strings to keywords. Some of the support in Rook, especially that related to argument resolution, requires this.
 
-The result is a Ring request handler that takes care of dispatch directly to the request handler function (as well as quite a few things we have yet to discuss).
+The result is a Ring request handler that takes care of dispatch directly to the endpoint function (as well as quite a few things we have yet to discuss).
 
 This handler is itself passed to run-jetty, which runs an instance of Jetty on the indicated port.

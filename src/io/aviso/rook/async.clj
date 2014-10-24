@@ -60,7 +60,7 @@
 
 (defn wrap-with-loopback
   "Wraps a set of asynchronous routes with a loopback: a function that calls back into the same asynchronous routes.
-  This is essentially the whole point of of the asynchronous support: to allow individual resource handler functions
+  This is essentially the whole point of of the asynchronous support: to allow individual endpoint functions
   to interact with other resources as if via HTTP/HTTPs, but without the normal cost. Here, cost is evaluated in
   terms of the processing time to encode and decode requests, the time to perform HTTPs handshakes, and
   the number of request servicing threads that are blocked. Using async and loopbacks, nearly all of those

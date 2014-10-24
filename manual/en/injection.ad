@@ -1,7 +1,7 @@
 title: Injection
 ---
 
-Part of Rook's philosophy is that resource handler functions are passed
+A cornerstone of Rook's philosophy is that endpoint functions are passed
 everything the need to operate as link:arguments.html[arguments], so as to
 avoid any dependency on global state.
 
@@ -25,7 +25,7 @@ the necessary injections.
       rook/wrap-with-default-middleware))
 ----
 
-Later, in a resource handler function, the injected value can be
+Later, in an endpoint function, the injected value can be
 requested:
 
 .Example

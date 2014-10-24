@@ -1,7 +1,7 @@
 title: Middleware
 ---
 
-Rook supports namespace middleware, wrappers around resource handler functions.
+Rook supports namespace middleware, wrappers around endpoint functions.
 
 Namespace middleware is intended for purposes such as:
 
@@ -13,15 +13,16 @@ Namespace middleware is intended for purposes such as:
 
 Namespace middleware is not quite the same as traditional Ring middleware.
 
-Namespace middleware are functions that are passed a Ring handler _and_ a metadata map for a specific resource handler function.
+Namespace middleware are functions that are passed a Ring handler _and_ a metadata map for a specific endpoint function.
 
 The middleware may return a new handler, or nil.  
 A nil response means the middleware declines to wrap the handler it
 was passed.
+This is a convenience and is equivalent to returning the same handler.
 
-Every resource handler function is wrapped as a Ring handler, then
+Every endpoint function is wrapped as a Ring handler, then
 passed through the middleware associated with the namespace, forming
-a new handler specific to that resource handler function.
+a new handler specific to that endpoint function.
 
 For example:
 
@@ -48,7 +49,8 @@ new handler that performs the permission check.
 
 Often, it is desirable to compose several middleware functions into a single function.
 
-The compose-middleware macro does that. It is patterned after the Clojure -> threading macro.
+The compose-middleware macro serves this purpose.
+It is patterned after the Clojure -> threading macro.
 
 [source,clojure]
 ----
@@ -59,7 +61,7 @@ The compose-middleware macro does that. It is patterned after the Clojure -> thr
   wrap-with-authentication)
 ----
 
-compose-middleware evaluates to a middleware function (that accepts a handler and metadata, as above).
+compose-middleware evaluates to a middleware function (a function that accepts a handler and metadata, as above).
 
 Each form inside compose-middleware is converted to a list, if it is not already one.
 

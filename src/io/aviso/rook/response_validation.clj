@@ -1,6 +1,6 @@
 (ns io.aviso.rook.response-validation
   "Allows for validation of the content of responses
-  from resource handler functions. Response status must match expected values, and response bodies
+  from endpoint functions. Response status must match expected values, and response bodies
   can be validated against a Schema. This is usually only enabled during development."
   {:since "0.1.11"}
   (:import (javax.servlet.http HttpServletResponse))
@@ -54,7 +54,7 @@
   : The Ring response to be validated.
 
   fn-name
-  : String name of the resource handler function, used for exeption reporting.
+  : String name of the endpoint function, used for exeption reporting.
 
   responses
   : Map from status code to a schema. The response's status code must be a key here. A non-nil
@@ -67,28 +67,28 @@
            (internals/throwable->failure-response t))))
 
 (defn wrap-with-response-validation
-  "Middleware to ensure that the response provided matches the :responses metadata on the resource handler function.
+  "Middleware to ensure that the response provided matches the :responses metadata on the endpoint function.
   The keys of the responses metadata are the status codes to match, the values are schemas to match against the body
   of the response (there is no validation of headers).
 
   A response schema may be nil, in which case there is no validation of the body (but the status code must be a key
   of the :responses metadata).
 
-  A response in the 5xx range is not validated in anyway, as there represent failures within a resource handler function,
-  or a downstream failure passed through the resource handler function.
+  A response in the 5xx range is not validated in anyway, as there represent failures within a endpoint function,
+  or a downstream failure passed through the endpoint function.
 
-  Response validation should generally be the final middleware in a resource handler function's pipeline, to ensure
+  Response validation should generally be the final middleware in a endpoint function's pipeline, to ensure
   this isn't interference from other middleware in the pipeline (such as [[io.aviso.rook.schema-validation]]).
 
   handler
   : delegate handler
 
   metadata
-  : metadata about the resource handler function
+  : metadata about the endpoint function
 
   enabled
   : _Default: true_
-  : If false, then no validation occurs (which is sensible for producton mode)."
+  : If false, then no validation occurs (which is sensible for production mode)."
   ([handler metadata]
    (wrap-with-response-validation handler metadata true))
   ([handler metadata enabled]

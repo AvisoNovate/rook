@@ -124,7 +124,7 @@
   is either a list or a single form, that will be wrapped as a list.
 
   The list is modified so that the first two values passed in are the previous handler and the metadata (associated
-  with the resource handler function).
+  with the endpoint function).
 
   The form should evaluate to a new handler, or the old handler. As a convienience, the form may
   evaluate to nil, which will keep the original handler passed in.

@@ -6,11 +6,11 @@ One of Rooks most exciting features is its support for asynchronous operation.
 The Async support is based on https://github.com/clojure/core.async[Clojure core.async].
 A reasonable understanding of core.async is expected, to understand Rook's async support.
 
-In a nutshell, when processing async, request handler functions no longer return
+In a nutshell, when processing async, endpoint functions no longer return
 a response directly; instead they must return a channel to which the response map
 will be put (using core.async's >!, >!!, or put! functions), when ready.
 
-In many cases, the request handler function will use a core.async go or thread block,
+In many cases, the endpoint function will use a core.async go or thread block,
 which automates the creation of the response channel, and the writing of the
 response map into the channel.
 
@@ -47,15 +47,15 @@ At it's simplest, async just involves a change in the call to io.aviso.rook/name
 ----
 (namespace-handler
   {:async? true}
-  [["orders"] 'org.example.resources.orders]
-  [["users"] 'org.example.resources.users])
+  ["orders" 'org.example.resources.orders]
+  ["users" 'org.example.resources.users])
 ----
 
 The :async? flag makes a few changes:
 
 * The returned handler will take a Ring request map, and return a channel that will return 
   a Ring response map.
-* The resource handler functions must also return a channel, not the request map.
+* The endpoint functions must also return a channel, not the request map.
 * Any middleware used will have to be _async aware_.
 
 If you are using this inside a typical server, via ring.adapter.jetty/run-jetty,
@@ -66,8 +66,8 @@ a normal response.
 ----
 (-> (namespace-handler
       {:async? true}
-      [["orders"] 'org.example.resources.orders]
-      [["users"] 'org.example.resources.users])
+      ["orders" 'org.example.resources.orders]
+      ["users" 'org.example.resources.users])
     async/async-handler->ring-handler
     rook/wrap-with-standard-middleware)
 ----
@@ -152,7 +152,7 @@ body of the macro throws an exception.
 
 == Sync Resource Handler Functions
 
-In many cases, perhaps the majority of cases, the resource handler functions do not peform any asynchronous
+In many cases, perhaps the majority of cases, the endpoint functions do not peform any asynchronous
 work; typically, they execute some number of database queries (which, since Java JDBC is a blocking API,
 can not benefit from asynchronicity). 
 
@@ -173,4 +173,4 @@ Rook will execute this using the previously mentioned safe-thread macro (any thr
 converted to a 500 response).
 
 It is common for _all_ functions in a namespace to be synchronous; in that case, you may move the :sync
-meta data to the namespace and it will apply to all functions within the namespace.
+metadata to the namespace and it will apply to all functions within the namespace.

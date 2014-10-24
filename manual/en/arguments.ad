@@ -2,16 +2,15 @@ title: Function Arguments
 ---
 
 The link:getting-started.html[Getting Started] page showed how Rook can not only
-invoke your function, but pass it specific data needed by the function. 
+invoke your endpoint function, but pass it specific data needed by the function.
 So far, we've just seen that keywords in the request path can be provided as arguments.
 
 That's just the tip of of the iceberg.
-Rook is designed so that you can write your resource handler function as pure functions
-footnote:[Pure in the sense of not relying on globals, not pure as in "side effect free".]
-The goal here is to make you code testable and agile.
+Rook is designed so that you can write your endpoint functions as proper stateless functions, that is
+functions that do not rely on any global state.
 
 Rook uses a set of naming conventions and metdata to determine the value to
-in each argument to your function. This is called _argument resolution_.
+in each argument to your endpoint function. This is called _argument resolution_.
 
 Deep down, the standard case is that each argument will be resolved as a function applied
 to the Ring request; this usually means getting a key from the map, or navigating a
@@ -23,7 +22,8 @@ Let's start with the some default behaviors.
 
 == Path Keywords
 
-Arguments whose name matches a keyword in the path resolve to the value from the path, as a string. This is a route parameter, and the values are stored as a map in the Ring request as :route-params.
+Arguments whose name matches a keyword in the path resolve to the value from the path, as a string.
+This is a route parameter, and the values are stored as a map in the Ring request as :route-params.
 
 == Convention Names
 
@@ -121,8 +121,9 @@ The namespace may define a map used to identify argument resolvers, as key :arg-
 The keys of this map are symbols; the values for the map are either a tag keyword, or an
 argument resolver function.
 
-In this way, a common argument used in many resource handler functions can have its
-argument resolution strategy defined once. In the example above, the if-modified-since argument may appear in multiple functions, and would only need to be linked as a :header
+In this way, a common argument used in many endpoint functions can have its
+argument resolution strategy defined once.
+In the example above, the if-modified-since argument may appear in multiple functions, and would only need to be linked as a :header
 once.
 
 .Example
@@ -141,15 +142,23 @@ once.
 
 The keys for argument resolvers may be keywords or symbols.
 
-For keywords, this defines an argument tag; the value for the keyword
-is the argument resolver function factory.
+For keywords keys, this defines an argument tag; the value for the keyword
+is the argument resolver function _factory_.
 
-An argument resolver function factory is passed the argument's symbol (such as if-modified-since or db-connection, in the above example). It returns an argument resolver function: that function is passed the Ring request and returns the
+An argument resolver function factory is passed the argument's symbol (such as if-modified-since or db-connection, in the above example).
+It returns an argument resolver function: that function is passed the Ring request and returns the
 resolved value for the argument.
+Factories may ignore the symbol, or may base their behavior on the symbol, or the metadata
+associated with the symbol
 
-For symbols, the defines a convention. The value may be a keyword, or it may be an argument resolver function (not a factory, but a direct function).
+For symbol keys, the value defines a convention.
+The value may be a keyword, or it may be an argument resolver function (not a factory, but a direct function).
 
-The argument resolvers specified in metadata are merged onto the argument resolvers optionally specified as an option to the namespace-handler function.
+The final map of argument resolvers used for any particular endpoint function is merged from several sources:
+
+* Default argument resolvers provided by Rook
+* As provided to namespace-handler namespace-handler (see next section)
+* From the containing namespace metadata
 
 == Specifying global defaults for arguments
 
@@ -160,7 +169,7 @@ options. The :arg-resolvers key is merged into the default set.
 [source,clojure]
 ----
 (namespace-handler {:arg-resolvers {'if-modified-since :header}}
-  [["users"] 'org.example.resources.users])
+  ["users" 'org.example.resources.users])
 ----
 
 
@@ -173,5 +182,5 @@ Finding the argument resolver for an argument involves checks in the following o
 * By metadata tag
 * By convention name
 
-WARNING: Each argument to a request handler function *must* have an argument resolver or an exception will
+WARNING: Each argument to an endpoint function *must* have an argument resolver or an exception will
 be thrown when constructing the namespace handler.
