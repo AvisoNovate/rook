@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.1.16-SNAPSHOT"
+(defproject io.aviso/rook "0.1.16"
             :description "Sane, smart, fast, Clojure web services"
             :url "http://howardlewisship.com/io.aviso/documentation/rook"
             :license {:name "Apache Sofware License 2.0"
@@ -19,9 +19,9 @@
                            [org.clojure/tools.logging "0.3.0"]
                            [io.aviso/tracker "0.1.2"]
                            [ring "1.3.1" :exclusions [org.clojure/tools.reader]]
-                           [medley "0.5.1" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
+                           [medley "0.5.3" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.4.0" :excludes [cheshire]]
-                           [prismatic/schema "0.3.0" :exclusions [potemkin]]
+                           [prismatic/schema "0.3.1" :exclusions [potemkin]]
                            [metosin/ring-swagger "0.11.0"]
                            [metosin/ring-swagger-ui "2.0.17"]]
             :plugins [[speclj "3.1.0"]
