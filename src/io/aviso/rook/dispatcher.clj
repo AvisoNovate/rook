@@ -509,7 +509,7 @@
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
   [{:keys [routes handlers middleware]}
-   {:keys [async? arg-resolvers]}]
+   {:keys [async? arg-resolvers sync-wrapper]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-key]]
             (t/track #(format "Compiling handler for `%s'."
                               (get-in handlers [handler-key :verb-fn-sym]))
@@ -535,9 +535,8 @@
                            request-handler (fn [request]
                                              (apply resource-handler-fn (arglist-resolver request)))
 
-
                            request-handler (if (and async? (:sync metadata))
-                                             (internals/ring-handler->async-handler request-handler)
+                                             (sync-wrapper request-handler metadata)
                                              request-handler)
 
                            middleware-applied (or (middleware request-handler metadata) request-handler)
@@ -576,6 +575,8 @@
 (def ^:private dispatch-table-compilation-defaults
   {:async?           false
    :arg-resolvers    default-arg-resolvers
+   :sync-wrapper       (fn [handler metadata]
+                         (internals/ring-handler->async-handler handler))
    :build-handler-fn build-map-traversal-handler})
 
 (defn compile-dispatch-table
@@ -597,6 +598,14 @@
   : _Default: [[build-map-traversal-handler]]_
   : Will be called with routes, handlers, middleware and should
     produce a Ring handler.
+
+  :sync-wrapper
+  : _Default: anonymous_
+  : Converts a synchronous request handler into
+    an asynchronous handler; this is only used in async mode, when the endpoint
+    function has the :sync metadata. The value is an async Rook middleware
+    (passed the request handler, and the endpoint function's metadata).
+
 
   :arg-resolvers
   : _Default: [[io.aviso.rook.dispatcher/default-arg-resolvers]]_

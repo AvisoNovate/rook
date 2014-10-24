@@ -5,6 +5,7 @@
 * Improvements to the io.aviso.rook.client/then macro
 * Removed support for the :path-spec metadata
 * The :context-pathvec option was renamed to :context
+* The way synchronous handlers are wrapped into asynchronous handlers is now pluggable
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.16+is%3Aclosed)
 

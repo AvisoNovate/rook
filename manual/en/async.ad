@@ -150,9 +150,9 @@ or returns the response unchanged.
 safe-go is a macro that builds on core.async's go, but generates a 500 response if the
 body of the macro throws an exception.
 
-== Sync Resource Handler Functions
+== Sync Endpoint Functions
 
-In many cases, perhaps the majority of cases, the endpoint functions do not peform any asynchronous
+In many cases, perhaps the majority of cases, the endpoint functions do not perform any asynchronous
 work; typically, they execute some number of database queries (which, since Java JDBC is a blocking API,
 can not benefit from asynchronicity). 
 
@@ -174,3 +174,17 @@ converted to a 500 response).
 
 It is common for _all_ functions in a namespace to be synchronous; in that case, you may move the :sync
 metadata to the namespace and it will apply to all functions within the namespace.
+
+=== Wrapping Sync Endpoint Functions
+
+When using the :sync metadata, it is necessary to convert the normal Ring request handler (that itself
+invokes the endpoint function) into an async Ring request handler.
+Rook normally does this using a Rook middleware that invokes the function
+io.aviso.rook.async/ring-handler->async-handler.
+
+This is pluggable; in the options map passed to namespace-handler, the key :sync-wrapper can be specified
+(overriding the default); the value is a Rook middleware function.
+
+Why would you do this? Primarily it is about capturing exceptions inside the handler.
+Rook logs exceptions and provides a 500 Internal server error response map ... however, your application
+may need to do something else: perhaps logging the failure differently, or building a different Ring response map.
