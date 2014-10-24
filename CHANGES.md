@@ -1,4 +1,4 @@
-## 0.1.16 - UNRELEASED
+## 0.1.16 - 24 Oct 2014
 
 * Namespace paths can now be a simple string as an alternative to a vector. E.g. `(rook/namespace-handler ["users" 'org.example.resources.users])`.
 * The convention name for PUT :id has changed from `change` to `update`.  `update` is still supported, but will be removed in 0.1.17.
@@ -6,6 +6,7 @@
 * Removed support for the :path-spec metadata
 * The :context-pathvec option was renamed to :context
 * The way synchronous handlers are wrapped into asynchronous handlers is now pluggable
+* As usual, keeping up with dependencies
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.16+is%3Aclosed)
 
