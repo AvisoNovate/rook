@@ -530,31 +530,44 @@
 
                            middleware (get middleware middleware-key)
 
-                           resource-handler-fn (eval verb-fn-sym)
+                           ;; middleware may return nil, so:
 
-                           request-handler (fn [request]
-                                             (apply resource-handler-fn (arglist-resolver request)))
+                           middleware' (fn [handler metadata]
+                                         (or (middleware handler metadata)
+                                             handler))
 
-                           request-handler (if (and async? (:sync metadata))
-                                             (sync-wrapper request-handler metadata)
-                                             request-handler)
+                           apply-context-middleware (fn [handler]
+                                                      (fn [request]
+                                                        (-> request
+                                                            (update-in [:context] str context)
+                                                            handler)))
 
-                           middleware-applied (or (middleware request-handler metadata) request-handler)
+                           logging-middleware (fn [handler]
+                                                (fn [request]
+                                                  (l/debugf "Matched %s to %s"
+                                                            (utils/summarize-request request)
+                                                            verb-fn-sym)
+                                                  (handler request)))
 
-                           context-maintaining-handler (if context
-                                                         (fn [request]
-                                                           (-> request
-                                                               (update-in [:context] str context)
-                                                               middleware-applied))
-                                                         middleware-applied)
+                           endpoint-fn (eval verb-fn-sym)
 
-                           logging-handler (fn [request]
-                                             (l/debugf "Matched %s to %s"
-                                                       (utils/summarize-request request)
-                                                       verb-fn-sym)
-                                             (context-maintaining-handler request))]
+                           ;; Build up a Ring request handler from the Rook endpoint and middleware.
+                           request-handler (cond-> (fn [request]
+                                                     (apply endpoint-fn (arglist-resolver request)))
 
-                       (add-dispatch-entries dispatch-map method pathvec logging-handler))))
+                                                   (and async? (:sync metadata))
+                                                   (sync-wrapper metadata)
+
+                                                   :always
+                                                   (middleware' metadata)
+
+                                                   context
+                                                   apply-context-middleware
+
+                                                   :always
+                                                   logging-middleware)]
+
+                       (add-dispatch-entries dispatch-map method pathvec request-handler))))
           {}
           routes))
 
@@ -575,8 +588,8 @@
 (def ^:private dispatch-table-compilation-defaults
   {:async?           false
    :arg-resolvers    default-arg-resolvers
-   :sync-wrapper       (fn [handler metadata]
-                         (internals/ring-handler->async-handler handler))
+   :sync-wrapper     (fn [handler metadata]
+                       (internals/ring-handler->async-handler handler))
    :build-handler-fn build-map-traversal-handler})
 
 (defn compile-dispatch-table
