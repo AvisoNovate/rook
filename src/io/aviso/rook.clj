@@ -1,9 +1,7 @@
 (ns io.aviso.rook
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
-    [io.aviso.rook
-     [dispatcher :as dispatcher]
-     [swagger :as swagger]]
+    [io.aviso.rook [dispatcher :as dispatcher]]
     [ring.middleware params format keyword-params]
     [medley.core :as medley]
     [potemkin :as p]))
@@ -100,16 +98,19 @@
         ;; quux has special requirements:
         [[\"quux\"] 'example.quux special-middleware])."
   [options? & ns-specs]
+  (if (:swagger options?)
+    (require 'io.aviso.rook.swagger))
   (dispatcher/compile-dispatch-table
     (if (map? options?)
       (if (:swagger options?)
         (assoc-in options? [:arg-resolvers 'swagger]
-                  (constantly (apply swagger/namespace-swagger options? ns-specs)))
+          (constantly (apply (resolve 'io.aviso.rook.swagger/namespace-swagger)
+                        options? ns-specs)))
         options?))
     (apply dispatcher/namespace-dispatch-table options?
-           (if (:swagger options?)
-             (swagger/swaggerize-ns-specs options? ns-specs)
-             ns-specs))))
+      (if (:swagger options?)
+        ((resolve 'io.aviso.rook.swagger/swaggerize-ns-specs) options? ns-specs)
+        ns-specs))))
 
 (defn- convert-middleware-form
   [handler-sym metadata-sym form]
