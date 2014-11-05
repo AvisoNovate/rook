@@ -1,3 +1,7 @@
+## 0.1.17 - UNRELEASED
+
+* swagger is now an optional dependency, and is only required if the :swagger option is enabled
+
 ## 0.1.16 - 24 Oct 2014
 
 * Namespace paths can now be a simple string as an alternative to a vector. E.g. `(rook/namespace-handler ["users" 'org.example.resources.users])`.
