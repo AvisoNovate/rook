@@ -4,7 +4,8 @@
     [io.aviso.rook [dispatcher :as dispatcher]]
     [ring.middleware params format keyword-params]
     [medley.core :as medley]
-    [potemkin :as p]))
+    [potemkin :as p]
+    [clojure.tools.logging :as l]))
 
 (p/import-vars
 
@@ -59,6 +60,13 @@
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
 
+(defmacro try-swagger [& body]
+  `(try
+    (require 'io.aviso.rook.swagger)
+    ~@body
+    (catch ClassNotFoundException e#
+      (l/warn ":swagger was specified as an option but is not available - check dependencies to ensure ring-swagger is included"))))
+
 (defn namespace-handler
   "Examines the given namespaces and produces either a Ring handler or
   an asynchronous Ring handler (for use with functions exported by the
@@ -98,19 +106,18 @@
         ;; quux has special requirements:
         [[\"quux\"] 'example.quux special-middleware])."
   [options? & ns-specs]
-  (if (:swagger options?)
-    (require 'io.aviso.rook.swagger))
   (dispatcher/compile-dispatch-table
     (if (map? options?)
       (if (:swagger options?)
-        (assoc-in options? [:arg-resolvers 'swagger]
-          (constantly (apply (resolve 'io.aviso.rook.swagger/namespace-swagger)
-                        options? ns-specs)))
+        (try-swagger
+          (assoc-in options? [:arg-resolvers 'swagger]
+            (constantly (apply (resolve 'io.aviso.rook.swagger/namespace-swagger) options? ns-specs))))
         options?))
     (apply dispatcher/namespace-dispatch-table options?
-      (if (:swagger options?)
-        ((resolve 'io.aviso.rook.swagger/swaggerize-ns-specs) options? ns-specs)
-        ns-specs))))
+           (if (:swagger options?)
+             (try-swagger
+               ((resolve 'io.aviso.rook.swagger/swaggerize-ns-specs) options? ns-specs))
+             ns-specs))))
 
 (defn- convert-middleware-form
   [handler-sym metadata-sym form]

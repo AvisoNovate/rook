@@ -22,8 +22,8 @@
                            [medley "0.5.3" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.4.0" :excludes [cheshire]]
                            [prismatic/schema "0.3.1" :exclusions [potemkin]]
-                           [metosin/ring-swagger "0.11.0"]
-                           [metosin/ring-swagger-ui "2.0.17"]]
+                           [metosin/ring-swagger "0.11.0" :optional true]
+                           [metosin/ring-swagger-ui "2.0.17" :optional true]]
             :plugins [[speclj "3.1.0"]
                       [lein-shell "0.4.0"]]
             :shell {:commands {"scp" {:dir "doc"}}}
