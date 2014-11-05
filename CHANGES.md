@@ -1,6 +1,8 @@
-## 0.1.17 - UNRELEASED
+## 0.1.17 - 5 Nov 2014
 
 * swagger is now an optional dependency, and is only required if the :swagger option is enabled
+
+[Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.17+is%3Aclosed)
 
 ## 0.1.16 - 24 Oct 2014
 
