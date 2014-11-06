@@ -2,9 +2,12 @@
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
     [io.aviso.rook [dispatcher :as dispatcher]]
+    [io.aviso.rook.internals :refer [consume]]
     [ring.middleware params format keyword-params]
     [medley.core :as medley]
     [potemkin :as p]
+    [io.aviso.tracker :as t]
+    [io.aviso.rook.utils :as utils]
     [clojure.tools.logging :as l]))
 
 (p/import-vars
@@ -73,20 +76,26 @@
   io.aviso.rook.async and io.aviso.rook.jetty-async-adapter
   namespaces).
 
+  Options can be provided as a leading map (which is optional).
+
   The individual namespaces are specified as vectors of the following
   shape:
 
-      [context-pathvec? ns-sym middleware?]
+      [context? ns-sym middleware?]
 
   The optional fragments are interpreted as below (defaults listed in
   brackets):
 
-   - context-pathvec? ([]):
+   - context? ([]):
 
-     A context pathvec to be prepended to pathvecs for all entries
+     A context (a string, or a vector of strings and/or keywords) to be prepended to paths for all entries
      emitted for this namespace.
 
-   - middleware? ([[dispatcher/default-namespace-middleware]] or as supplied in options?):
+   - ns-sym
+
+     The symbol for the namespace that is to be mapped.
+
+   - middleware? ([[dispatcher/default-namespace-middleware]] or as supplied in options):
 
      Middleware to be applied to terminal handlers found in this
      namespace.
@@ -101,23 +110,32 @@
         {:context            [\"api\"]
          :default-middleware basic-middleware}
         ;; foo & bar use basic middleware:
-        [[\"foo\"]  'example.foo]
-        [[\"bar\"]  'example.bar]
+        [\"foo\" 'example.foo]
+        [\"bar\" 'example.bar]
         ;; quux has special requirements:
         [[\"quux\"] 'example.quux special-middleware])."
-  [options? & ns-specs]
-  (dispatcher/compile-dispatch-table
-    (if (map? options?)
-      (if (:swagger options?)
-        (try-swagger
-          (assoc-in options? [:arg-resolvers 'swagger]
-            (constantly (apply (resolve 'io.aviso.rook.swagger/namespace-swagger) options? ns-specs))))
-        options?))
-    (apply dispatcher/namespace-dispatch-table options?
-           (if (:swagger options?)
-             (try-swagger
-               ((resolve 'io.aviso.rook.swagger/swaggerize-ns-specs) options? ns-specs))
-             ns-specs))))
+  {:arglists '([options & ns-specs]
+               [& ns-specs])}
+  [& &ns-specs]
+  (t/track
+    #(format "Building namespace handler for %s." (utils/pretty-print &ns-specs))
+    (consume &ns-specs
+      [options map? :?
+       ns-specs :&]
+      (let [swagger-enabled (:swagger options)
+            options' (if swagger-enabled
+                       (try-swagger
+                         (assoc-in options [:arg-resolvers 'swagger]
+                                   (constantly
+                                     ((resolve 'io.aviso.rook.swagger/namespace-swagger) options ns-specs))))
+                       (or options {}))
+            ns-specs' (if swagger-enabled
+                        (try-swagger
+                          ((resolve 'io.aviso.rook.swagger/swaggerize-ns-specs) ns-specs))
+                        ns-specs)
+            dispatch-table (apply dispatcher/namespace-dispatch-table options' ns-specs')]
+        (dispatcher/compile-dispatch-table options' dispatch-table)))))
+
 
 (defn- convert-middleware-form
   [handler-sym metadata-sym form]

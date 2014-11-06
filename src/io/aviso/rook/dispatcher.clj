@@ -632,9 +632,7 @@
     {:replace-resolvers true} or {:replace-factories true} to leave
     out default resolvers or resolver factories, respectively."
   ([dispatch-table]
-   (compile-dispatch-table
-     dispatch-table-compilation-defaults
-     dispatch-table))
+   (compile-dispatch-table nil dispatch-table))
   ([options dispatch-table]
    (let [options (merge dispatch-table-compilation-defaults options)
          build-handler (:build-handler-fn options)
@@ -679,13 +677,13 @@
             (t/track
               #(format "Parsing namespace specification `%s'." (pr-str ns-spec))
               (consume ns-spec
-                [context-pathvec? #(or (nil? %) (vector? %) (string? %)) :?
+                [context #(or (nil? %) (vector? %) (string? %)) :?
                  ns-sym symbol? 1
                  middleware fn? :?
                  nested :&]
-                (let [context-pathvec (if (string? context-pathvec?)
-                                        (vector context-pathvec?)
-                                        (or context-pathvec? []))]
+                (let [context-pathvec (if (string? context)
+                                        (vector context)
+                                        (or context []))]
                   (concat
                     [[(into outer-context-pathvec context-pathvec)
                       ns-sym
@@ -711,10 +709,10 @@
   entries such as
 
       [:get [\"api\" \"foo\"] 'example.foo/index ns-middleware]."
-  {:arglists '([options ns-specs]
-               [ns-specs])}
-  [& arguments]
-  (consume arguments
+  {:arglists '([options & ns-specs]
+               [& ns-specs])}
+  [& &ns-specs]
+  (consume &ns-specs
     [options map? :?
      ns-specs :&]
     (let [{outer-context-pathvec :context

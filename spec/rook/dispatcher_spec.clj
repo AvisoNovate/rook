@@ -318,7 +318,7 @@
 
     (it "should return a 500 response if a sync handler throws an exception"
         (let [handler (-> (rook/namespace-handler
-                            [["fail"] 'failing])
+                            ["fail" 'failing])
                           rook-async/wrap-restful-format
                           rook-async/wrap-with-loopback
                           rook-async/async-handler->ring-handler)]
@@ -344,9 +344,9 @@
         (let [handler (rook-async/async-handler->ring-handler
                         (rook-async/wrap-with-loopback
                           (rook/namespace-handler {:async? true}
-                                                  [["fred"] 'fred]
-                                                  [["barney"] 'barney]
-                                                  [["betty"] 'betty])))]
+                                                  ["fred" 'fred]
+                                                  ["barney" 'barney]
+                                                  ["betty" 'betty])))]
           (should= ":barney says `:betty says `123 is a very fine id!''"
                    (-> (mock/request :get "/fred/123") handler :body :message)))))
 
@@ -367,7 +367,7 @@
 
     (it "should send schema validation failures"
         (let [handler (->> (dispatcher/namespace-dispatch-table
-                             [["validating"] 'validating rook-async/wrap-with-schema-validation])
+                             ["validating" 'validating rook-async/wrap-with-schema-validation])
                            (dispatcher/compile-dispatch-table {:async? true})
                            rook-async/wrap-with-loopback
                            rook-async/async-handler->ring-handler
@@ -389,7 +389,7 @@
                     (remove-ns 'rook.example.huge)
                     (generate-huge-resource-namespace 'rook.example.huge size)
                     (dispatcher/compile-dispatch-table
-                      (dispatcher/namespace-dispatch-table [[] 'rook.example.huge])))
+                      (dispatcher/namespace-dispatch-table ['rook.example.huge])))
                   {:request-method :get
                    :uri            "/foo0/123"
                    :server-name    "127.0.0.1"
@@ -408,19 +408,19 @@
                                  :arg-resolvers      {'strange-injection :injection}
                                  ;; just to make sure Swagger support doesn't break things
                                  :swagger            true}
-                                [["fred"] 'fred]
-                                [["barney"] 'barney]
-                                [["betty"] 'betty]
-                                [["slow"] 'slow]
-                                [["sessions"] 'sessions]
-                                [["creator"] 'creator]
-                                [["creator-loopback"] 'creator-loopback]
-                                [["static"] 'static]
+                                ["fred" 'fred]
+                                ["barney" 'barney]
+                                ["betty" 'betty]
+                                ["slow" 'slow]
+                                ["sessions" 'sessions]
+                                ["creator" 'creator]
+                                ["creator-loopback" 'creator-loopback]
+                                ["static" 'static]
                                 [["static2" :foo "asdf"] 'static2 dispatcher/default-namespace-middleware]
-                                [["catch-all"] 'catch-all dispatcher/default-namespace-middleware]
-                                [["surprise"] 'surprise dispatcher/default-namespace-middleware
+                                ["catch-all" 'catch-all dispatcher/default-namespace-middleware]
+                                ["surprise" 'surprise dispatcher/default-namespace-middleware
                                  [[:id "foo"] 'surprise-foo]]
-                                [["foobar"] 'foobar])
+                                ["foobar" 'foobar])
                               rook-async/wrap-with-loopback
                               rook-async/wrap-session
                               rook-async/wrap-with-standard-middleware

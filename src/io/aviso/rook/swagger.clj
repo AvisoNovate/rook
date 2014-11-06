@@ -94,22 +94,20 @@
   Formal parameters resolved to :param will be annotated as being of
   Swagger paramType \"query\". Formal parameters resolved to
   injections and the like will be omitted."
-  [options? & ns-specs]
-  (let [opts (merge default-opts
-                    (if (map? options?) options?))
-        {outer-context-pathvec :context
-         default-middleware    :default-middleware} opts
+  [options ns-specs]
+  (let [options' (merge default-opts options)
+        default-middleware (:default-middleware options')
         ns-specs (dispatcher/canonicalize-ns-specs
                    []
                    default-middleware
-                   (if (map? options?)
+                   (if (map? options)
                      ns-specs
-                     (cons options? ns-specs)))]
+                     (cons options ns-specs)))]
     (reduce (fn [swagger [pathvec ns-sym :as ns-spec]]
               (let [prefix (prefix pathvec)
                     ns-doc (:doc (meta (find-ns ns-sym)))
                     routes-swagger (ns-spec->routes-swagger
-                                     opts ns-spec)]
+                                     options' ns-spec)]
                 (-> swagger
                     (assoc-in [prefix :description] ns-doc)
                     (assoc-in [prefix :routes]
@@ -136,9 +134,8 @@
 (defn swaggerize-ns-specs
   "Adds Swagger endpoints to the given ns-specs. Intended for use by
   [[io.aviso.rook/namespace-handler]]."
-  [options? ns-specs]
-  (concat ns-specs
-          [[[] 'io.aviso.rook.swagger dispatcher/default-namespace-middleware]]))
+  [ns-specs]
+  (cons ['io.aviso.rook.swagger dispatcher/default-namespace-middleware] ns-specs))
 
 (def swagger-ui (ui/swagger-ui "/swagger-ui" :swagger-docs "/swagger"))
 
