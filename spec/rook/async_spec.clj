@@ -37,27 +37,11 @@
 
   (describe "end-to-end test"
 
-    (it "should allow resources to collaborate"
-
-        (let [handler (->
-                        (rook/namespace-handler
-                          {:async? true}
-                          [["fred"] 'fred]
-                          [["barney"] 'barney])
-                        async/wrap-with-loopback
-                        async/async-handler->ring-handler)]
-          (should= ":barney says `ribs!'"
-                   (-> (mock/request :get "/fred")
-                       handler
-                       :body
-                       :message))))
-
     (it "properly sends schema validation failures"
         (let [handler (->
                         (rook/namespace-handler
                           {:async? true}
-                          [["validating"] 'validating async/wrap-with-schema-validation])
-                        async/wrap-with-loopback
+                          ["validating" 'validating async/wrap-with-schema-validation])
                         async/async-handler->ring-handler)
               response (-> (mock/request :post "/validating")
                            handler)]
@@ -72,8 +56,7 @@
         (let [handler (->
                         (rook/namespace-handler
                           {:async? true}
-                          [["fail"] 'failing])
-                        async/wrap-with-loopback
+                          ["fail" 'failing])
                         async/async-handler->ring-handler)]
           (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                    (-> (mock/request :get "/fail")

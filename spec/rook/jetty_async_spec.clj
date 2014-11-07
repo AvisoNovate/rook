@@ -1,10 +1,11 @@
 (ns rook.jetty-async-spec
   (:import (javax.servlet.http HttpServletResponse))
   (:use
-    speclj.core
-    clojure.pprint)
+  speclj.core
+  clojure.pprint)
   (:require
     [clojure.edn :as edn]
+    [clojure.core.async :refer [thread]]
     [clj-http
      [cookies :as cookies]
      [client :as client]]
@@ -12,23 +13,45 @@
     [io.aviso.rook
      [async :as async]
      [utils :as utils]
-     [jetty-async-adapter :as jetty]]))
+     [jetty-async-adapter :as jetty]]
+    [clojure.tools.logging :as l]))
 
 (describe "io.aviso.rook.jetty-async-adapter"
 
   (with-all server
-    (->
-      (rook/namespace-handler {:async? true}
-        [["fred"] 'fred]
-        [["barney"] 'barney]
-        [["slow"] 'slow]
-        [["sessions"] 'sessions]
-        [["creator"] 'creator]
-        [["creator-loopback"] 'creator-loopback])
-      async/wrap-with-loopback
-      async/wrap-session
-      async/wrap-with-standard-middleware
-      (jetty/run-async-jetty {:port 9988 :join? false :async-timeout 100})))
+            (let [loopback-handler (fn [request]
+                                     #_ (l/info "loopback:" (utils/pretty-print request))
+                                     (let [body-params (:body-params request)
+                                           body (if body-params (pr-str body-params))
+                                           client-request (-> request
+                                                              ;; Need to convert :body-params to :body
+                                                              ;; and the :content-type :edn will take care of sending an EDN stream
+                                                              ;; over the wire.
+                                                              (dissoc :body-params :params)
+                                                              (assoc :url (str "http://localhost:9988" (:uri request))
+                                                                     :body body
+                                                                     :content-type :edn
+                                                                     :accept :edn
+                                                                     :follow-redirects false
+                                                                     :throw-exceptions false
+                                                                     :as :clojure))]
+                                       (thread
+                                         ;; I'd love it if there was a way to do this asynchronously via some kind of callback. We're using
+                                         ;; a thread from the core.async pool AND a thread from the connection manager.
+                                         (client/request client-request))))]
+              (->
+                (rook/namespace-handler {:async?        true
+                                         :arg-resolvers {'loopback-handler :injection}}
+                                        ["fred" 'fred]
+                                        ["barney" 'barney]
+                                        ["slow" 'slow]
+                                        ["sessions" 'sessions]
+                                        ["creator" 'creator]
+                                        ["creator-loopback" 'creator-loopback])
+                async/wrap-session
+                async/wrap-with-standard-middleware
+                (rook/wrap-with-injection :loopback-handler loopback-handler)
+                (jetty/run-async-jetty {:port 9988 :join? false :async-timeout 100}))))
 
   (it "did initialize the server successfully"
       (should-not-be-nil @server))

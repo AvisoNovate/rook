@@ -320,35 +320,9 @@
         (let [handler (-> (rook/namespace-handler
                             ["fail" 'failing])
                           rook-async/wrap-restful-format
-                          rook-async/wrap-with-loopback
                           rook-async/async-handler->ring-handler)]
           (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                    (-> (mock/request :get "/fail") handler :status)))))
-
-
-  (describe "loopback-handler"
-
-    (it "should allow two resources to collaborate"
-        (let [handler (rook-async/async-handler->ring-handler
-                        (rook-async/wrap-with-loopback
-                          (rook/namespace-handler {:async? true}
-                                                  [["fred"] 'fred]
-                                                  [["barney"] 'barney])))]
-          (should= ":barney says `ribs!'"
-                   (-> (mock/request :get "/fred")
-                       handler
-                       :body
-                       :message))))
-
-    (it "should allow three resources to collaborate"
-        (let [handler (rook-async/async-handler->ring-handler
-                        (rook-async/wrap-with-loopback
-                          (rook/namespace-handler {:async? true}
-                                                  ["fred" 'fred]
-                                                  ["barney" 'barney]
-                                                  ["betty" 'betty])))]
-          (should= ":barney says `:betty says `123 is a very fine id!''"
-                   (-> (mock/request :get "/fred/123") handler :body :message)))))
 
 
   (describe "handlers with schema attached"
@@ -357,7 +331,6 @@
         (let [handler (->> (dispatcher/namespace-dispatch-table
                              [["validating"] 'validating rook-async/wrap-with-schema-validation])
                            (dispatcher/compile-dispatch-table {:async? true})
-                           rook-async/wrap-with-loopback
                            rook-async/async-handler->ring-handler)
               response (-> (mock/request :post "/validating")
                            (merge {:params {:name "Vincent"}})
@@ -369,7 +342,6 @@
         (let [handler (->> (dispatcher/namespace-dispatch-table
                              ["validating" 'validating rook-async/wrap-with-schema-validation])
                            (dispatcher/compile-dispatch-table {:async? true})
-                           rook-async/wrap-with-loopback
                            rook-async/async-handler->ring-handler
                            ring.middleware.keyword-params/wrap-keyword-params
                            ring.middleware.params/wrap-params)
@@ -421,7 +393,6 @@
                                 ["surprise" 'surprise dispatcher/default-namespace-middleware
                                  [[:id "foo"] 'surprise-foo]]
                                 ["foobar" 'foobar])
-                              rook-async/wrap-with-loopback
                               rook-async/wrap-session
                               rook-async/wrap-with-standard-middleware
                               (rook/wrap-with-injection :strange-injection "really surprising"))]
@@ -432,15 +403,15 @@
         (should-not-be-nil @server))
 
     (it "can process requests and return responses"
-        (let [response (http/get "http://localhost:9988/fred" {:accept :json})]
+        (let [response (http/get "http://localhost:9988/betty/rubble-1" {:accept :json})]
           (should= HttpServletResponse/SC_OK
                    (:status response))
           (should= "application/json; charset=utf-8"
                    (-> response :headers (get "Content-Type")))
-          (should= "{\"message\":\":barney says `ribs!'\"}" (:body response))))
+          (should= "{\"message\":\"rubble-1 is a very fine id!\"}" (:body response))))
 
     (it "will respond with a failure if the content is not valid"
-        (let [response (http/post "http://localhost:9988/fred"
+        (let [response (http/post "http://localhost:9988/static"
                                   {:accept           :edn
                                    :content-type     :edn
                                    :body             "{not valid edn"
@@ -478,20 +449,6 @@
         (let [response (http/get "http://localhost:9988/wilma"
                                  {:throw-exceptions false})]
           (should= HttpServletResponse/SC_NOT_FOUND (:status response))))
-
-    ;; TODO: this passes, but context handling needs more thought
-    (it "can calculate :resource-uri after loopback"
-        (let [response (http/post "http://localhost:9988/creator-loopback"
-                                  {:throw-exceptions false})]
-          (should= "http://localhost:9988/creator/<ID>"
-                   (get-in response [:headers "Location"]))))
-
-    (it "should allow three resources to collaborate"
-        (let [response (http/get "http://localhost:9988/fred/123"
-                                 {:accept           :edn
-                                  :throw-exceptions true})]
-          (should= ":barney says `:betty says `123 is a very fine id!''"
-                   (-> response :body edn/read-string :message))))
 
     (it "should resolve arguments statically given appropriate metadata"
         (let [response (http/get "http://localhost:9988/static"

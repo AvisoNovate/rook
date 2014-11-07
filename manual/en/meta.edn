@@ -12,7 +12,6 @@
                "injection"
                "async"
                "end-to-end"
-               "loopbacks"
                "swagger"
                "dev"
                ] }
