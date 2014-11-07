@@ -1,3 +1,8 @@
+## 0.1.18 - UNRELEASED
+
+* Further improvements to making swagger optional.
+* The "async loopback" support has been removed.
+
 ## 0.1.17 - 5 Nov 2014
 
 * swagger is now an optional dependency, and is only required if the :swagger option is enabled
@@ -6,13 +11,13 @@
 
 ## 0.1.16 - 24 Oct 2014
 
-* Namespace paths can now be a simple string as an alternative to a vector. E.g. `(rook/namespace-handler ["users" 'org.example.resources.users])`.
-* The convention name for PUT :id has changed from `change` to `update`.  `update` is still supported, but will be removed in 0.1.17.
-* Improvements to the io.aviso.rook.client/then macro
-* Removed support for the :path-spec metadata
-* The :context-pathvec option was renamed to :context
-* The way synchronous handlers are wrapped into asynchronous handlers is now pluggable
-* As usual, keeping up with dependencies
+* Namespace paths can now be a simple string, as an alternative to a vector. E.g. `(rook/namespace-handler ["users" 'org.example.resources.users])`.
+* The convention name for PUT :id has been renamed from `change` to `update`. `update` is still supported, but will be removed in a subsequent release.
+* Improvements to the io.aviso.rook.client/then macro.
+* Removed support for the :path-spec metadata.
+* The :context-pathvec option was renamed to :context.
+* The way synchronous handlers are wrapped into asynchronous handlers is now pluggable.
+* As usual, keeping up with dependencies.
 
 [Closed issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aissue+milestone%3A0.1.16+is%3Aclosed)
 
