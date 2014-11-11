@@ -1,7 +1,6 @@
 (ns rook.dispatcher-spec
   (:use speclj.core
-        clojure.pprint
-        [clojure.template :only [do-template]])
+        clojure.pprint)
   (:require [io.aviso.rook.dispatcher :as dispatcher]
             [io.aviso.rook.client :as client]
             [io.aviso.rook.utils :as utils]
@@ -241,56 +240,60 @@
 
   (describe "compiled handlers using map traversal"
 
-    (it "should return the expected responses"
-        (do-template [method path namespace-name extra-params expected-value]
-                     (do
-                       (should= expected-value
-                                (let [mw (fn [handler metadata]
-                                           (-> handler
-                                               ring.middleware.keyword-params/wrap-keyword-params
-                                               ring.middleware.params/wrap-params))
-                                      dt (dispatcher/namespace-dispatch-table
-                                           [[] namespace-name mw])
-                                      handler (dispatcher/compile-dispatch-table nil dt)
-                                      body #(:body % %)]
-                                  (-> (mock/request method path)
-                                      (update-in [:params] merge extra-params)
-                                      handler
-                                      ;; TODO: fix rook-spec and rook-test/activate (the
-                                      ;; latter should return a response map rather than a
-                                      ;; string) and switch back to :body
-                                      body))))
+    (for [[method path extra-params expected-value]
+          (partition 4 [:get "/?limit=100" {} "limit=100"
+                        :get "/" {} "limit="
+                        :get "/123" {} "id=123"
+                        :get "/123/activate" {} nil
+                        :put "/" {} nil
+                        :put "/123" {} nil
 
-                     :get "/?limit=100" 'rook-test {} "limit=100"
-                     :get "/" 'rook-test {} "limit="
-                     :get "/123" 'rook-test {} "id=123"
-                     :get "/123/activate" 'rook-test {} nil
-                     :put "/" 'rook-test {} nil
-                     :put "/123" 'rook-test {} nil
+                        :post "/123/activate"
+                        {:test1 "foo" :test2 "bar"}
+                        "test1=foo,id=123,test2=bar,test3=TEST#,test4=test$/123/activate,meth=:post"])]
+      (it (format "should return %s from %s %s%s"
+                  (pr-str expected-value)
+                  (-> method name .toUpperCase)
+                  path
+                  (if-not (empty? extra-params)
+                    (str " with " (pr-str extra-params))
+                    ""))
+          (should= expected-value
+                   (let [mw (fn [handler metadata]
+                              (-> handler
+                                  ring.middleware.keyword-params/wrap-keyword-params
+                                  ring.middleware.params/wrap-params))
+                         dt (dispatcher/namespace-dispatch-table
+                              [[] 'rook-test mw])
+                         handler (dispatcher/compile-dispatch-table nil dt)
+                         body #(:body % %)]
+                     (-> (mock/request method path)
+                         (update-in [:params] merge extra-params)
+                         handler
+                         ;; TODO: fix rook-spec and rook-test/activate (the
+                         ;; latter should return a response map rather than a
+                         ;; string) and switch back to :body
+                         body)))))
 
-                     :post "/123/activate" 'rook-test
-                     {:test1 "foo" :test2 "bar"}
-                     "test1=foo,id=123,test2=bar,test3=TEST#,test4=test$/123/activate,meth=:post")))
+    (describe "argument resolution"
 
-  (describe "argument resolution"
+      (it "supports overriding default arg resolvers"
 
-    (it "supports overriding default arg resolvers"
+          (let [override ^:replace-resolvers {'magic-value (constantly "**magic**")}
+                handler (rook/namespace-handler {:arg-resolvers override}
+                                                [["magic"] 'magic])]
+            (-> (mock/request :get "/magic")
+                handler
+                (should= "**magic**"))))
 
-        (let [override ^:replace-resolvers {'magic-value (constantly "**magic**")}
-              handler (rook/namespace-handler {:arg-resolvers override}
-                                              [["magic"] 'magic])]
-          (-> (mock/request :get "/magic")
-              handler
-              (should= "**magic**"))))
-
-    (it "supports overriding default arg resolver factories"
-        (let [override ^:replace-factories {:magic (fn [sym]
-                                                     (constantly (str "**presto[" sym "]**")))}
-              handler (rook/namespace-handler {:arg-resolvers override}
-                                              [["presto"] 'presto])]
-          (-> (mock/request :get "/presto/42")
-              handler
-              (should= "42 -- **presto[extra]**")))))
+      (it "supports overriding default arg resolver factories"
+          (let [override ^:replace-factories {:magic (fn [sym]
+                                                       (constantly (str "**presto[" sym "]**")))}
+                handler (rook/namespace-handler {:arg-resolvers override}
+                                                [["presto"] 'presto])]
+            (-> (mock/request :get "/presto/42")
+                handler
+                (should= "42 -- **presto[extra]**"))))))
 
   (describe "async handlers"
 
