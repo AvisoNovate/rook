@@ -371,24 +371,25 @@
   ([dispatch-map]
    (map-traversal-dispatcher dispatch-map nil))
   ([dispatch-map not-found-response]
-   (fn rook-map-traversal-dispatcher [request]
-     (loop [pathvec (second (request-route-spec request))
-            dispatch dispatch-map
-            route-param-vals []]
-       (if-let [seg (first pathvec)]
-         (if (contains? dispatch seg)
-           (recur (next pathvec) (get dispatch seg) route-param-vals)
-           (if-let [dispatch' (::param dispatch)]
-             (recur (next pathvec) dispatch' (conj route-param-vals seg))
-             ;; no match on path
-             not-found-response))
-         (if-let [{:keys [handler route-param-keys]}
-                  (or (get dispatch (:request-method request))
-                      (get dispatch :all))]
-           (let [route-params (zipmap route-param-keys route-param-vals)]
-             (handler (assoc request :route-params route-params)))
-           ;; unsupported method for path
-           not-found-response))))))
+   (fn [request]
+     (let [[request-method request-path] (request-route-spec request)]
+       (loop [remaining-path request-path
+              dispatch dispatch-map
+              route-param-vals []]
+         (if-let [seg (first remaining-path)]
+           (if (contains? dispatch seg)
+             (recur (next remaining-path) (get dispatch seg) route-param-vals)
+             (if-let [dispatch' (::param dispatch)]
+               (recur (next remaining-path) dispatch' (conj route-param-vals seg))
+               ;; no match on path
+               not-found-response))
+           (if-let [{:keys [handler route-param-keys]}
+                    (or (get dispatch request-method)
+                        (get dispatch :all))]
+             (let [route-params (zipmap route-param-keys route-param-vals)]
+               (handler (assoc request :route-params route-params)))
+             ;; unsupported method for path
+             not-found-response)))))))
 
 (defn- symbol-for-argument [arg]
   "Returns the argument symbol for an argument; this is either the argument itself or
