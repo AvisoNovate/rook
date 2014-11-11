@@ -374,20 +374,28 @@
    (fn [request]
      (let [[request-method request-path] (request-route-spec request)]
        (loop [remaining-path request-path
-              dispatch dispatch-map
-              route-param-vals []]
+              dispatch dispatch-map]
          (if-let [seg (first remaining-path)]
            (if (contains? dispatch seg)
-             (recur (next remaining-path) (get dispatch seg) route-param-vals)
+             (recur (next remaining-path) (get dispatch seg))
+             ;; ::param is a special value that indicates a keyword parameter
+             ;; in the route at that point, which matches any value. If so,
+             ;; the value is more dispatch map so recurse into it.
              (if-let [dispatch' (::param dispatch)]
-               (recur (next remaining-path) dispatch' (conj route-param-vals seg))
-               ;; no match on path
+               (recur (next remaining-path) dispatch')
+               ;; Hit a term on the request path that does not map to either a sub-tree
+               ;; or a leaf, so give up.
                not-found-response))
-           (if-let [{:keys [handler route-param-keys]}
-                    (or (get dispatch request-method)
-                        (get dispatch :all))]
-             (let [route-params (zipmap route-param-keys route-param-vals)]
-               (handler (assoc request :route-params route-params)))
+           ;; Having exhausted the string (or parameter) terms in the
+           ;; request path, this final match is on the method.
+           ;; Some endpoints are mapped to :all. That gets us to a leaf node,
+           ;; which defines the handler (a wrapper around the endpoint function)
+           ;; and the mapping of route parameters.
+           (if-let [{:keys [handler route-params]} (or (get dispatch request-method)
+                                                       (get dispatch :all))]
+             (-> request
+                 (assoc :route-params (medley/map-vals (partial nth request-path) route-params))
+                 handler)
              ;; unsupported method for path
              not-found-response)))))))
 
@@ -501,10 +509,20 @@
   [dispatch-map method pathvec handler]
   (let [pathvec' (mapv #(if (variable? %) ::param %) pathvec)
         dispatch-path (conj pathvec' method)
-        route-params (filterv variable? pathvec)]
+        ;; maps keyword (from the route) to index into the path for the value.
+        ;; This is used inside map-traversal-dispatcher to set the :route-params
+        ;; request key.
+        route-params (reduce-kv (fn [m i elem]
+                                  (if (variable? elem)
+                                    (assoc m (keyword elem) i)
+                                    m))
+                                {} pathvec)]
+    ;; This dispatch path is a vector of strings (or the ::param placeholder for a keyword
+    ;; route parameter), terminated with a method keyword (:get, :put, etc., or :all). The
+    ;; value is the leaf node, identifying the particular endpoint function to invoke.
     (assoc-in dispatch-map dispatch-path
-              {:handler          handler
-               :route-param-keys (mapv keyword route-params)})))
+              {:handler      handler
+               :route-params route-params})))
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
