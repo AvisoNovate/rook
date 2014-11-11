@@ -56,7 +56,7 @@
   provided by the values."
   {'show    [:get [:id]]
    'modify  [:put [:id]]
-   ;; change will be removed in 0.1.17
+   ;; change will be removed at some point
    'change  [:put [:id]]
    'patch   [:patch [:id]]
    'destroy [:delete [:id]]
@@ -219,14 +219,13 @@
   (cons :function (-> #'map meta keys)))
 
 (defn- analyze*
-  [[routes handlers middleware namespaces-metadata] arg-resolvers dispatch-table-entry]
-  (if-let [[method pathvec verb-fn-sym mw-spec] dispatch-table-entry]
+  [[routes handlers namespaces-metadata] arg-resolvers dispatch-table-entry]
+  (if-let [[method pathvec verb-fn-sym endpoint-middleware] dispatch-table-entry]
     (t/track
       (format "Analyzing endpoint function `%s'." verb-fn-sym)
       (let [handler-key (gensym "handler-key__")
             routes' (assoc routes
                            [method (keywords->symbols pathvec)] handler-key)
-            [middleware' middleware-key] (caching-get middleware mw-spec #(gensym "middleware-key__"))
 
             ns-symbol (-> verb-fn-sym namespace symbol)
 
@@ -253,16 +252,16 @@
             ;; and metadata is merged onto that.
             arg-resolvers (merge arg-resolvers (:arg-resolvers metadata))
             handler (cond->
-                      {:middleware-key middleware-key
-                       :route-params   route-params
-                       :verb-fn-sym    verb-fn-sym
-                       :arglist        arglist
-                       :arg-resolvers  arg-resolvers
-                       :metadata       metadata}
+                      {:middleware    endpoint-middleware
+                       :route-params  route-params
+                       :verb-fn-sym   verb-fn-sym
+                       :arglist       arglist
+                       :arg-resolvers arg-resolvers
+                       :metadata      metadata}
                       context
                       (assoc :context (string/join "/" (cons "" context))))
             handlers' (assoc handlers handler-key handler)]
-        [routes' handlers' middleware' namespaces-metadata']))))
+        [routes' handlers' namespaces-metadata']))))
 
 (declare default-arg-resolver-factories default-arg-resolvers)
 
@@ -304,10 +303,9 @@
            entries (seq (unnest-dispatch-table dispatch-table))]
       (if-let [analyze-state' (analyze* analyze-state arg-resolvers (first entries))]
         (recur analyze-state' (next entries))
-        (let [[routes handlers middleware] analyze-state]
-          {:routes     (sorted-routes routes)
-           :handlers   handlers
-           :middleware (set/map-invert middleware)})))))
+        (let [[routes handlers] analyze-state]
+          {:routes   (sorted-routes routes)
+           :handlers handlers})))))
 
 (defn- map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
@@ -508,12 +506,12 @@
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
-  [{:keys [routes handlers middleware]}
+  [{:keys [routes handlers]}
    {:keys [async? arg-resolvers sync-wrapper]}]
   (reduce (fn [dispatch-map [[method pathvec] handler-key]]
             (t/track #(format "Compiling handler for `%s'."
                               (get-in handlers [handler-key :verb-fn-sym]))
-                     (let [{:keys           [middleware-key route-params
+                     (let [{:keys           [middleware route-params
                                              verb-fn-sym arglist
                                              metadata context]
                             extra-resolvers :arg-resolvers}
@@ -527,8 +525,6 @@
                                                   extra-resolvers))
                                               (set route-params)
                                               arglist)
-
-                           middleware (get middleware middleware-key)
 
                            ;; middleware may return nil, so:
 
