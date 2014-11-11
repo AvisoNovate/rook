@@ -251,9 +251,7 @@
                                                ring.middleware.params/wrap-params))
                                       dt (dispatcher/namespace-dispatch-table
                                            [[] namespace-name mw])
-                                      handler (dispatcher/compile-dispatch-table
-                                                {:build-handler-fn dispatcher/build-map-traversal-handler}
-                                                dt)
+                                      handler (dispatcher/compile-dispatch-table nil dt)
                                       body #(:body % %)]
                                   (-> (mock/request method path)
                                       (update-in [:params] merge extra-params)

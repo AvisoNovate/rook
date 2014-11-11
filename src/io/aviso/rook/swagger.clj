@@ -58,10 +58,9 @@
 
 (defn ns-spec->routes-swagger
   [options ns-spec]
-  (let [dt (dispatcher/unnest-dispatch-table
-             (dispatcher/namespace-dispatch-table options ns-spec))
-        {:keys [routes]}
-        (dispatcher/analyse-dispatch-table dt options)]
+  (let [routes (-> (dispatcher/namespace-dispatch-table options ns-spec)
+                   dispatcher/unnest-dispatch-table
+                   (dispatcher/analyse-dispatch-table options))]
     (mapv (fn [[[method pathvec] handler]]
             (let [path (dispatcher/pathvec->path
                          (mapv (fn [x] (if (symbol? x) (keyword x) x))
@@ -155,5 +154,5 @@
        (or (swagger-ui request)
            (handler request))))))
 
-(defmethod ring.swagger.json-schema/json-type java.lang.Integer [_]
+(defmethod ring.swagger.json-schema/json-type Integer [_]
   {:type "integer" :format "int32"})

@@ -163,7 +163,7 @@
 (defn- variable? [x]
   (or (keyword? x) (symbol? x)))
 
-(defn compare-pathvecs
+(defn- compare-pathvecs
   "Uses lexicographic order. Variables come before literal strings (so
   that /foo/:id sorts before /foo/bar)."
   [pathvec1 pathvec2]
@@ -188,7 +188,7 @@
                     (recur (next pv1) (next pv2))
                     res)))))))
 
-(defn compare-route-specs
+(defn- compare-route-specs
   "Uses compare-pathvecs first, breaking ties by comparing methods."
   [[method1 pathvec1] [method2 pathvec2]]
   (let [res (compare-pathvecs pathvec1 pathvec2)]
@@ -196,11 +196,7 @@
       (compare method1 method2)
       res)))
 
-(defn sort-dispatch-table
-  [dispatch-table]
-  (vec (sort compare-route-specs dispatch-table)))
-
-(defn- sorted-routes
+(defn- map->sorted-routes
   "Converts the given map of route specs -> * to a sorted map."
   [routes]
   (into (sorted-map-by compare-route-specs) routes))
@@ -271,6 +267,9 @@
   dispatch table; a route-spec* is a route-spec with keywords replaced
   by symbols in the pathvec.
 
+  Returns a sorted sequence of route data that can be passed
+  to [[build-dispatch-map]].
+
   options should be a map of options or nil. Currently only one
   option is supported:
 
@@ -298,11 +297,11 @@
                               extra-arg-resolvers))))]
     (loop [analyze-state nil
            entries (seq (unnest-dispatch-table dispatch-table))]
+      ;; Pass through analyze* to get the next state (or nil if everything has been processed).
       (if-let [analyze-state' (analyze* analyze-state arg-resolvers (first entries))]
         (recur analyze-state' (next entries))
-        (let [[routes handlers] analyze-state]
-          {:routes   (sorted-routes routes)
-           :handlers handlers})))))
+        ;; Final step is to sort the routes:
+        (-> analyze-state first map->sorted-routes)))))
 
 (defn- map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
@@ -503,8 +502,7 @@
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
-  [{:keys [routes]}
-   {:keys [async? arg-resolvers sync-wrapper]}]
+  [sorted-routes {:keys [async? arg-resolvers sync-wrapper]}]
   (reduce (fn [dispatch-map [[method pathvec] handler]]
             (t/track
               #(format "Compiling handler for `%s'." (:verb-fn-sym handler))
@@ -522,7 +520,7 @@
                                        (set route-params)
                                        arglist)
 
-                    ;; middleware may return nil, so:
+                    ;; middleware functions may return nil, so:
 
                     middleware' (fn [handler metadata]
                                   (or (middleware handler metadata)
@@ -561,17 +559,14 @@
 
                 (add-dispatch-entries dispatch-map method pathvec request-handler))))
           {}
-          routes))
+          sorted-routes))
 
-(defn build-map-traversal-handler
-  "Returns a form evaluating to a Ring handler that handles dispatch
+(defn- build-map-traversal-handler
+  "Returns a Ring handler that handles dispatch
   by using the pathvec and method of the incoming request to look up
-  an endpoint function in a nested map.
-
-  Can be passed to compile-dispatch-table using the :build-handler-fn
-  option."
-  [analysed-dispatch-table opts]
-  (let [dispatch-map (build-dispatch-map analysed-dispatch-table opts)]
+  an endpoint Ring handler in a nested map."
+  [sorted-routes opts]
+  (let [dispatch-map (build-dispatch-map sorted-routes opts)]
     (if (:async? opts)
       (map-traversal-dispatcher dispatch-map
                                 (doto (async/chan) (async/close!)))
@@ -581,8 +576,7 @@
   {:async?           false
    :arg-resolvers    default-arg-resolvers
    :sync-wrapper     (fn [handler metadata]
-                       (internals/ring-handler->async-handler handler))
-   :build-handler-fn build-map-traversal-handler})
+                       (internals/ring-handler->async-handler handler))})
 
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.
@@ -598,11 +592,6 @@
     handler. Pass in true when compiling async handlers.
   : Note that when async is enabled, you must be careful to only apply middleware that
     is appropriately async aware.
-
-  :build-handler-fn
-  : _Default: [[build-map-traversal-handler]]_
-  : Will be called with routes, handlers, middleware and should
-    produce a Ring handler.
 
   :sync-wrapper
   : _Default: anonymous_
@@ -627,10 +616,8 @@
    (compile-dispatch-table nil dispatch-table))
   ([options dispatch-table]
    (let [options (merge dispatch-table-compilation-defaults options)
-         build-handler (:build-handler-fn options)
-         analysed-dispatch-table (analyse-dispatch-table
-                                   dispatch-table options)]
-     (build-handler analysed-dispatch-table options))))
+         sorted-routes (analyse-dispatch-table dispatch-table options)]
+     (build-map-traversal-handler sorted-routes options))))
 
 (defn- simple-namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
