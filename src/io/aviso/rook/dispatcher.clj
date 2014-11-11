@@ -45,7 +45,8 @@
     [io.aviso.rook.internals :as internals :refer [consume]]
     [clojure.string :as str]
     [clojure.tools.logging :as l]
-    [io.aviso.rook.utils :as utils]))
+    [io.aviso.rook.utils :as utils]
+    [medley.core :as medley]))
 
 (def ^:private default-mappings
 
@@ -63,12 +64,85 @@
    'index   [:get []]
    'create  [:post []]})
 
+
 (defn default-namespace-middleware
   "Default namespace middleware that ignores the metadata and returns the handler unchanged.
   Namespace middleware is slightly different than Ring middleware, as the metadata from
   the function is available. Namespace middleware may also return nil."
   [handler metadata]
   handler)
+
+(defn make-header-arg-resolver [sym]
+  (fn [request]
+    (-> request :headers (get (name sym)))))
+
+(defn make-param-arg-resolver [sym]
+  (let [kw (keyword sym)]
+    (fn [request]
+      (-> request :params kw))))
+
+(defn make-request-key-resolver [sym]
+  (let [kw (keyword sym)]
+    (fn [request]
+      (kw request))))
+
+(defn make-route-param-resolver [sym]
+  (let [kw (keyword sym)]
+    (fn [request]
+      (-> request :route-params kw))))
+
+(defn make-resource-uri-arg-resolver [sym]
+  (fn [request]
+    (internals/resource-uri-for request)))
+
+(defn make-injection-resolver [sym]
+  (let [kw (keyword sym)]
+    (fn [request]
+      (internals/get-injection request kw))))
+
+(def default-arg-resolvers
+  "The default argument resolvers provided by the system.
+
+  Keyword keys are factories; the value should take a symbol (from which metadata can be extracted)
+  and return an argument resolver customized for that symbol.
+
+  Symbols are direct argument resolvers; functions that take the Ring request and return the value
+  for that argument."
+  {:request      (constantly identity)
+   :request-key  make-request-key-resolver
+   :header       make-header-arg-resolver
+   :param        make-param-arg-resolver
+   :injection    make-injection-resolver
+   :resource-uri make-resource-uri-arg-resolver
+   'request      identity
+   'params       (make-request-key-resolver :params)
+   'params*      internals/clojurized-params-arg-resolver
+   'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})
+
+(defn- merge-arg-resolver-maps
+  "Merges an argument resolver map into another argument resolver map.
+  The keys of each map are either keywords (for argument resolver factories) or
+  symbols (for argument resolvers).
+
+  The metadata of the override-map guides the merge.
+
+  :replace means the override-map is used instead of the base-map.
+
+  :replace-factories means that factories (keyword keys) from the base-map
+  are removed before the merge.
+
+  :replace-resolvers means that the resolves (symbol keys) from the base-map
+  are removed before the merge."
+  [base-map override-map]
+  (let [override-meta (meta override-map)]
+
+    (if (:replace override-meta)
+      override-map
+      (merge (cond->> base-map
+                      (:replace-factories override-meta) (medley/remove-keys keyword?)
+                      (:replace-resolvers override-meta) (medley/remove-keys symbol?))
+             override-map))))
+
 
 (defn- request-route-spec
   "Takes a Ring request map and returns `[method pathvec]`, where method
@@ -256,8 +330,6 @@
                            [method (keywords->symbols pathvec)] handler)]
         [routes' namespaces-metadata']))))
 
-(declare default-arg-resolver-factories default-arg-resolvers)
-
 (defn analyse-dispatch-table
   "Returns a map holding a map of route-spec* -> handler-sym at
   key :routes, a map of route-spec -> handler-map at key :handlers and
@@ -282,19 +354,7 @@
     will be examined; if it contains a truthy value at the key
     of :replace, default arg resolvers will be excluded."
   [dispatch-table options]
-  (let [extra-arg-resolvers (:arg-resolvers options)
-        arg-resolvers (if (:replace (meta extra-arg-resolvers))
-                        extra-arg-resolvers
-                        (if (:replace-factories (meta extra-arg-resolvers))
-                          (if (:replace-resolvers (meta extra-arg-resolvers))
-                            extra-arg-resolvers
-                            (merge default-arg-resolvers extra-arg-resolvers))
-                          (if (:replace-resolvers (meta extra-arg-resolvers))
-                            (merge default-arg-resolver-factories extra-arg-resolvers)
-                            (merge
-                              default-arg-resolver-factories
-                              default-arg-resolvers
-                              extra-arg-resolvers))))]
+  (let [arg-resolvers (merge-arg-resolver-maps default-arg-resolvers (:arg-resolvers options))]
     (loop [analyze-state nil
            entries (seq (unnest-dispatch-table dispatch-table))]
       ;; Pass through analyze* to get the next state (or nil if everything has been processed).
@@ -329,61 +389,6 @@
              (handler (assoc request :route-params route-params)))
            ;; unsupported method for path
            not-found-response))))))
-
-(defn make-header-arg-resolver [sym]
-  (fn [request]
-    (-> request :headers (get (name sym)))))
-
-(defn make-param-arg-resolver [sym]
-  (let [kw (keyword sym)]
-    (fn [request]
-      (-> request :params kw))))
-
-(defn make-request-key-resolver [sym]
-  (let [kw (keyword sym)]
-    (fn [request]
-      (kw request))))
-
-(defn make-route-param-resolver [sym]
-  (let [kw (keyword sym)]
-    (fn [request]
-      (-> request :route-params kw))))
-
-(defn make-resource-uri-arg-resolver [sym]
-  (fn [request]
-    (internals/resource-uri-for request)))
-
-(defn make-injection-resolver [sym]
-  (let [kw (keyword sym)]
-    (fn [request]
-      (internals/get-injection request kw))))
-
-;;; these two maps will typically be merged, but the user can ask for
-;;; either to be left out
-
-(def default-arg-resolver-factories
-  "A map of keyword -> (function of symbol returning a function of
-  request). The functions stored in this map will be used as
-  \"resolver factories\" (they will be passed arg symbols and expected
-  to produce resolvers in return). A keyword in the value position
-  would cause a repeated lookup."
-  {:request      (constantly identity)
-   :request-key  make-request-key-resolver
-   :header       make-header-arg-resolver
-   :param        make-param-arg-resolver
-   :injection    make-injection-resolver
-   :resource-uri make-resource-uri-arg-resolver})
-
-(def default-arg-resolvers
-  "A map of symbol -> (function of request). The functions will be
-  used as argument resolvers."
-  {'request      identity
-   'params       (make-request-key-resolver :params)
-   'params*      internals/clojurized-params-arg-resolver
-   'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})
-
-(def ^:private default-factory-keys
-  (set (filter keyword? (keys default-arg-resolvers))))
 
 (defn- symbol-for-argument [arg]
   "Returns the argument symbol for an argument; this is either the argument itself or
@@ -506,14 +511,11 @@
   (reduce (fn [dispatch-map [[method pathvec] handler]]
             (t/track
               #(format "Compiling handler for `%s'." (:verb-fn-sym handler))
-              (let [{:keys           [middleware route-params
-                                      verb-fn-sym arglist
-                                      metadata context]
-                     extra-resolvers :arg-resolvers} handler
+              (let [{:keys [middleware route-params
+                            verb-fn-sym arglist
+                            metadata context]} handler
 
-                    endpoint-arg-resolvers (if (-> extra-resolvers meta :replace)
-                                             extra-resolvers
-                                             (merge arg-resolvers extra-resolvers))
+                    endpoint-arg-resolvers (merge-arg-resolver-maps arg-resolvers (:arg-resolvers handler))
 
                     arglist-resolver (create-arglist-resolver
                                        endpoint-arg-resolvers
@@ -573,10 +575,10 @@
       (map-traversal-dispatcher dispatch-map))))
 
 (def ^:private dispatch-table-compilation-defaults
-  {:async?           false
-   :arg-resolvers    default-arg-resolvers
-   :sync-wrapper     (fn [handler metadata]
-                       (internals/ring-handler->async-handler handler))})
+  {:async?        false
+   :arg-resolvers default-arg-resolvers
+   :sync-wrapper  (fn [handler metadata]
+                    (internals/ring-handler->async-handler handler))})
 
 (defn compile-dispatch-table
   "Compiles the dispatch table into a Ring handler.

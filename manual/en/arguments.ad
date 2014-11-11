@@ -9,7 +9,7 @@ That's just the tip of of the iceberg.
 Rook is designed so that you can write your endpoint functions as proper stateless functions, that is
 functions that do not rely on any global state.
 
-Rook uses a set of naming conventions and metdata to determine the value to
+Rook uses a set of naming conventions and metadata to determine the value to
 in each argument to your endpoint function. This is called _argument resolution_.
 
 Deep down, the standard case is that each argument will be resolved as a function applied
@@ -159,11 +159,13 @@ The final map of argument resolvers used for any particular endpoint function is
 * Default argument resolvers provided by Rook
 * As provided to namespace-handler namespace-handler (see next section)
 * From the containing namespace metadata
+* From the endpoint function's metadata
 
 == Specifying global defaults for arguments
 
 When defining the namespace handler, the first argument may be a map of
-options. The :arg-resolvers key is merged into the default set.
+options. The :arg-resolvers key is merged into the default set of argument resolvers (see notes below about
+advanced merging options).
 
 .Example
 [source,clojure]
@@ -171,7 +173,6 @@ options. The :arg-resolvers key is merged into the default set.
 (namespace-handler {:arg-resolvers {'if-modified-since :header}}
   ["users" 'org.example.resources.users])
 ----
-
 
 == Resolver Priority
 
@@ -184,3 +185,31 @@ Finding the argument resolver for an argument involves checks in the following o
 
 WARNING: Each argument to an endpoint function *must* have an argument resolver or an exception will
 be thrown when constructing the namespace handler.
+
+== Overriding Default Argument Resolvers
+
+The :arg-resolvers option passed to namespace-handler is typically a map of additional argument resolver
+functions (symbol keys) and argument resolver function factories (keyword keys)
+to merge into the default set.
+
+However, merging is not always the desired approach. In some very rare cases you want to replace the default set
+of argument resolvers.
+
+The :arg-resolver option, or the :arg-resolve metadata on an endpoint function, may itself have metadata to control
+this merge-or-replace behavior:
+
+:replace
+: The default argument resolvers are entirely replaced.
+
+:replace-factories
+: Factories (keyword keys) are removed from the default map before merging.
+
+:replace-resolvers
+: Resolver functions (symbol keys) are removed from the default map before merging.
+
+Argument resolver merging occurs in two places:
+
+First, the :arg-resolvers option passed to namespace-handler is used to merge or replace the hard-coded
+default set of resolvers.
+The result of that merge becomes the new base set of argument resolvers, allowing each endpoint function's :arg-resolvers metadata to
+further merge or replace.
