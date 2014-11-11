@@ -219,15 +219,11 @@
   (cons :function (-> #'map meta keys)))
 
 (defn- analyze*
-  [[routes handlers namespaces-metadata] arg-resolvers dispatch-table-entry]
+  [[routes namespaces-metadata] arg-resolvers dispatch-table-entry]
   (if-let [[method pathvec verb-fn-sym endpoint-middleware] dispatch-table-entry]
     (t/track
       (format "Analyzing endpoint function `%s'." verb-fn-sym)
-      (let [handler-key (gensym "handler-key__")
-            routes' (assoc routes
-                           [method (keywords->symbols pathvec)] handler-key)
-
-            ns-symbol (-> verb-fn-sym namespace symbol)
+      (let [ns-symbol (-> verb-fn-sym namespace symbol)
 
             [namespaces-metadata' ns-metadata] (caching-get namespaces-metadata ns-symbol
                                                             #(binding [*ns* (the-ns ns-symbol)]
@@ -236,7 +232,6 @@
             metadata (merge ns-metadata
                             {:function (str verb-fn-sym)}
                             (meta (resolve verb-fn-sym)))
-
 
             _ (l/tracef "Analyzing function `%s' w/ metadata: %s"
                         (:function metadata)
@@ -260,8 +255,10 @@
                        :metadata      metadata}
                       context
                       (assoc :context (string/join "/" (cons "" context))))
-            handlers' (assoc handlers handler-key handler)]
-        [routes' handlers' namespaces-metadata']))))
+
+            routes' (assoc routes
+                           [method (keywords->symbols pathvec)] handler)]
+        [routes' namespaces-metadata']))))
 
 (declare default-arg-resolver-factories default-arg-resolvers)
 
@@ -506,64 +503,63 @@
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
-  [{:keys [routes handlers]}
+  [{:keys [routes]}
    {:keys [async? arg-resolvers sync-wrapper]}]
-  (reduce (fn [dispatch-map [[method pathvec] handler-key]]
-            (t/track #(format "Compiling handler for `%s'."
-                              (get-in handlers [handler-key :verb-fn-sym]))
-                     (let [{:keys           [middleware route-params
-                                             verb-fn-sym arglist
-                                             metadata context]
-                            extra-resolvers :arg-resolvers}
-                           (get handlers handler-key)
+  (reduce (fn [dispatch-map [[method pathvec] handler]]
+            (t/track
+              #(format "Compiling handler for `%s'." (:verb-fn-sym handler))
+              (let [{:keys           [middleware route-params
+                                      verb-fn-sym arglist
+                                      metadata context]
+                     extra-resolvers :arg-resolvers} handler
 
-                           arglist-resolver (create-arglist-resolver
-                                              (if (:replace (meta extra-resolvers))
-                                                extra-resolvers
-                                                (merge
-                                                  arg-resolvers
-                                                  extra-resolvers))
-                                              (set route-params)
-                                              arglist)
+                    endpoint-arg-resolvers (if (-> extra-resolvers meta :replace)
+                                             extra-resolvers
+                                             (merge arg-resolvers extra-resolvers))
 
-                           ;; middleware may return nil, so:
+                    arglist-resolver (create-arglist-resolver
+                                       endpoint-arg-resolvers
+                                       (set route-params)
+                                       arglist)
 
-                           middleware' (fn [handler metadata]
-                                         (or (middleware handler metadata)
-                                             handler))
+                    ;; middleware may return nil, so:
 
-                           apply-context-middleware (fn [handler]
-                                                      (fn [request]
-                                                        (-> request
-                                                            (update-in [:context] str context)
-                                                            handler)))
+                    middleware' (fn [handler metadata]
+                                  (or (middleware handler metadata)
+                                      handler))
 
-                           logging-middleware (fn [handler]
-                                                (fn [request]
-                                                  (l/debugf "Matched %s to %s"
-                                                            (utils/summarize-request request)
-                                                            verb-fn-sym)
-                                                  (handler request)))
+                    apply-context-middleware (fn [handler]
+                                               (fn [request]
+                                                 (-> request
+                                                     (update-in [:context] str context)
+                                                     handler)))
 
-                           endpoint-fn (eval verb-fn-sym)
+                    logging-middleware (fn [handler]
+                                         (fn [request]
+                                           (l/debugf "Matched %s to %s"
+                                                     (utils/summarize-request request)
+                                                     verb-fn-sym)
+                                           (handler request)))
 
-                           ;; Build up a Ring request handler from the Rook endpoint and middleware.
-                           request-handler (cond-> (fn [request]
-                                                     (apply endpoint-fn (arglist-resolver request)))
+                    endpoint-fn (eval verb-fn-sym)
 
-                                                   (and async? (:sync metadata))
-                                                   (sync-wrapper metadata)
+                    ;; Build up a Ring request handler from the Rook endpoint and middleware.
+                    request-handler (cond-> (fn [request]
+                                              (apply endpoint-fn (arglist-resolver request)))
 
-                                                   :always
-                                                   (middleware' metadata)
+                                            (and async? (:sync metadata))
+                                            (sync-wrapper metadata)
 
-                                                   context
-                                                   apply-context-middleware
+                                            :always
+                                            (middleware' metadata)
 
-                                                   :always
-                                                   logging-middleware)]
+                                            context
+                                            apply-context-middleware
 
-                       (add-dispatch-entries dispatch-map method pathvec request-handler))))
+                                            :always
+                                            logging-middleware)]
+
+                (add-dispatch-entries dispatch-map method pathvec request-handler))))
           {}
           routes))
 

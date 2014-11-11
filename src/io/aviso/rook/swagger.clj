@@ -60,25 +60,24 @@
   [options ns-spec]
   (let [dt (dispatcher/unnest-dispatch-table
              (dispatcher/namespace-dispatch-table options ns-spec))
-        {:keys [routes handlers middleware]}
+        {:keys [routes]}
         (dispatcher/analyse-dispatch-table dt options)]
-    (mapv (fn [[[method pathvec] handler-key]]
+    (mapv (fn [[[method pathvec] handler]]
             (let [path (dispatcher/pathvec->path
                          (mapv (fn [x] (if (symbol? x) (keyword x) x))
                                pathvec))
-                  {m     :metadata
-                   :keys [schema route-params arglist]}
-                  (get handlers handler-key)
+                  {endpoint-metadata :metadata
+                   :keys             [schema route-params arglist]} handler
                   ps (arglist-swagger schema (set route-params) arglist)]
               {:method   method
                :uri      path
-               :metadata {:summary          (:doc m)
-                          :return           (get-success (:responses m))
-                          :responseMessages (for [[status schema] (:responses m)]
+               :metadata {:summary          (:doc endpoint-metadata)
+                          :return           (get-success (:responses endpoint-metadata))
+                          :responseMessages (for [[status schema] (:responses endpoint-metadata)]
                                               {:code          (long status)
                                                :message       ""
                                                :responseModel schema})
-                          :nickname         (nickname handler-key)
+                          :nickname         (-> handler :verb-fn-sym nickname)
                           :parameters       ps}}))
           routes)))
 
