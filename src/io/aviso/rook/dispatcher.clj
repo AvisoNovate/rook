@@ -363,6 +363,30 @@
         ;; Final step is to sort the routes:
         (-> analyze-state first map->sorted-routes)))))
 
+(defn- invoke-leaf
+  "Attempts to identify a single endpoint to invoke based on the request method and what's in the dispatch map.
+
+  Returns a Ring response map (or a channel that will yield a response map, in async mode) or nil if there are no matching endpoints."
+  [request request-method request-path dispatch-map]
+  (let [potentials (concat (get dispatch-map request-method)
+                           (get dispatch-map :all))]
+    (case (count potentials)
+      1 (if-let [{:keys [handler route-params]} (first potentials)]
+          (-> request
+              (assoc :route-params (medley/map-vals (partial nth request-path) route-params))
+              handler))
+
+      ;; This is ok, it just means that the path mapped to some other method, but not
+      ;; any one matching an endpoint.
+      0 nil
+
+      ;; 2 or more is a problem, since there isn't a way to determine which to invoke.
+      (throw (ex-info (format "Request %s matched %d endpoints."
+                              (utils/summarize-request request)
+                              (count potentials))
+                      {:request   request
+                       :endpoints (map :endpoint potentials)})))))
+
 (defn- map-traversal-dispatcher
   "Returns a Ring handler using the given dispatch-map to guide
   dispatch. Used by build-map-traversal-handler. The optional
@@ -391,13 +415,8 @@
            ;; Some endpoints are mapped to :all. That gets us to a leaf node,
            ;; which defines the handler (a wrapper around the endpoint function)
            ;; and the mapping of route parameters.
-           (if-let [{:keys [handler route-params]} (or (get dispatch request-method)
-                                                       (get dispatch :all))]
-             (-> request
-                 (assoc :route-params (medley/map-vals (partial nth request-path) route-params))
-                 handler)
-             ;; unsupported method for path
-             not-found-response)))))))
+           (or (invoke-leaf request request-method request-path dispatch)
+               not-found-response)))))))
 
 (defn- symbol-for-argument [arg]
   "Returns the argument symbol for an argument; this is either the argument itself or
@@ -506,7 +525,7 @@
     (constantly ())))
 
 (defn- add-dispatch-entries
-  [dispatch-map method pathvec handler]
+  [dispatch-map method pathvec handler handler-meta]
   (let [pathvec' (mapv #(if (variable? %) ::param %) pathvec)
         dispatch-path (conj pathvec' method)
         ;; maps keyword (from the route) to index into the path for the value.
@@ -520,9 +539,11 @@
     ;; This dispatch path is a vector of strings (or the ::param placeholder for a keyword
     ;; route parameter), terminated with a method keyword (:get, :put, etc., or :all). The
     ;; value is the leaf node, identifying the particular endpoint function to invoke.
-    (assoc-in dispatch-map dispatch-path
-              {:handler      handler
-               :route-params route-params})))
+    (update-in dispatch-map dispatch-path
+               (fnil conj [])
+               {:handler      handler
+                :endpoint     (:function handler-meta)
+                :route-params route-params})))
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
@@ -578,7 +599,7 @@
                                             :always
                                             logging-middleware)]
 
-                (add-dispatch-entries dispatch-map method pathvec request-handler))))
+                (add-dispatch-entries dispatch-map method pathvec request-handler metadata))))
           {}
           sorted-routes))
 
