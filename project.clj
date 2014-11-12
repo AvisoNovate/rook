@@ -6,7 +6,7 @@
             :profiles {:dev
                         {:dependencies [[ring-mock "0.1.5"]
                                         [io.aviso/pretty "0.1.12"]
-                                        [clj-http "0.9.1" :exclusions [cheshire]]
+                                        [clj-http "1.0.0" :exclusions [cheshire]]
                                         [speclj "3.1.0"]
                                         [log4j "1.2.17"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.

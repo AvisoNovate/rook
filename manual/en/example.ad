@@ -35,8 +35,63 @@ Finally, you need to define a resource for the /counters URI.
 
 Start up the server: `lein run`.
 
-List the counters using: `curl http://localhost:8080/counters`.
+In a second window, use `curl` to access the counters resource.
 
-Create a new counter using: `curl -X POST http://localhost:8080/counters?id=baz`.
+.List the counters
+----
+$ curl -i http://localhost:8080/counters
+HTTP/1.1 200 OK
+Date: Wed, 12 Nov 2014 18:55:08 GMT
+Content-Length: 17
+Content-Type: application/json; charset=utf-8
+Server: Jetty(7.6.13.v20130916)
 
-Increment an existing counter using: `curl -X PUT http://localhost:8080/counters/foo/increment`.
+{"foo":0,"bar":0}
+----
+
+.Create a new counter
+----
+$ curl -i -X POST http://localhost:8080/counters?id=baz
+HTTP/1.1 201 Created
+Date: Wed, 12 Nov 2014 18:55:41 GMT
+Content-Length: 1
+Content-Type: application/json; charset=utf-8
+Server: Jetty(7.6.13.v20130916)
+
+0
+----
+
+.Increment an existing counter
+----
+$ curl -i -X PUT http://localhost:8080/counters/foo/increment
+HTTP/1.1 200 OK
+Date: Wed, 12 Nov 2014 18:56:05 GMT
+Content-Length: 1
+Content-Type: application/json; charset=utf-8
+Server: Jetty(7.6.13.v20130916)
+
+1
+----
+
+.List the counters (as EDN)
+----
+$ curl -i -H "Accept: application/edn" http://localhost:8080/counters
+HTTP/1.1 200 OK
+Date: Wed, 12 Nov 2014 18:56:30 GMT
+Content-Length: 27
+Content-Type: application/edn; charset=utf-8
+Server: Jetty(7.6.13.v20130916)
+
+{"foo" 1, "bar" 0, "baz" 0}
+----
+
+== Testing
+
+Although mock testing can be effective, it is also quite easy to start and stop a server and feed
+real HTTP requests to it. These tests use http://speclj.com/[Speclj].
+
+.integration_spec.clj
+[source,clojure]
+----
+{{ d['code/example/spec/integration_spec.clj'] }}
+----

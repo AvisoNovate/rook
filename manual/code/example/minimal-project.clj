@@ -3,5 +3,5 @@
     :main org.example.server/main
     :dependencies [
         [org.clojure/clojure "1.6.0"]
-        [io.aviso/rook "0.1.15"]
+        [io.aviso/rook "0.1.17"]
         [ring "1.3.1"]])
