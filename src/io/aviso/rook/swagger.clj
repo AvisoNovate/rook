@@ -61,7 +61,7 @@
   (let [routes (-> (dispatcher/namespace-dispatch-table options ns-spec)
                    dispatcher/unnest-dispatch-table
                    (dispatcher/analyse-dispatch-table options))]
-    (mapv (fn [[[method pathvec] handler]]
+    (mapv (fn [[method pathvec handler]]
             (let [path (dispatcher/pathvec->path
                          (mapv (fn [x] (if (symbol? x) (keyword x) x))
                                pathvec))

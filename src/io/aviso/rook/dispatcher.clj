@@ -237,44 +237,6 @@
 (defn- variable? [x]
   (or (keyword? x) (symbol? x)))
 
-(defn- compare-pathvecs
-  "Uses lexicographic order. Variables come before literal strings (so
-  that /foo/:id sorts before /foo/bar)."
-  [pathvec1 pathvec2]
-  (loop [pv1 (seq pathvec1)
-         pv2 (seq pathvec2)]
-    (cond
-      (nil? pv1) (if (nil? pv2) 0 -1)
-      (nil? pv2) 1
-      :else
-      (let [seg1 (first pv1)
-            seg2 (first pv2)]
-        (cond
-          (variable? seg1) (if (variable? seg2)
-                             (let [res (compare (name seg1) (name seg2))]
-                               (if (zero? res)
-                                 (recur (next pv1) (next pv2))
-                                 res))
-                             -1)
-          (variable? seg2) 1
-          :else (let [res (compare seg1 seg2)]
-                  (if (zero? res)
-                    (recur (next pv1) (next pv2))
-                    res)))))))
-
-(defn- compare-route-specs
-  "Uses compare-pathvecs first, breaking ties by comparing methods."
-  [[method1 pathvec1] [method2 pathvec2]]
-  (let [res (compare-pathvecs pathvec1 pathvec2)]
-    (if (zero? res)
-      (compare method1 method2)
-      res)))
-
-(defn- map->sorted-routes
-  "Converts the given map of route specs -> * to a sorted map."
-  [routes]
-  (into (sorted-map-by compare-route-specs) routes))
-
 (defn- caching-get
   [m k f]
   (if (contains? m k)
@@ -326,8 +288,7 @@
                       context
                       (assoc :context (string/join "/" (cons "" context))))
 
-            routes' (assoc routes
-                           [method (keywords->symbols pathvec)] handler)]
+            routes' (cons [method (keywords->symbols pathvec) handler] routes)]
         [routes' namespaces-metadata']))))
 
 (defn analyse-dispatch-table
@@ -360,16 +321,17 @@
       ;; Pass through analyze* to get the next state (or nil if everything has been processed).
       (if-let [analyze-state' (analyze* analyze-state arg-resolvers (first entries))]
         (recur analyze-state' (next entries))
-        ;; Final step is to sort the routes:
-        (-> analyze-state first map->sorted-routes)))))
+        ;; The route map is the first element of the state:
+        (first analyze-state)))))
 
 (defn- invoke-leaf
   "Attempts to identify a single endpoint to invoke based on the request method and what's in the dispatch map.
 
   Returns a Ring response map (or a channel that will yield a response map, in async mode) or nil if there are no matching endpoints."
   [request request-method request-path dispatch-map]
-  (let [potentials (concat (get dispatch-map request-method)
-                           (get dispatch-map :all))]
+  (let [potentials (filter #((% :filter) request)
+                           (concat (get dispatch-map request-method)
+                                   (get dispatch-map :all)))]
     (case (count potentials)
       1 (if-let [{:keys [handler route-params]} (first potentials)]
           (-> request
@@ -524,6 +486,15 @@
       (apply juxt))
     (constantly ())))
 
+(def ^:private noop-filter (constantly true))
+
+(defn- extract-request-filter
+  "Extracts a request filtering function from the metadata for an endpoint. Currently, this is expected
+  to be a function that accepts the request, but in the future, it may allow other possibilities, such as a
+  map of keys and values that must match the request."
+  [metadata]
+  (or (:match metadata) noop-filter))
+
 (defn- add-dispatch-entries
   [dispatch-map method pathvec handler handler-meta]
   (let [pathvec' (mapv #(if (variable? %) ::param %) pathvec)
@@ -543,12 +514,13 @@
                (fnil conj [])
                {:handler      handler
                 :endpoint     (:function handler-meta)
+                :filter       (extract-request-filter handler-meta)
                 :route-params route-params})))
 
 (defn- build-dispatch-map
   "Returns a dispatch-map for use with map-traversal-dispatcher."
-  [sorted-routes {:keys [async? arg-resolvers sync-wrapper]}]
-  (reduce (fn [dispatch-map [[method pathvec] handler]]
+  [routes {:keys [async? arg-resolvers sync-wrapper]}]
+  (reduce (fn [dispatch-map [method pathvec handler]]
             (t/track
               #(format "Compiling handler for `%s'." (:verb-fn-sym handler))
               (let [{:keys [middleware route-params
@@ -601,14 +573,14 @@
 
                 (add-dispatch-entries dispatch-map method pathvec request-handler metadata))))
           {}
-          sorted-routes))
+          routes))
 
 (defn- build-map-traversal-handler
   "Returns a Ring handler that handles dispatch
   by using the pathvec and method of the incoming request to look up
   an endpoint Ring handler in a nested map."
-  [sorted-routes opts]
-  (let [dispatch-map (build-dispatch-map sorted-routes opts)]
+  [routes opts]
+  (let [dispatch-map (build-dispatch-map routes opts)]
     (if (:async? opts)
       (map-traversal-dispatcher dispatch-map
                                 (doto (async/chan) (async/close!)))
@@ -658,8 +630,8 @@
    (compile-dispatch-table nil dispatch-table))
   ([options dispatch-table]
    (let [options (merge dispatch-table-compilation-defaults options)
-         sorted-routes (analyse-dispatch-table dispatch-table options)]
-     (build-map-traversal-handler sorted-routes options))))
+         routes (analyse-dispatch-table dispatch-table options)]
+     (build-map-traversal-handler routes options))))
 
 (defn- simple-namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a

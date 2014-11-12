@@ -88,6 +88,11 @@
            (defn create [^:param x]
              (resp/response (str "Created " x))))))
 
+(defn namespace->handler [namespace]
+  (->> (dispatcher/namespace-dispatch-table [namespace])
+       (dispatcher/compile-dispatch-table)
+       ring.middleware.keyword-params/wrap-keyword-params
+       ring.middleware.params/wrap-params))
 
 (defn default-middleware
   "Pretty much same as the one in dispatcher, but seperate to faciliate some of the tests."
@@ -263,8 +268,7 @@
                               (-> handler
                                   ring.middleware.keyword-params/wrap-keyword-params
                                   ring.middleware.params/wrap-params))
-                         dt (dispatcher/namespace-dispatch-table
-                              [[] 'rook-test mw])
+                         dt (dispatcher/namespace-dispatch-table ['rook-test mw])
                          handler (dispatcher/compile-dispatch-table nil dt)
                          body #(:body % %)]
                      (-> (mock/request method path)
@@ -274,6 +278,24 @@
                          ;; latter should return a response map rather than a
                          ;; string) and switch back to :body
                          body)))))
+
+    (describe "conflicts and versioning"
+
+      (it "should throw exception when endpoints conflict"
+          (let [handler (namespace->handler 'unresolved-conflict)]
+            (->> (mock/request :get "/123")
+                 handler
+                 (should-throw Exception "Request GET `/123' matched 2 endpoints."))))
+
+
+      (it "identify endpoint using :match filter"
+          (let [handler (namespace->handler 'resolved-conflict)]
+            (->> (mock/request :get "/123" {"v" "2"})
+                 handler
+                 :body
+                 :matched
+                 (should= "second-match")
+                 ))))
 
     (describe "argument resolution"
 
