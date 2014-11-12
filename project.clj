@@ -6,14 +6,14 @@
             :profiles {:dev
                         {:dependencies [[ring-mock "0.1.5"]
                                         [io.aviso/pretty "0.1.12"]
-                                        [clj-http "1.0.0" :exclusions [cheshire]]
+                                        [clj-http "1.0.1"]
                                         [speclj "3.1.0"]
                                         [log4j "1.2.17"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
                            [cheshire "5.3.1"]
-                           [potemkin "0.3.8"]
+                           [potemkin "0.3.11"]
                            [org.clojure/tools.reader "0.8.5"]
                            [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                            [org.clojure/tools.logging "0.3.0"]
@@ -21,8 +21,8 @@
                            [ring "1.3.1" :exclusions [org.clojure/tools.reader]]
                            [medley "0.5.3" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.4.0" :excludes [cheshire]]
-                           [prismatic/schema "0.3.1" :exclusions [potemkin]]
-                           [metosin/ring-swagger "0.11.0" :optional true]
+                           [prismatic/schema "0.3.3" :exclusions [potemkin]]
+                           [metosin/ring-swagger "0.14.0" :optional true :exclusions [org.clojure/clojure]]
                            [metosin/ring-swagger-ui "2.0.17" :optional true]]
             :plugins [[speclj "3.1.0"]
                       [lein-shell "0.4.0"]]
