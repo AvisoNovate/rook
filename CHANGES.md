@@ -2,6 +2,12 @@
 
 * Further improvements to making swagger optional.
 * The "async loopback" support has been removed.
+* The example used in the manual has been extensively revised.
+* It is now possible to have multiple endpoint functions that match a single route; this is used
+  for versioning and/or content negotiation.
+* Dependencies have been updated.
+
+The new documentation site will be available soon.
 
 ## 0.1.17 - 5 Nov 2014
 
