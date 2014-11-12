@@ -18,13 +18,17 @@ Rook combines several features together:
 
 * Fast and scalable request dispatch
 
+* Ability to link:versioning.html[version] APIs
+
 * Request and response validation using link:https://github.com/Prismatic/schema[Prismatic Schema]
 
 * Optional asynchronous processing pipeline based on https://github.com/clojure/core.async[Clojure core.async]
 
 * Development-friendly environment
 
-This philosophy of Rook is to allow to map URIs to namespaces, and have the functions inside those namespaces,
+This philosophy of Rook is to map URIs to namespaces, and have the functions inside those namespaces,
 the endpoints, be concise, readable, and stateless.
 
-Beyond that, the functions should be are pure as possible, relying entirely on values passed to it as arguments, rather than on any global state.  For example, a resource that exposes data from a database will have the database connection pool passed to it as an argument. Rook provides all the facilities needed to provide those link:arguments.html[argument values].
+Beyond that, the functions should be are pure as possible, relying entirely on values passed to it as arguments, rather than on any global state.
+For example, a resource that exposes data from a database will have the database connection pool passed to it as an argument.
+Rook provides all the facilities needed to provide (dare we say, _inject_) those link:arguments.html[argument values].
