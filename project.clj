@@ -12,6 +12,7 @@
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
+                           [io.aviso/toolchest "0.1.0"]
                            [cheshire "5.3.1"]
                            [potemkin "0.3.11"]
                            [org.clojure/tools.reader "0.8.5"]

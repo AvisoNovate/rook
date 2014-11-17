@@ -2,7 +2,7 @@
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
     [io.aviso.rook [dispatcher :as dispatcher]]
-    [io.aviso.rook.internals :refer [consume]]
+    [io.aviso.macros :refer [consume]]
     [ring.middleware params format keyword-params]
     [medley.core :as medley]
     [potemkin :as p]

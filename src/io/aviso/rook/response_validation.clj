@@ -3,11 +3,13 @@
   from endpoint functions. Response status must match expected values, and response bodies
   can be validated against a Schema. This is usually only enabled during development."
   {:since "0.1.11"}
-  (:import (javax.servlet.http HttpServletResponse))
+  (:import
+    [javax.servlet.http HttpServletResponse])
   (:require
     [clojure.tools.logging :as l]
     [schema.core :as schema]
-    [io.aviso.rook.internals :as internals :refer [cond-let]]
+    [io.aviso.macros :refer [cond-let]]
+    [io.aviso.rook.internals :as internals]
     [io.aviso.rook.utils :as utils]))
 
 (defn ensure-matching-response*
