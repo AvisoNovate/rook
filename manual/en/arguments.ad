@@ -39,9 +39,15 @@ The name of the argument itself may be all Rook needs to resolve the argument.
 |params
 |The contents of the Ring request :params key. This contains all submitted query and form parameters.
 
+|_params
+|Alias for params footnote:[This exists to suppress warnings that params is unused, which occurs when using map destructuring.]
+
 |params*
 |Same as params, but with the top-level keys 'Clojureized' footnote:[Embedded underscore are converted to dashes, e.g. :user_id to :user-id. This can be convienient when exposing
 a resource designed to be easily accessible using JSON and client-side JavaScript.]
+
+|_params*
+|Alias for params*.
 
 |resource-uri
 |The URI for the namespace containing the function. See the notes on
@@ -49,6 +55,8 @@ link:resource-uri.html[calculating the Resource URI].
 |===
 
 TIP: It is ok to use map destructuring on an argument, but then you must use the :as key to identify its name, so that Rook can determine the argument's name, for determining argument resolution.
+If you are using link:https://cursiveclojure.com/:[Cursive] (or another IDE), you may want to use the underscore-prefixed versions (_params and _params*) to suppress
+the "local variable not used" warnings.
 
 .Example
 [source,clojure]

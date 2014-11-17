@@ -108,16 +108,19 @@
 
   Symbols are direct argument resolvers; functions that take the Ring request and return the value
   for that argument."
-  {:request      (constantly identity)
-   :request-key  make-request-key-resolver
-   :header       make-header-arg-resolver
-   :param        make-param-arg-resolver
-   :injection    make-injection-resolver
-   :resource-uri make-resource-uri-arg-resolver
-   'request      identity
-   'params       (make-request-key-resolver :params)
-   'params*      internals/clojurized-params-arg-resolver
-   'resource-uri (make-resource-uri-arg-resolver 'resource-uri)})
+  (let [params-resolver (make-request-key-resolver :params)]
+    {:request      (constantly identity)
+     :request-key  make-request-key-resolver
+     :header       make-header-arg-resolver
+     :param        make-param-arg-resolver
+     :injection    make-injection-resolver
+     :resource-uri make-resource-uri-arg-resolver
+     'request      identity
+     'params       params-resolver
+     '_params      params-resolver
+     'params*      internals/clojurized-params-arg-resolver
+     '_params*     internals/clojurized-params-arg-resolver
+     'resource-uri (make-resource-uri-arg-resolver 'resource-uri)}))
 
 (defn- merge-arg-resolver-maps
   "Merges an argument resolver map into another argument resolver map.
@@ -355,30 +358,30 @@
   not-found-response argument defaults to nil; pass in a closed
   channel for async operation."
   ([dispatch-map]
-   (map-traversal-dispatcher dispatch-map nil))
+    (map-traversal-dispatcher dispatch-map nil))
   ([dispatch-map not-found-response]
-   (fn [request]
-     (let [[request-method request-path] (request-route-spec request)]
-       (loop [remaining-path request-path
-              dispatch dispatch-map]
-         (if-let [seg (first remaining-path)]
-           (if (contains? dispatch seg)
-             (recur (next remaining-path) (get dispatch seg))
-             ;; ::param is a special value that indicates a keyword parameter
-             ;; in the route at that point, which matches any value. If so,
-             ;; the value is more dispatch map so recurse into it.
-             (if-let [dispatch' (::param dispatch)]
-               (recur (next remaining-path) dispatch')
-               ;; Hit a term on the request path that does not map to either a sub-tree
-               ;; or a leaf, so give up.
-               not-found-response))
-           ;; Having exhausted the string (or parameter) terms in the
-           ;; request path, this final match is on the method.
-           ;; Some endpoints are mapped to :all. That gets us to a leaf node,
-           ;; which defines the handler (a wrapper around the endpoint function)
-           ;; and the mapping of route parameters.
-           (or (invoke-leaf request request-method request-path dispatch)
-               not-found-response)))))))
+    (fn [request]
+      (let [[request-method request-path] (request-route-spec request)]
+        (loop [remaining-path request-path
+               dispatch dispatch-map]
+          (if-let [seg (first remaining-path)]
+            (if (contains? dispatch seg)
+              (recur (next remaining-path) (get dispatch seg))
+              ;; ::param is a special value that indicates a keyword parameter
+              ;; in the route at that point, which matches any value. If so,
+              ;; the value is more dispatch map so recurse into it.
+              (if-let [dispatch' (::param dispatch)]
+                (recur (next remaining-path) dispatch')
+                ;; Hit a term on the request path that does not map to either a sub-tree
+                ;; or a leaf, so give up.
+                not-found-response))
+            ;; Having exhausted the string (or parameter) terms in the
+            ;; request path, this final match is on the method.
+            ;; Some endpoints are mapped to :all. That gets us to a leaf node,
+            ;; which defines the handler (a wrapper around the endpoint function)
+            ;; and the mapping of route parameters.
+            (or (invoke-leaf request request-method request-path dispatch)
+                not-found-response)))))))
 
 (defn- symbol-for-argument [arg]
   "Returns the argument symbol for an argument; this is either the argument itself or
@@ -627,41 +630,41 @@
     {:replace-resolvers true} or {:replace-factories true} to leave
     out default resolvers or resolver factories, respectively."
   ([dispatch-table]
-   (compile-dispatch-table nil dispatch-table))
+    (compile-dispatch-table nil dispatch-table))
   ([options dispatch-table]
-   (let [options (merge dispatch-table-compilation-defaults options)
-         routes (analyse-dispatch-table dispatch-table options)]
-     (build-map-traversal-handler routes options))))
+    (let [options (merge dispatch-table-compilation-defaults options)
+          routes (analyse-dispatch-table dispatch-table options)]
+      (build-map-traversal-handler routes options))))
 
 (defn- simple-namespace-dispatch-table
   "Examines the given namespace and produces a dispatch table in a
   format intelligible to compile-dispatch-table."
   ([ns-sym]
-   (simple-namespace-dispatch-table [] ns-sym))
+    (simple-namespace-dispatch-table [] ns-sym))
   ([context-pathvec ns-sym]
-   (simple-namespace-dispatch-table context-pathvec ns-sym default-namespace-middleware))
+    (simple-namespace-dispatch-table context-pathvec ns-sym default-namespace-middleware))
   ([context-pathvec ns-sym middleware]
-   (t/track
-     #(format "Identifying endpoint functions in `%s'." ns-sym)
-     (try
-       (if-not (find-ns ns-sym)
-         (require ns-sym))
-       (catch Exception e
-         (throw (ex-info "failed to require ns in namespace-dispatch-table"
-                         {:context    context-pathvec
-                          :ns         ns-sym
-                          :middleware middleware}
-                         e))))
-     [(->> ns-sym
-           ns-publics
-           (keep (fn [[k v]]
-                   (if (ifn? @v)
-                     (t/track #(format "Building route mapping for `%s/%s'." ns-sym k)
-                              (if-let [route-spec (or (-> v meta :route)
-                                                      (get default-mappings k))]
-                                (conj route-spec (symbol (name ns-sym) (name k))))))))
-           (list* context-pathvec middleware)
-           vec)])))
+    (t/track
+      #(format "Identifying endpoint functions in `%s'." ns-sym)
+      (try
+        (if-not (find-ns ns-sym)
+          (require ns-sym))
+        (catch Exception e
+          (throw (ex-info "failed to require ns in namespace-dispatch-table"
+                          {:context    context-pathvec
+                           :ns         ns-sym
+                           :middleware middleware}
+                          e))))
+      [(->> ns-sym
+            ns-publics
+            (keep (fn [[k v]]
+                    (if (ifn? @v)
+                      (t/track #(format "Building route mapping for `%s/%s'." ns-sym k)
+                               (if-let [route-spec (or (-> v meta :route)
+                                                       (get default-mappings k))]
+                                 (conj route-spec (symbol (name ns-sym) (name k))))))))
+            (list* context-pathvec middleware)
+            vec)])))
 
 (defn canonicalize-ns-specs
   "Handles unnesting of ns-specs."
@@ -703,7 +706,7 @@
 
       [:get [\"api\" \"foo\"] 'example.foo/index ns-middleware]."
   {:arglists '([options & ns-specs]
-               [& ns-specs])}
+                [& ns-specs])}
   [& &ns-specs]
   (consume &ns-specs
     [options map? :?
