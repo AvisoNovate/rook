@@ -16,4 +16,4 @@ without blocking all your threads.
 
 Rook is available under the terms of the Apache Software License 2.0.
 
-link:http://howardlewisship.com/io.aviso/documentation/rook/[Full Documentation]
+link:https://portal.aviso.io/#/docs/open-source[Full Documentation]
