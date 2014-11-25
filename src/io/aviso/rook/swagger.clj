@@ -8,7 +8,6 @@
   (:require [io.aviso.rook.dispatcher :as dispatcher]
             [ring.swagger.core :as swagger]
             [ring.swagger.ui :as ui]
-            [schema.core :as s]
             [clojure.string :as string]
             [clojure.core.async :as async]))
 

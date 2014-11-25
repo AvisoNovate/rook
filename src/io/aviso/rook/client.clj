@@ -16,7 +16,6 @@
     [clojure.tools.logging :as l]
     [clojure.string :as str]
     [io.aviso.rook
-     [async :as async]
      [utils :as utils]]))
 
 (defn new-request

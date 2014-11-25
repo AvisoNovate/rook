@@ -40,7 +40,6 @@
   (:require
     [clojure.core.async :as async]
     [clojure.string :as string]
-    [clojure.set :as set]
     [io.aviso.tracker :as t]
     [io.aviso.macros :refer [consume]]
     [io.aviso.rook.internals :as internals]

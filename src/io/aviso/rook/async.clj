@@ -31,7 +31,6 @@
      [session :as session]
      [format-params :as format-params]
      [format-response :as format-response]]
-    [io.aviso.rook :as rook]
     [io.aviso.rook
      [schema-validation :as sv]
      [response-validation :as rv]
