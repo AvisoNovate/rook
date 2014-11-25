@@ -1,3 +1,5 @@
+## 0.1.19 - UNRELEASED
+
 ## 0.1.18 - 25 Nov 2014
 
 * Further improvements to making swagger optional.
