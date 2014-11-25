@@ -1,4 +1,4 @@
-## 0.1.18 - UNRELEASED
+## 0.1.18 - 25 Nov 2014
 
 * Further improvements to making swagger optional.
 * The "async loopback" support has been removed.
@@ -7,7 +7,7 @@
   for versioning and/or content negotiation.
 * Dependencies have been updated.
 
-The new documentation site will be available soon.
+[Closed Issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aclosed+milestone%3A0.1.18+)
 
 ## 0.1.17 - 5 Nov 2014
 
