@@ -2,12 +2,12 @@
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
   (:require
     [io.aviso.rook [dispatcher :as dispatcher]]
-    [io.aviso.macros :refer [consume]]
+    [io.aviso.toolchest.macros :refer [consume]]
+    [io.aviso.toolchest.collections :refer [pretty-print]]
     [ring.middleware params format keyword-params]
     [medley.core :as medley]
     [potemkin :as p]
     [io.aviso.tracker :as t]
-    [io.aviso.rook.utils :as utils]
     [clojure.tools.logging :as l]))
 
 (p/import-vars
@@ -118,7 +118,7 @@
                [& ns-specs])}
   [& &ns-specs]
   (t/track
-    #(format "Building namespace handler for %s." (utils/pretty-print &ns-specs))
+    #(format "Building namespace handler for %s." (pretty-print &ns-specs))
     (consume &ns-specs
       [options map? :?
        ns-specs :&]

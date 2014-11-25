@@ -1,6 +1,7 @@
 (ns io.aviso.rook.internals
   "Unsupported internal functions used in the implementation."
   (:require
+    [io.aviso.toolchest.exceptions :refer [to-message]]
     [io.aviso.rook.utils :as utils]
     [medley.core :as medley]
     [clojure.core.async :as async]
@@ -40,10 +41,6 @@
                               (if (require-port? (:scheme request) port)
                                 (str ":" port)))))]
     (str server-uri (:context request) "/")))
-
-(defn to-message [^Throwable t]
-  (or (.getMessage t)
-      (-> t .getClass .getName)))
 
 (defmacro safety-first
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception

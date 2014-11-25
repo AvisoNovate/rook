@@ -8,6 +8,7 @@
     [clojure.tools.logging :as l]
     [clojure.core.async :refer [go <! timeout alts! take! close!]]
     [io.aviso.rook.utils :as utils]
+    [io.aviso.toolchest.collections :refer [pretty-print pretty-print-brief]]
     [ring.util
      [servlet :as servlet]
      [response :as r]]
@@ -48,7 +49,7 @@
 
     (catch Throwable t
       (l/errorf t "Unable to send asynchronous response %s to client."
-                (utils/pretty-print-brief response)))))
+                (pretty-print-brief response)))))
 
 (defn- wrap-with-continuation
   [handler timeout-ms]
@@ -67,7 +68,7 @@
         (take! response-ch
                (fn [response]
                  (when (compare-and-set! responded false true)
-                   (l/debugf "Asynchronous response:%n%s" (utils/pretty-print response))
+                   (l/debugf "Asynchronous response:%n%s" (pretty-print response))
                    (close! timeout-ch)
                    (send-async-response continuation (or response {:status HttpServletResponse/SC_NOT_FOUND})))))
 

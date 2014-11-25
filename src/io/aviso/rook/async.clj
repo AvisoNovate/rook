@@ -27,6 +27,9 @@
   (:import (javax.servlet.http HttpServletResponse))
   (:require
     [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
+    [io.aviso.toolchest.exceptions :refer [to-message]]
+    ring.middleware.params
+    ring.middleware.keyword-params
     [ring.middleware
      [session :as session]
      [format-params :as format-params]
@@ -68,7 +71,7 @@
                   (catch Throwable t
                          (result->channel
                            (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                                           {:exception (internals/to-message t)}))))
+                                           {:exception (to-message t)}))))
                 (fn [handler-response]
                   (if handler-response
                     (put! response-ch
@@ -126,6 +129,6 @@
                     (put! response-ch (try
                                         (rv/ensure-matching-response* response (:function metadata) responses)
                                         (catch Throwable t
-                                               (l/error t (internals/to-message t))
+                                               (l/error t (to-message t))
                                                (internals/throwable->failure-response t))))))
            response-ch))))))

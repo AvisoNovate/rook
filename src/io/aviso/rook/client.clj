@@ -15,6 +15,7 @@
     [clojure.core.async :refer [go <! >! chan alt! take! put! close!]]
     [clojure.tools.logging :as l]
     [clojure.string :as str]
+    [io.aviso.toolchest.collections :refer [pretty-print pretty-print-brief]]
     [io.aviso.rook
      [utils :as utils]]))
 
@@ -95,7 +96,7 @@
   (l/debugf "%s - response from %s:%n%s"
             uuid
             (utils/summarize-request (:ring-request request))
-            (utils/pretty-print-brief response))
+            (pretty-print-brief response))
   ;; In some cases, the response from upstream is returned exactly as is; for example, this
   ;; is the default behavior for a 401 status. However, downstream the content type will change
   ;; from Clojure data structures to either JSON or EDN, so the content type and length is not valid.
@@ -123,7 +124,7 @@
         _ (l/debugf "%s - request to %s%n%s"
                     uuid
                     (utils/summarize-request ring-request')
-                    (-> ring-request (dissoc :request-method :uri) utils/pretty-print))
+                    (-> ring-request (dissoc :request-method :uri) pretty-print))
         response-ch (handler ring-request')
         result-ch (chan 1)]
     (take! response-ch

@@ -41,7 +41,8 @@
     [clojure.core.async :as async]
     [clojure.string :as string]
     [io.aviso.tracker :as t]
-    [io.aviso.macros :refer [consume]]
+    [io.aviso.toolchest.macros :refer [consume]]
+    [io.aviso.toolchest.collections :refer [pretty-print]]
     [io.aviso.rook.internals :as internals]
     [clojure.string :as str]
     [clojure.tools.logging :as l]
@@ -270,7 +271,7 @@
 
             _ (l/tracef "Analyzing function `%s' w/ metadata: %s"
                         (:function metadata)
-                        (utils/pretty-print (apply dissoc metadata suppress-metadata-keys)))
+                        (pretty-print (apply dissoc metadata suppress-metadata-keys)))
 
             route-params (mapv (comp symbol name)
                                (filter keyword? pathvec))

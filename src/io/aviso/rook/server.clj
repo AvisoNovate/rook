@@ -2,6 +2,7 @@
   "Utilities for creating Ring handlers."
   (:require
     [io.aviso.rook.utils :as utils]
+    [io.aviso.toolchest.collections :refer [pretty-print]]
     [clojure.tools.logging :as l]))
 
 (defn reloading-handler
@@ -22,7 +23,7 @@
   "Writes a pretty-printed representation of each incoming request."
   [handler]
   (fn [request]
-    (l/debugf "Request:%n%s" (utils/pretty-print request))
+    (l/debugf "Request:%n%s" (pretty-print request))
     (handler request)))
 
 (defn construct-handler

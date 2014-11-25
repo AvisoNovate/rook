@@ -29,19 +29,6 @@
   [response name date]
   (r/header response name (t/format-date date)))
 
-(defn pretty-print
-  "Pretty-prints the supplied object to a returned string."
-  [object]
-  (pprint/write object
-                :stream nil
-                :pretty true))
-
-(defn pretty-print-brief
-  "Like pretty-print, but prints the object more briefly, with limits on level and length."
-  [object]
-  (binding [*print-level* 4
-            *print-length* 5] (pretty-print object)))
-
 ;;; useful at the REPL
 (defn pprint-code
   "Pretty prints the form using code indentation rules."

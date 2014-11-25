@@ -4,9 +4,10 @@
   can be validated against a Schema. This is usually only enabled during development."
   {:since "0.1.11"}
   (:require
+    [io.aviso.toolchest.exceptions :refer [to-message]]
     [clojure.tools.logging :as l]
     [schema.core :as schema]
-    [io.aviso.macros :refer [cond-let]]
+    [io.aviso.toolchest.macros :refer [cond-let]]
     [io.aviso.rook.internals :as internals]))
 
 (defn ensure-matching-response*
@@ -62,7 +63,7 @@
   (try
     (ensure-matching-response* response fn-name responses)
     (catch Throwable t
-           (l/error t (internals/to-message t))
+           (l/error t (to-message t))
            (internals/throwable->failure-response t))))
 
 (defn wrap-with-response-validation
