@@ -67,9 +67,9 @@
 
 
 (defn default-namespace-middleware
-  "Default namespace middleware that ignores the metadata and returns the handler unchanged.
-  Namespace middleware is slightly different than Ring middleware, as the metadata from
-  the function is available. Namespace middleware may also return nil."
+  "Default endpoint middleware that ignores the metadata and returns the handler unchanged.
+  Endpoint middleware is slightly different than Ring middleware, as the metadata from
+  the function is available. Endpoint middleware may also return nil."
   [handler metadata]
   handler)
 

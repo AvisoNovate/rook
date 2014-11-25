@@ -42,7 +42,7 @@ endpoint functions without sacrificing speed.
 You may apply middleware to the functions of a namespace, by providing a middleware
 function after the namespace symbol.
 
-link:middleware.html[Namespace middleware] is a bit different from normal Ring middleware.
+link:middleware.html[Endpoint middleware] is a bit different from normal Ring middleware.
 
 == Default Middleware
 

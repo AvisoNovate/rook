@@ -1,9 +1,9 @@
 title: Middleware
 ---
 
-Rook supports namespace middleware, wrappers around endpoint functions.
+Rook supports endpoint middleware, wrappers around endpoint functions.
 
-Namespace middleware is intended for purposes such as:
+Endpoint middleware is intended for purposes such as:
 
 * link:validation.html[Input validation]
 * User authentication
@@ -11,9 +11,9 @@ Namespace middleware is intended for purposes such as:
 * System metrics collection
 * etc.
 
-Namespace middleware is not quite the same as traditional Ring middleware.
+Endpoint middleware is not quite the same as traditional Ring middleware.
 
-Namespace middleware are functions that are passed a Ring handler _and_ a metadata map for a specific endpoint function.
+Endpoint middleware are functions that are passed a Ring handler _and_ a metadata map for a specific endpoint function.
 
 The middleware may return a new handler, or nil.  
 A nil response means the middleware declines to wrap the handler it
@@ -38,7 +38,7 @@ For example:
       (check-for-permissions handler request permissions))))
 ----
 
-This namespace middleware checks for the :required-permissions metadata. 
+This endpoint middleware checks for the :required-permissions metadata.
 When it is not present, it returns nil, and Rook uses the normal handler (the handler passed to the
 middleware function).
 

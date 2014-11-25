@@ -146,7 +146,7 @@
      ~handler-sym))
 
 (defmacro compose-middleware
-  "Assembles multiple namespace middleware forms into a single namespace middleware. Each middleware form
+  "Assembles multiple endpoint middleware forms into a single endpoint middleware. Each middleware form
   is either a list or a single form, that will be wrapped as a list.
 
   The list is modified so that the first two values passed in are the previous handler and the metadata (associated

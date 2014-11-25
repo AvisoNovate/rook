@@ -77,8 +77,8 @@ a blocking take (<!!) to retrieve the response map, and returns that map.
 
 == Async Middleware
 
-NOTE: These examples are for asynchronous Ring middleware (used around the namespace handler); for link:middleware.html[namespace middleware]
-the concept is the same, but there's the extra metadata argument. Async namespace middleware
+NOTE: These examples are for asynchronous Ring middleware (used around the namespace handler); for link:middleware.html[endpoint middleware]
+the concept is the same, but there's the extra metadata argument. Async endpoint middleware
 are passed an async handler and metadata, and return a new async handler.
 
 Async middleware is just like traditional Rook middleware, except that it must
