@@ -24,7 +24,7 @@ Consider a server, adapted from the one on the link:getting-started.html[Getting
 (defn app
   []
   (-> (rook/namespace-handler
-        [["users"] 'org.example.resources.users])
+        ["users" 'org.example.resources.users])
       rook/wrap-with-standard-middleware))
 
 (defn start-server
@@ -55,7 +55,7 @@ we can make a few changes:
 (defn app
   []
   (-> (rook/namespace-handler
-        [["users"] 'org.example.resources.users])
+        ["users" 'org.example.resources.users])
       rook/wrap-with-standard-middleware))
 
 (defn start-server
