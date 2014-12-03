@@ -103,11 +103,3 @@
     (get-in request [:io.aviso.rook/injections injection-key])
     (throw (ex-info (format "Unable to retrieve injected value for key `%s'." injection-key)
                     {:request request}))))
-
-(defn throwable->failure-response
-  "Wraps a throwable into a 500 (Internal Server Error) response."
-  {:since "0.1.11"}
-  [t]
-  (-> (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                      (to-message t))
-      (r/content-type "text/plain")))

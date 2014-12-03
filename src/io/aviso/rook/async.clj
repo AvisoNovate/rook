@@ -26,6 +26,7 @@
     can be obtained without blocking."
   (:import (javax.servlet.http HttpServletResponse))
   (:require
+    io.aviso.rook.internals
     [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
     [io.aviso.toolchest.exceptions :refer [to-message]]
     ring.middleware.params
@@ -37,9 +38,7 @@
     [io.aviso.rook
      [schema-validation :as sv]
      [response-validation :as rv]
-     [utils :as utils]
-     [internals :as internals]]
-    [clojure.tools.logging :as l]
+     [utils :as utils]]
     [potemkin :as p]))
 
 (p/import-vars [io.aviso.rook.internals
@@ -126,9 +125,5 @@
          (let [response-ch (chan 1)]
            (take! (handler request)
                   (fn [response]
-                    (put! response-ch (try
-                                        (rv/ensure-matching-response* response (:function metadata) responses)
-                                        (catch Throwable t
-                                               (l/error t (to-message t))
-                                               (internals/throwable->failure-response t))))))
+                    (put! response-ch (rv/ensure-matching-response response (:function metadata) responses))))
            response-ch))))))

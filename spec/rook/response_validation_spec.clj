@@ -32,7 +32,15 @@
             (should= "text/plain" (get-in actual-response [:headers "Content-Type"]))
             (->> actual-response
                  :body
-                 (should-contain "Response validation failure for xyz/pdq"))))
+                 (should-contain "Exception validating response from xyz/pdq"))))
+
+      (it "returns a 500 response if the status code is missing"
+          (let [actual-response (ensure-matching-response {:satus 400} "xyz/pdq" @responses)]
+            (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR (:status actual-response))
+            (should= "text/plain" (get-in actual-response [:headers "Content-Type"]))
+            (->> actual-response
+                 :body
+                 (should-contain "Response did not include a status."))))
 
       (it "returns a 500 response if the status code isn't matched"
           (let [actual-response (ensure-matching-response {:status 400} "xyz/pdq" @responses)]
@@ -40,7 +48,7 @@
             (should= "text/plain" (get-in actual-response [:headers "Content-Type"]))
             (->> actual-response
                  :body
-                 (should= "Response from xyz/pdq was unexpected status code 400."))))
+                 (should= "Exception validating response from xyz/pdq: Response had unexpected status code 400."))))
 
       (it "does not validate when the response body for the status is nil"
           (let [response {:status 201 :body {:player :white}}]

@@ -3,48 +3,13 @@
   from endpoint functions. Response status must match expected values, and response bodies
   can be validated against a Schema. This is usually only enabled during development."
   {:since "0.1.11"}
-  (:require
-    [io.aviso.toolchest.exceptions :refer [to-message]]
-    [clojure.tools.logging :as l]
-    [schema.core :as schema]
-    [io.aviso.toolchest.macros :refer [cond-let]]
-    [io.aviso.rook.internals :as internals]))
-
-(defn ensure-matching-response*
-  [response fn-name responses]
-  (cond-let
-
-    [status (:status response)]
-
-    ;; Any 5xx status goes through unchanged
-    (<= 500 status 599)
-    response
-
-    (not (contains? responses status))
-    (throw (ex-info (format "Response from %s was unexpected status code %d." fn-name status)
-                    {:function  fn-name
-                     :response  response
-                     :responses responses}))
-
-    ;; The schema may be nil to indicate an empty response (no body, just headers).
-    ;; Since we just validate the body, there's no work to do. Perhaps we should
-    ;; validate that the body is, in fact, empty.
-
-    [response-schema (get responses status)]
-    (nil? response-schema)
-    response
-
-    [failure (schema/check response-schema (:body response))]
-
-    failure
-    (throw (ex-info (format "Response validation failure for %s: %s" fn-name (pr-str failure))
-                    {:function        fn-name
-                     :failure         failure
-                     :response        response
-                     :response-schema response-schema}))
-
-    :else
-    response))
+  (:import [javax.servlet.http HttpServletResponse])
+  (:require [io.aviso.toolchest.exceptions :refer [to-message]]
+            [clojure.tools.logging :as l]
+            [schema.core :as schema]
+            [io.aviso.toolchest.macros :refer [cond-let]]
+            [ring.util.response :as r]
+            [io.aviso.rook.utils :as utils]))
 
 (defn ensure-matching-response
   "Given a response and a map from status code to a schema (for the body), ensures that the
@@ -61,10 +26,50 @@
     value is a schema used to validate the response."
   [response fn-name responses]
   (try
-    (ensure-matching-response* response fn-name responses)
+    (cond-let
+
+      [status (:status response)]
+
+      (nil? status)
+      (throw (ex-info "Response did not include a status."
+                      {:function  fn-name
+                       :response  response
+                       :responses responses}))
+
+      ;; Any 5xx status goes through unchanged
+      (<= 500 status 599)
+      response
+
+      (not (contains? responses status))
+      (throw (ex-info (format "Response had unexpected status code %d." status)
+                      {:function  fn-name
+                       :response  response
+                       :responses responses}))
+
+      ;; The schema may be nil to indicate an empty response (no body, just headers).
+      ;; Since we just validate the body, there's no work to do. Perhaps we should
+      ;; validate that the body is, in fact, empty.
+
+      [response-schema (get responses status)]
+      (nil? response-schema)
+      response
+
+      [failure (schema/check response-schema (:body response))]
+
+      failure
+      (throw (ex-info (format "Response validation failure: %s" (pr-str failure))
+                      {:function        fn-name
+                       :failure         failure
+                       :response        response
+                       :response-schema response-schema}))
+
+      :else
+      response)
     (catch Throwable t
-           (l/error t (to-message t))
-           (internals/throwable->failure-response t))))
+      (let [extended-message (format "Exception validating response from %s: %s" fn-name (to-message t))]
+        (l/error t extended-message)
+        (-> (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR extended-message)
+            (r/content-type "text/plain"))))))
 
 (defn wrap-with-response-validation
   "Middleware to ensure that the response provided matches the :responses metadata on the endpoint function.
@@ -90,11 +95,11 @@
   : _Default: true_
   : If false, then no validation occurs (which is sensible for production mode)."
   ([handler metadata]
-   (wrap-with-response-validation handler metadata true))
+    (wrap-with-response-validation handler metadata true))
   ([handler metadata enabled]
-   (if enabled
-     (if-let [responses (:responses metadata)]
-       (fn [request]
-         (-> request
-             handler
-             (ensure-matching-response (:function metadata) responses)))))))
+    (if enabled
+      (if-let [responses (:responses metadata)]
+        (fn [request]
+          (-> request
+              handler
+              (ensure-matching-response (:function metadata) responses)))))))

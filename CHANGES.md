@@ -1,5 +1,7 @@
 ## 0.1.19 - UNRELEASED
 
+* Improvements to response validation, especially when exceptions occur during validation
+
 ## 0.1.18 - 25 Nov 2014
 
 * Further improvements to making swagger optional.
