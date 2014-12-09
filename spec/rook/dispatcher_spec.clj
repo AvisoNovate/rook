@@ -285,7 +285,7 @@
           (let [handler (namespace->handler 'unresolved-conflict)]
             (->> (mock/request :get "/123")
                  handler
-                 (should-throw Exception "Request GET `/123' matched 2 endpoints."))))
+                 (should-throw Exception "Request GET /123 matched 2 endpoints."))))
 
 
       (it "identify endpoint using :match filter"

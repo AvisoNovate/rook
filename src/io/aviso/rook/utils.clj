@@ -17,9 +17,9 @@
   to 200.  If only the body is provided, but it is numeric, then it is treated as a status code with
   an empty body."
   ([body]
-   (if (number? body)
-     (response body nil)
-     (r/response body)))
+    (if (number? body)
+      (response body nil)
+      (r/response body)))
   ([status body] (->
                    (r/response body)
                    (r/status status))))
@@ -39,9 +39,7 @@
 (defn summarize-method-and-uri
   "Formats a method (a keyword, e.g. :get) and a URI into a single string."
   [method uri]
-  (format "%s `%s'"
-          (-> method name .toUpperCase)
-          uri))
+  (str (-> method name .toUpperCase) " " uri))
 
 (defn summarize-request
   "Returns a summary of the request: the :request-method and the :uri, formatted as a single string."
