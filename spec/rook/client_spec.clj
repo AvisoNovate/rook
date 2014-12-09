@@ -37,7 +37,6 @@
       (should= "foo/23/skidoo"
                (-> (c/new-request :placeholder)
                    (c/to :get "foo" 23 :skidoo)
-                   :ring-request
                    :uri)))
 
   (it "allows path to be omitted entirely"
@@ -45,7 +44,6 @@
       (should= ""
                (-> (c/new-request :placeholder)
                    (c/to :get)
-                   :ring-request
                    :uri)))
 
   (with response {:status  401
@@ -66,24 +64,21 @@
         (should= params
                  (-> (c/new-request :placeholder)
                      (c/with-query-params params)
-                     :ring-request
-                     :query-params))))
+                                          :query-params))))
 
   (it "can pass body parameters in the request"
       (let [params {:foo 1 :bar 2}]
         (should= params
                  (-> (c/new-request :placeholder)
                      (c/with-body-params params)
-                     :ring-request
-                     :body-params))))
+                                          :body-params))))
 
   (it "passes a Ring request to the handler"
       (should= {:request-method :put
                 :uri            "target"
                 :headers        {"auth" "implied"}
                 :query-params   {:page 1}
-                :body-params    {:content :magic}
-                :params         {:page 1 :content :magic}}
+                :body-params    {:content :magic}}
                (-> (c/new-request #(respond (utils/response 200 %)))
                    (c/to :put :target)
                    (c/with-headers {"auth" "implied"})
@@ -93,20 +88,7 @@
                    <!!
                    :body
                    ;; Filter out some extra information
-                   (select-keys [:request-method :uri :headers :query-params :body-params :params]))))
-
-  (it "overrides query parameters with body-parameters in the Ring request"
-      (should= {:query-only :query-params
-                :body-only  :body-params
-                :both       :body-params}
-               (-> (c/new-request #(respond (utils/response 200 %)))
-                   (c/to :put :target)
-                   (c/with-query-params {:query-only :query-params :both :query-params})
-                   (c/with-body-params {:body-only :body-params :both :body-params})
-                   c/send
-                   <!!
-                   :body
-                   :params)))
+                   (select-keys [:request-method :uri :headers :query-params :body-params]))))
 
   (it "converts an exception inside a try-go block into a 500"
       (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR

@@ -17,18 +17,19 @@
     [io.aviso.toolchest.collections :refer [pretty-print pretty-print-brief]]))
 
 (defn new-request
-  "Creates a new client request that will ultimately become a Ring request map passed to the
-  handler function.
+  "Creates a new Ring request that will ultimately be passed to the handler function.
 
-  A client request is a structure that stores a (partial) Ring request,
-  a handler function (that will be passed the Ring request), and additional data used to handle
-  the response from the handler.
-
-  The API is fluid, with calls to various functions taking and returning the client request
+  The API is fluid, with calls to various functions taking and returning the Ring request
   as the first parameter; these can be assembled using the -> macro.
 
-  The web-service-handler function is passed the Ring request map and returns a
-  core.async channel that will receive the Ring response map.
+  The handler function is passed the Ring request map and returns a
+  core.async channel that will receive the Ring response map.  The Ring map
+  will have keys :request-method, :uri (see [[to]]), and keys
+  :headers, :query-params and :body-params.
+
+  The handler function should use this information generate an HTTP/HTTPs request and capture
+  the response as a Ring response map. Some handlers may require additional keys, for example,
+  \"accept\" or \"content-type\" headers.
 
   The handler is typically implemented using the clojure.core.async go or thread macros."
   [handler]
@@ -46,13 +47,12 @@
   {:added "0.1.10"}
   [request method paths]
   {:pre [(#{:put :post :get :delete :head :options :patch} method)]}
-  (-> request
-      (assoc-in [:ring-request :request-method] method)
-      (assoc-in [:ring-request :uri]
-                (->>
-                  paths
-                  (map element-to-string)
-                  (str/join "/")))))
+  (assoc request :request-method method
+         :uri
+         (->>
+           paths
+           (map element-to-string)
+           (str/join "/"))))
 
 (defn to
   "Targets the request with a method (:get, :post, etc.) and a path; the path is a series of
@@ -76,22 +76,30 @@
   (to* request method path))
 
 (defn with-body-params
-  "Stores a Clojure map as the body of the request (as if EDN content was parsed into Clojure data).
-  The :params key of the Ring request will be the merge of :query-params and :body-params."
+  "Merges a Clojure map into the body of the request (as if EDN content was parsed into Clojure data), merging
+  it with any previously set body parameters.
+
+  By convention, the keys are keywords and the values are as appropriate for the content type (strings for
+  form encoded information, or more complex data types when using JSON or EDN)."
   [request params]
-  (assert (map? params))
-  (assoc-in request [:ring-request :body-params] params))
+  {:pre [(map? params)]}
+  (update-in request [:body-params] merge params))
 
 (defn with-query-params
   "Adds parameters to the :query-params key using merge. The query parameters should use keywords for keys. The
-  :params key of the Ring request will be the merge of :query-params and :body-params."
+  :params key of the Ring request will be the merge of :query-params and :body-params.  By convention, the
+  keys are keywords and the values are strings (or seqs of strings)."
   [request params]
-  (update-in request [:ring-request :query-params] merge params))
+  {:pre [(map? params)]}
+  ;; TODO convert to update when Clojure 1.7
+  (update-in request [:query-params] merge params))
 
 (defn with-headers
-  "Merges the provided headers into the :headers key of the Ring request. Keys should be lower-cased strings."
+  "Merges the provided headers into the :headers key of the Ring request. Keys should be lower-cased strings.
+
+  The keys should follow the Ring convention of lower-case strings, the values should be strings."
   [request headers]
-  (update-in request [:ring-request :headers] merge headers))
+  (update-in request [:headers] merge headers))
 
 (defn is-success?
   [status]
@@ -103,15 +111,10 @@
 
   The [[then]] macro is useful for working with this result channel."
   [request]
-  (let [ring-request (:ring-request request)
-        ring-request' (-> request
-                          :ring-request
-                          (assoc :params (merge (:query-params ring-request) (:body-params ring-request))))
-        handler (:handler request)]
-    (assert (and (:request-method ring-request')
-                 (:uri ring-request'))
-            "No target (request method and URI) has been specified.")
-    (handler ring-request')))
+  (assert (and (:request-method request)
+               (:uri request))
+          "No target (request method and URI) has been specified.")
+  ((:handler request) request))
 
 (defn- ->cond-block
   [form response-sym clause-block]
