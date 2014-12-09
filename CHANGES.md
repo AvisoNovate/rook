@@ -1,6 +1,20 @@
 ## 0.1.19 - UNRELEASED
 
 * Improvements to response validation, especially when exceptions occur during validation
+* io.aviso.rook.client has changed in minor, but incompatible ways (see below)
+
+The io.aviso.rook.client namespace has simplified slightly, and changed slightly, but this
+may affect existing code.
+
+First off, the way the `to` function creates the :uri key has changed, it no longer includes
+the a leading slash. This will affect handlers.
+
+Prior releases also did some logging of the Ring request before it is passed to the request handler,
+and the Ring response received through the channel. This no longer occurs -- if this behavior is
+desired, it can be built into the request handler.
+
+In addition, the Ring response is now passed through unchanged; prior releases would remove
+the Content-Length and Content-Type headers (for obscure reasons that no longer make sense).
 
 ## 0.1.18 - 25 Nov 2014
 

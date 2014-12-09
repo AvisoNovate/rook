@@ -13,11 +13,8 @@
   (:refer-clojure :exclude [send])
   (:require
     [clojure.core.async :refer [go <! >! chan alt! take! put! close!]]
-    [clojure.tools.logging :as l]
     [clojure.string :as str]
-    [io.aviso.toolchest.collections :refer [pretty-print pretty-print-brief]]
-    [io.aviso.rook
-     [utils :as utils]]))
+    [io.aviso.toolchest.collections :refer [pretty-print pretty-print-brief]]))
 
 (defn new-request
   "Creates a new client request that will ultimately become a Ring request map passed to the
@@ -30,13 +27,13 @@
   The API is fluid, with calls to various functions taking and returning the client request
   as the first parameter; these can be assembled using the -> macro.
 
-  The handler is passed the Ring request map and returns a core.async channel that will receive
-  the Ring response map.
+  The web-service-handler function is passed the Ring request map and returns a
+  core.async channel that will receive the Ring response map.
 
   The handler is typically implemented using the clojure.core.async go or thread macros."
-  [web-service-handler]
-  {:pre [(some? web-service-handler)]}
-  {:handler web-service-handler})
+  [handler]
+  {:pre [(some? handler)]}
+  {:handler handler})
 
 (defn- element-to-string
   [element]
@@ -55,13 +52,26 @@
                 (->>
                   paths
                   (map element-to-string)
-                  (str/join "/")
-                  (str "/")))))
+                  (str/join "/")))))
 
 (defn to
-  "Targets the request with a method (:get, :post, etc.) and a URI. The URI is composed from the path;
-  each part is a keyword or a value that is converted to a string. The URI
-  starts with a slash and each element in the path is seperated by a slash."
+  "Targets the request with a method (:get, :post, etc.) and a path; the path is a series of
+  elements, each either a keyword or a string, or any other type (that is converted to a string).
+
+  The :uri key of the Ring request is set from this, it consists of the path elements seperated by slashes.
+
+  Keywords are converted to strings using the name function (so the leading colon is not part of the
+  path element).  All other types are converted using str.
+
+  Example:
+
+     (-> (c/new-request clj-http-handler)
+         (c/to :post :hotels hotel-id :rooms room-number)
+         c/send
+         (c/then ...))
+
+  This will build a :uri like \"hotels/1234/rooms/237\".
+  "
   [request method & path]
   (to* request method path))
 
@@ -87,49 +97,21 @@
   [status]
   (<= 200 status 299))
 
-(defn- process-async-response
-  [request uuid response]
-  (assert response
-          (format "Handler closed channel for request %s without sending a response." uuid))
-  ;; The idea here is to only present enough to let the developer know that the right
-  ;; flavor of response has been provided; often these responses can be huge.
-  (l/debugf "%s - response from %s:%n%s"
-            uuid
-            (utils/summarize-request (:ring-request request))
-            (pretty-print-brief response))
-  ;; In some cases, the response from upstream is returned exactly as is; for example, this
-  ;; is the default behavior for a 401 status. However, downstream the content type will change
-  ;; from Clojure data structures to either JSON or EDN, so the content type and length is not valid.
-  ;; Content-type would get overwritten, but content-length would not, which causes the client to
-  ;; have problems (attempting to read too much or too little data from the HTTP stream).
-  (update-in response [:headers] dissoc "content-length" "content-type"))
-
 (defn send
   "Sends the request asynchronously, using the web-service-handler provided to new-request.
   Returns a channel that will receive the Ring result map.
 
-  The [[then]] macro is useful for working with this result channel.
-
-  Each request is assigned a UUID string to its :request-id key; this is to faciliate easier tracing of the request
-  and response in any logged output."
+  The [[then]] macro is useful for working with this result channel."
   [request]
-  (let [uuid (utils/new-uuid)
-        ring-request (:ring-request request)
-        ring-request' (assoc ring-request :request-id uuid
-                                          :params (merge (:query-params ring-request) (:body-params ring-request)))
-        handler (:handler request)
-        _ (assert (and (:request-method ring-request')
-                       (:uri ring-request'))
-                  "No target (request method and URI) has been specified.")
-        _ (l/debugf "%s - request to %s%n%s"
-                    uuid
-                    (utils/summarize-request ring-request')
-                    (-> ring-request (dissoc :request-method :uri) pretty-print))
-        response-ch (handler ring-request')
-        result-ch (chan 1)]
-    (take! response-ch
-           #(put! result-ch (process-async-response request uuid %)))
-    result-ch))
+  (let [ring-request (:ring-request request)
+        ring-request' (-> request
+                          :ring-request
+                          (assoc :params (merge (:query-params ring-request) (:body-params ring-request))))
+        handler (:handler request)]
+    (assert (and (:request-method ring-request')
+                 (:uri ring-request'))
+            "No target (request method and URI) has been specified.")
+    (handler ring-request')))
 
 (defn- ->cond-block
   [form response-sym clause-block]

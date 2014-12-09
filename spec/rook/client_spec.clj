@@ -1,8 +1,8 @@
 (ns rook.client-spec
   (:import (javax.servlet.http HttpServletResponse))
   (:use
-    [clojure.core.async :only [chan >!! <!! <! go]]
-    speclj.core)
+  [clojure.core.async :only [chan >!! <!! <! go]]
+  speclj.core)
   (:require
     [ring.util.response :as r]
     [io.aviso.rook
@@ -34,7 +34,7 @@
                         (c/to :unknown "foo"))))
 
   (it "seperates path elements with a slash"
-      (should= "/foo/23/skidoo"
+      (should= "foo/23/skidoo"
                (-> (c/new-request :placeholder)
                    (c/to :get "foo" 23 :skidoo)
                    :ring-request
@@ -42,21 +42,20 @@
 
   (it "allows path to be omitted entirely"
 
-      (should= "/"
+      (should= ""
                (-> (c/new-request :placeholder)
                    (c/to :get)
                    :ring-request
                    :uri)))
 
   (with response {:status  401
-                  :headers {"content-length" 100 "content-type" "application/edn"}
-  })
+                  :headers {"content-length" 100 "content-type" "application/edn"}})
+
   (with handler (constantly (respond @response)))
 
   (it "handles :failure by returning the full response (by default)"
 
-      ;; Also shows that content-type and content-length headers are stripped.
-      (should= {:status 401 :headers {}}
+      (should= @response
                (-> (c/new-request @handler)
                    (c/to :get)
                    c/send
@@ -80,7 +79,7 @@
 
   (it "passes a Ring request to the handler"
       (should= {:request-method :put
-                :uri            "/target"
+                :uri            "target"
                 :headers        {"auth" "implied"}
                 :query-params   {:page 1}
                 :body-params    {:content :magic}
@@ -110,7 +109,7 @@
                    :params)))
 
   (it "converts an exception inside a try-go block into a 500"
-      (should= 500
+      (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                (-> (c/new-request #(async/safe-go % (throw (IllegalArgumentException.))))
                    (c/to :get)
                    c/send
@@ -125,7 +124,7 @@
                                                    (r/header "Inserted-Id" "12345"))))
                      (c/to :get)
                      c/send
-                     (c/then 201 [response (get-in response [:headers "Inserted-Id"])])
+                     (c/then HttpServletResponse/SC_CREATED [response (get-in response [:headers "Inserted-Id"])])
                      go
                      <!!)))
 

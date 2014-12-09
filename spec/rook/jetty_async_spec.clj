@@ -28,7 +28,7 @@
                                                               ;; and the :content-type :edn will take care of sending an EDN stream
                                                               ;; over the wire.
                                                               (dissoc :body-params :params)
-                                                              (assoc :url (str "http://localhost:9988" (:uri request))
+                                                              (assoc :url (str "http://localhost:9988/" (:uri request))
                                                                      :body body
                                                                      :content-type :edn
                                                                      :accept :edn
