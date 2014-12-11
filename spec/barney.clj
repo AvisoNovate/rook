@@ -18,4 +18,4 @@
       client/send
       (client/then
         :pass-failure
-        :success [response (utils/response {:message (format "%s says `%s'" partner (-> response :body :message))})]))))
+        :success ([response] (utils/response {:message (format "%s says `%s'" partner (-> response :body :message))}))))))

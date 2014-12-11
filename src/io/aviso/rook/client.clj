@@ -14,6 +14,7 @@
   (:require
     [clojure.core.async :refer [go <! >! chan alt! take! put! close!]]
     [clojure.string :as str]
+    [io.aviso.toolchest.macros :refer [cond-let]]
     [io.aviso.toolchest.collections :refer [pretty-print pretty-print-brief]]))
 
 (defn new-request
@@ -118,21 +119,27 @@
   ((:handler request) request))
 
 (defn- ->cond-block
-  [form response-sym clause-block]
-  (cond
-    (= clause-block :pass)
+  [form response-sym response-clause]
+  (cond-let
+    (= response-clause :pass)
     response-sym
 
-    (and (vector? clause-block)
-         (< 1 (count clause-block)))
-    `(let [~(first clause-block) ~response-sym] ~@(rest clause-block))
+    (not (list? response-clause))
+    (throw (ex-info (format "The block for a response clause must be a list containing a vector and a series of forms (in %s: %d)."
+                            *ns* (-> form meta :line))
+                    {:response-clause response-clause}))
+
+    [[params & forms] response-clause]
+
+    (not (and (vector? params) (= 1 (count params))))
+    (throw (ex-info (format "The first form in the response clause must be a single-element vector to be bound to the response (in %s: %d)."
+                            *ns* (-> form meta :line))
+                    {:response-clause response-clause}))
+
+    ;; zero forms is allowed, will evaluate to nil.  Probably look like (c/then :success ([_])).
 
     :else
-    (throw (ex-info (format
-                      "The block for a status clause must be a vector; the first value must be a symbol (or map, for destructuring), the remaining values will be evaluated; in %s: %d."
-                      *ns*
-                      (-> form meta :line))
-                    {:clause-block clause-block}))))
+    `(let [~(first params) ~response-sym] ~@forms)))
 
 (defn- build-cond-clauses
   [form response-sym status-sym clauses]
@@ -205,13 +212,19 @@
   clauses
   : indicate what status code(s) to respond to, and what to do with the response
 
-  A clause can either be :pass-success, :pass-failure, or a single status code followed by vector.
-  The first element in the vector is a symbol to which the response will be bound before evaluating
-  the other forms in the vector. The result of the then block is the value of the last form
-  in the selected block.
+  A status clause can either be :pass-success, :pass-failure, or a single status code followed by
+  a response clause.
 
-  Instead of a vector, the symbol :pass means that the response simply passes though as the
-  result of the then block.
+  A response clause indicates what to do with the response.
+
+  A response clause can be the keyword :pass, in which case the response is passed through
+  unchanged (by passed through, we mean, becomes the evaluated value of the entire then block).
+
+  Alternately, the response clause may be a list consisting of a one element vector followed by
+  a number of forms.  The lone symbol in the vector is bound to the response, and the other forms
+  are evaluated. The final form becomes the evaluation of the entire then block.
+
+  The symbol may be a map as well, which will be used for destructuring.
 
   then is specifically designed to work within a go block; this means that within a clause,
   it is allowed to use the non-blocking forms <!, >!, and so forth (this would not be possible
@@ -220,11 +233,12 @@
   Instead of a specific status code, you may use :success (any 2xx status code), :failure (any other
   status code), or :else (which matches regardless of status code).
 
+  Status checks occur in top down order.
+
   Often it is desirable to simply pass the response through unchanged; this is the purpose of
   the :pass-success and :pass-failure clauses.
 
   :pass-success is equvalent to :success :pass and :pass-failure is equivalent to :failure :pass.
-
 
   Example:
 
@@ -235,9 +249,9 @@
 
             HttpServletResponse/SC_NOT_MODIFIED :pass
 
-            :success [response
-                       (update-local-cache todo-id (:body response))
-                       response]
+            :success ([{body :body :as response}]
+                       (update-local-cache todo-id body)
+                       response)
 
             :pass-failure))
 

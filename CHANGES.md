@@ -4,6 +4,8 @@
 * io.aviso.rook.client has changed in minor, but incompatible ways (see below)
 * Removed the quotes from around the request URI when logging the request method and URI
 * Added a sample implementation of a io.aviso.rook.client request handler, based on clj-http
+* The response clauses used with the io.aviso.rook.client/then macro have changed structure, and now resemble
+  similar clauses elsewhere (such as clojure.core.async's alt!).
 
 The io.aviso.rook.client namespace has simplified slightly, and changed slightly, but this
 may affect existing code.
@@ -17,6 +19,8 @@ desired, it can be built into the request handler.
 
 In addition, the Ring response is now passed through unchanged; prior releases would remove
 the Content-Length and Content-Type headers (for obscure reasons that no longer make sense).
+
+[Closed Issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aclosed+milestone%3A0.1.19+)
 
 ## 0.1.18 - 25 Nov 2014
 

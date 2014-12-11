@@ -106,7 +106,7 @@
                                                    (r/header "Inserted-Id" "12345"))))
                      (c/to :get)
                      c/send
-                     (c/then HttpServletResponse/SC_CREATED [response (get-in response [:headers "Inserted-Id"])])
+                     (c/then HttpServletResponse/SC_CREATED ([response] (get-in response [:headers "Inserted-Id"])))
                      go
                      <!!)))
 
@@ -116,7 +116,7 @@
                                                    (r/header "Inserted-Id" "12345"))))
                      (c/to :get)
                      c/send
-                     (c/then 201 [{:keys [status]} status])
+                     (c/then 201 ([{:keys [status]}] status))
                      go
                      <!!)))
 
@@ -125,8 +125,8 @@
                  (-> (c/new-request (responder (utils/response HttpServletResponse/SC_NO_CONTENT)))
                      (c/to :get)
                      c/send
-                     (c/then :failure [response :not-matched]
-                             :success [response (:status response)])
+                     (c/then :failure ([response] :not-matched)
+                             :success ([response] (:status response)))
                      go
                      <!!)))
 
@@ -135,8 +135,8 @@
                  (-> (c/new-request (responder (utils/response HttpServletResponse/SC_BAD_REQUEST)))
                      (c/to :get)
                      c/send
-                     (c/then :failure [response (:status response)]
-                             :success [response :not-matched])
+                     (c/then :failure ([response] (:status response))
+                             :success ([response] :not-matched))
                      go
                      <!!)))
 
@@ -145,8 +145,8 @@
                  (-> (c/new-request (responder (utils/response HttpServletResponse/SC_BAD_REQUEST)))
                      (c/to :get)
                      c/send
-                     (c/then HttpServletResponse/SC_CREATED [response :not-matched]
-                             :else [response (:status response)])
+                     (c/then HttpServletResponse/SC_CREATED ([response] :not-matched)
+                             :else ([response] (:status response)))
                      go
                      <!!)))
 
@@ -183,7 +183,7 @@
                             (c/new-request (responder (utils/response HttpServletResponse/SC_BAD_REQUEST)))
                             (c/to :get)
                             c/send
-                            (c/then HttpServletResponse/SC_CREATED [response :not-matched]))
+                            (c/then HttpServletResponse/SC_CREATED ([response] :not-matched)))
                           ;; The try must be inside the go for the exception to not just get sort of dropped.
                           ;; Rook includes safe-go to transmute exceptions into 500 responses.
                           ;; This proves the exception was triggered.
