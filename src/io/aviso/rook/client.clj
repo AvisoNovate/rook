@@ -31,7 +31,9 @@
   the response as a Ring response map. Some handlers may require additional keys, for example,
   \"accept\" or \"content-type\" headers.
 
-  The handler is typically implemented using the clojure.core.async go or thread macros."
+  The handler is typically implemented using the clojure.core.async go or thread macros.
+
+  A minimal sample handler implementation is provided by [[io.aviso.rook.clj-http/handler]]."
   [handler]
   {:pre [(some? handler)]}
   {:handler handler})
@@ -65,13 +67,12 @@
 
   Example:
 
-     (-> (c/new-request clj-http-handler)
-         (c/to :post :hotels hotel-id :rooms room-number)
-         c/send
-         (c/then ...))
+       (-> (c/new-request clj-http-handler)
+           (c/to :post :hotels hotel-id :rooms room-number)
+           c/send
+           (c/then ...))
 
-  This will build a :uri like \"hotels/1234/rooms/237\".
-  "
+  This will build a :uri resembling \"hotels/1234/rooms/237\"."
   [request method & path]
   (to* request method path))
 

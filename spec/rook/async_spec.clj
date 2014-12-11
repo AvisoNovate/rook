@@ -1,15 +1,10 @@
 (ns rook.async-spec
-  (:import (javax.servlet.http HttpServletResponse))
-  (:use
-    [clojure.core.async :only [go chan >!! <! <!! thread]]
-    speclj.core)
-  (:require
-    [ring.mock.request :as mock]
-    [io.aviso.rook :as rook]
-    [io.aviso.rook
-     [async :as async]
-     [client :as c]
-     [utils :as utils]]))
+  (:import [javax.servlet.http HttpServletResponse])
+  (:use [clojure.core.async :only [go chan >!! <! <!! thread]]
+        speclj.core)
+  (:require [ring.mock.request :as mock]
+            [io.aviso.rook :as rook]
+            [io.aviso.rook.async :as async]))
 
 (defn- invoke [handler] (handler {}))
 

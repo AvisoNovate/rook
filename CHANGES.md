@@ -3,6 +3,7 @@
 * Improvements to response validation, especially when exceptions occur during validation
 * io.aviso.rook.client has changed in minor, but incompatible ways (see below)
 * Removed the quotes from around the request URI when logging the request method and URI
+* Added a sample implementation of a io.aviso.rook.client request handler, based on clj-http
 
 The io.aviso.rook.client namespace has simplified slightly, and changed slightly, but this
 may affect existing code.

@@ -6,7 +6,6 @@
             :profiles {:dev
                         {:dependencies [[ring-mock "0.1.5"]
                                         [io.aviso/pretty "0.1.12"]
-                                        [clj-http "1.0.1"]
                                         [speclj "3.1.0"]
                                         [log4j "1.2.17"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
@@ -24,7 +23,8 @@
                            [ring-middleware-format "0.4.0" :excludes [cheshire]]
                            [prismatic/schema "0.3.3" :exclusions [potemkin]]
                            [metosin/ring-swagger "0.14.0" :optional true :exclusions [org.clojure/clojure]]
-                           [metosin/ring-swagger-ui "2.0.17" :optional true]]
+                           [metosin/ring-swagger-ui "2.0.17" :optional true]
+                           [clj-http "1.0.1" :optional true]]
             :plugins [[speclj "3.1.0"]
                       [lein-shell "0.4.0"]]
             :shell {:commands {"scp" {:dir "doc"}}}
