@@ -51,6 +51,21 @@
       (l/errorf t "Unable to send asynchronous response %s to client."
                 (pretty-print-brief response)))))
 
+(defn- deliver-response [continuation response]
+  (l/debugf "Asynchronous response:%n%s" (pretty-print response))
+  (send-async-response continuation (or response {:status HttpServletResponse/SC_NOT_FOUND})))
+
+(defn- deliver-timeout [continuation request response-ch timeout-ms]
+  (close! response-ch)
+  (l/warnf "Request %s timed out after %,d ms."
+                            (utils/summarize-request request)
+                            timeout-ms)
+  (send-async-response continuation
+                       (->
+                         (utils/response HttpServletResponse/SC_GATEWAY_TIMEOUT
+                                         "Processing of request timed out.")
+                         (r/content-type "text/plain"))))
+
 (defn- wrap-with-continuation
   [handler timeout-ms]
   (fn [request]
@@ -62,31 +77,11 @@
             response-ch (-> request
                             (dissoc ::http-servlet-request ::http-servlet-response)
                             (assoc :timeout-ch timeout-ch)
-                            handler)
-            responded (atom false)]
-
-        (take! response-ch
-               (fn [response]
-                 (when (compare-and-set! responded false true)
-                   (l/debugf "Asynchronous response:%n%s" (pretty-print response))
-                   (close! timeout-ch)
-                   (send-async-response continuation (or response {:status HttpServletResponse/SC_NOT_FOUND})))))
-
-        (take! timeout-ch
-               (fn [_]
-                 (when (compare-and-set! responded false true)
-                   ;; At this point, no longer interested in the response should it ever arrive.
-                   (close! response-ch)
-
-                   (l/warnf "Request %s timed out after %,d ms."
-                            (utils/summarize-request request)
-                            timeout-ms)
-
-                   (send-async-response continuation
-                                        (->
-                                          (utils/response HttpServletResponse/SC_GATEWAY_TIMEOUT
-                                                          "Processing of request timed out.")
-                                          (r/content-type "text/plain"))))))))
+                            handler)]
+        (go
+         (alt!
+           response-ch ([resp _] (deliver-response continuation resp))
+           timeout-ch  ([_ _] (deliver-timeout continuation request response-ch timeout-ms))))))
 
     ;; Return nil right now, to prevent the proxy handler from sending an immediate response.
     nil))
