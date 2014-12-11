@@ -1,4 +1,6 @@
-## 0.1.19 - UNRELEASED
+## 0.1.20 - UNRELEASED
+
+## 0.1.19 - 11 Dec 2014
 
 * Improvements to response validation, especially when exceptions occur during validation
 * io.aviso.rook.client has changed in minor, but incompatible ways (see below)
