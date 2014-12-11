@@ -6,7 +6,7 @@
            (org.eclipse.jetty.continuation ContinuationSupport Continuation))
   (:require
     [clojure.tools.logging :as l]
-    [clojure.core.async :refer [go <! timeout alts! take! close!]]
+    [clojure.core.async :refer [go timeout alt! close!]]
     [io.aviso.rook.utils :as utils]
     [io.aviso.toolchest.collections :refer [pretty-print pretty-print-brief]]
     [ring.util
