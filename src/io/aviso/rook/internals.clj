@@ -46,16 +46,14 @@
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
   is converted to a 500 response.
 
-  The request is used when reporting the exception (it contains a :request-id
-  key set by [[io.aviso.rook.client/send]])."
+  The request is used when reporting the exception; it is passed the incoming request
+  so that it can report the method and URI."
   [request & body]
   `(try
      ~@body
      (catch Throwable t#
        (let [r# ~request]
-         (l/errorf t# "Exception processing request %s (%s)"
-                   (:request-id r# (or "<INCOMING>"))
-                   (utils/summarize-request r#)))
+         (l/error t# "Exception processing request" (utils/summarize-request r#)))
        (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                        {:exception (to-message t#)}))))
 
@@ -103,3 +101,33 @@
     (get-in request [:io.aviso.rook/injections injection-key])
     (throw (ex-info (format "Unable to retrieve injected value for key `%s'." injection-key)
                     {:request request}))))
+
+(defn- convert-middleware-form
+  [handler-sym metadata-sym form]
+  `(or
+     ~(if (list? form)
+        (list* (first form) handler-sym metadata-sym (rest form))
+        (list form handler-sym metadata-sym))
+     ~handler-sym))
+
+(defmacro compose-middleware
+  "Assembles multiple endpoint middleware forms into a single endpoint middleware. Each middleware form
+  is either a list or a single form, that will be wrapped as a list.
+
+  The list is modified so that the first two values passed in are the previous handler and the metadata (associated
+  with the endpoint function).
+
+  The form should evaluate to a new handler, or the old handler. As a convienience, the form may
+  evaluate to nil, which will keep the original handler passed in.
+
+  Returns a function that accepts a handler and middleware and invokes each middleware form in turn, returning
+  a final handler function.
+
+  This is patterned on Clojure's -> threading macro, with some significant differences."
+  [& middlewares]
+  (let [handler-sym (gensym "handler")
+        metadata-sym (gensym "metadata")]
+    `(fn [~handler-sym ~metadata-sym]
+       (let [~@(interleave (repeat handler-sym)
+                           (map (partial convert-middleware-form handler-sym metadata-sym) middlewares))]
+         ~handler-sym))))
