@@ -76,10 +76,10 @@
   The keys of the responses metadata are the status codes to match, the values are schemas to match against the body
   of the response (there is no validation of headers).
 
-  A response schema may be nil, in which case there is no validation of the body (but the status code must be a key
+  A response schema may be nil, in which case there is no validation of the body (but the actual status code must be a key
   of the :responses metadata).
 
-  A response in the 5xx range is not validated in anyway, as there represent failures within a endpoint function,
+  A response in the 5xx range is not validated in anyway, as these represent failures within a endpoint function,
   or a downstream failure passed through the endpoint function.
 
   Response validation should generally be the final middleware in a endpoint function's pipeline, to ensure
