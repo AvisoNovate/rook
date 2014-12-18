@@ -185,7 +185,7 @@
                remaining-clauses)))))
 
 (defmacro then*
-  "A macro that provide the underpinnings of the [[then]] macro; it extracts the status from the response
+  "A macro that provides the underpinnings of the [[then]] macro; it extracts the status from the response
   and dispatches to the first matching clause."
   [response & clauses]
   (let [local-response (gensym "response")
