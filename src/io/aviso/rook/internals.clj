@@ -22,26 +22,6 @@
        :params
        (medley/map-keys to-clojureized-keyword)))
 
-(defn- require-port?
-  [scheme port]
-  (case scheme
-    :http (not (= port 80))
-    :https (not (= port 443))
-    true))
-
-(defn resource-uri-for
-  "Backs [[io.aviso.rook/resource-uri-arg-resolver]] and
-  ^:resource-uri tag support in [[io.aviso.rook.dispatcher]]."
-  [request]
-  (let [server-uri (or (:server-uri request)
-                       (str (-> request :scheme name)
-                            "://"
-                            (-> request :server-name)
-                            (let [port (-> request :server-port)]
-                              (if (require-port? (:scheme request) port)
-                                (str ":" port)))))]
-    (str server-uri (:context request) "/")))
-
 (defmacro safety-first
   "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
   is converted to a 500 response.

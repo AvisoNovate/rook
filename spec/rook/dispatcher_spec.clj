@@ -1,8 +1,7 @@
 (ns rook.dispatcher-spec
   (:use speclj.core
         clojure.pprint)
-  (:require [io.aviso.rook.dispatcher :as dispatcher]
-            [io.aviso.rook.client :as client]
+  (:require [io.aviso.rook.dispatcher :as d]
             [io.aviso.rook.utils :as utils]
             [io.aviso.rook.async :as rook-async]
             [io.aviso.rook :as rook]
@@ -13,31 +12,8 @@
             [clojure.core.async :as async]
             ring.middleware.params
             ring.middleware.keyword-params
-            [clojure.pprint :as pp]
-            [clojure.edn :as edn]
-            [clojure.pprint :as pprint])
-  (:import (javax.servlet.http HttpServletResponse)))
-
-(defn wrap-with-pprint-request [handler]
-  (fn [request]
-    (utils/pprint-code request)
-    (handler request)))
-
-(defn wrap-with-pprint-response [handler]
-  (fn [request]
-    (let [resp (handler request)]
-      (if (satisfies? clojure.core.async.impl.protocols/ReadPort resp)
-        (let [v (async/<!! resp)]
-          (async/>!! resp v)
-          (utils/pprint-code v))
-        (utils/pprint-code resp))
-      (prn)
-      resp)))
-
-(defn wrap-with-incrementer [handler atom]
-  (fn [request]
-    (swap! atom inc)
-    (handler request)))
+            [clojure.edn :as edn])
+  (:import [javax.servlet.http HttpServletResponse]))
 
 
 (defn generate-huge-resource-namespace [ns-name size]
@@ -88,9 +64,11 @@
            (defn create [^:param x]
              (resp/response (str "Created " x))))))
 
-(defn namespace->handler [namespace]
-  (->> (dispatcher/namespace-dispatch-table [namespace])
-       (dispatcher/compile-dispatch-table)
+(defn namespace->handler
+  "Converts a single namespace (identified as a symbol) into a Ring handler."
+  [namespace]
+  (->> (d/construct-namespace-handler {} [[namespace]])
+       first
        ring.middleware.keyword-params/wrap-keyword-params
        ring.middleware.params/wrap-params))
 
@@ -104,144 +82,86 @@
    [:post ["foo"] 'example.foo/create default-middleware]
    [:get ["foo" :id] 'example.foo/show default-middleware]])
 
+{:default :keyword
+ 'default :symbol}
+
+(defn override-middleware [])
+
+(def mock-default-arg-resolvers
+  {:default :keyword
+   'default :symbol})
+
 (describe "io.aviso.rook.dispatcher"
 
-  (describe "pathvec->path"
+  (describe "build-namespace-table"
 
-    (it "should correctly convert pathvecs to paths"
-        (should= "/" (dispatcher/pathvec->path []))
-        (should= "/foo" (dispatcher/pathvec->path ["foo"]))
-        (should= "/foo/bar" (dispatcher/pathvec->path ["foo" "bar"]))
-        (should= "/foo/:id" (dispatcher/pathvec->path ["foo" :id]))))
+    (it "allows missing values"
+        (->> (d/build-namespace-table [] mock-default-arg-resolvers :default-middleware
+                                      [['just.the.namespace]])
+             (should= [[[]
+                        'just.the.namespace
+                        mock-default-arg-resolvers
+                        :default-middleware]])))
 
-  (describe "unnest-dispatch-table"
+    (it "builds the namespace context from the root context"
+        (->> (d/build-namespace-table ["api"] mock-default-arg-resolvers :default-middleware
+                                      [["just" 'just.the.namespace]])
+             (should= [[["api" "just"]
+                        'just.the.namespace
+                        mock-default-arg-resolvers
+                        :default-middleware]])))
 
-    (it "should leave tables with no nesting unchanged"
+    (it "prefers the namespace's middleware to the default"
+        (->> (d/build-namespace-table [] mock-default-arg-resolvers :default-middleware
+                                      [['just.the.namespace override-middleware]])
+             (should= [[[]
+                        'just.the.namespace
+                        mock-default-arg-resolvers
+                        override-middleware]])))
 
-        (should= simple-dispatch-table
-                 (dispatcher/unnest-dispatch-table simple-dispatch-table)))
+    (it "merges the namespace argument resolvers with the default argument resolvers"
+        (->> (d/build-namespace-table [] mock-default-arg-resolvers :default-middleware
+                                      [['just.the.namespace ^:replace {:override true}]])
+             (should= [[[]
+                        'just.the.namespace
+                        {:override true}
+                        :default-middleware]])))
 
-    (it "should correctly unnest DTs WITHOUT default middleware"
+    (it "processes multiple namespaces"
+        (->> (d/build-namespace-table ["api"] mock-default-arg-resolvers :default-middleware
+                                      [["alpha" 'namespace.alpha]
+                                       ["beta" 'namespace.beta]])
+             (should= [[["api" "alpha"]
+                        'namespace.alpha
+                        mock-default-arg-resolvers
+                        :default-middleware]
+                       [["api" "beta"]
+                        'namespace.beta
+                        mock-default-arg-resolvers
+                        :default-middleware]])))
 
-        (let [dt [(into [["api"]] simple-dispatch-table)]]
-          (should= [[:get ["api" "foo"] 'example.foo/index default-middleware]
-                    [:post ["api" "foo"] 'example.foo/create default-middleware]
-                    [:get ["api" "foo" :id] 'example.foo/show default-middleware]]
-                   (dispatcher/unnest-dispatch-table dt))))
-
-    (it "should correctly unnest DTs WITH default middleware and empty context pathvec"
-
-        (let [dt [(into [[] default-middleware]
-                        (mapv pop simple-dispatch-table))]]
-          (should= simple-dispatch-table
-                   (dispatcher/unnest-dispatch-table dt))))
-
-    (it "should correctly unnest DTs WITH default middleware and non-empty context pathvec"
-
-        (let [dt [(into [["api"] default-middleware]
-                        (mapv pop simple-dispatch-table))]]
-          (should= [[:get ["api" "foo"] 'example.foo/index default-middleware]
-                    [:post ["api" "foo"] 'example.foo/create default-middleware]
-                    [:get ["api" "foo" :id] 'example.foo/show default-middleware]]
-                   (dispatcher/unnest-dispatch-table dt)))))
-
-
-  (describe "compile-dispatch-table"
-
-    (it "should produce a handler returning valid response maps"
-
-        (let [handler (dispatcher/compile-dispatch-table simple-dispatch-table)
-              index-response (handler (mock/request :get "/foo"))
-              show-response (handler (mock/request :get "/foo/1"))
-              create-response (handler (merge (mock/request :post "/foo")
-                                              {:params {:x 123}}))]
-          (should= {:status 200 :headers {} :body "Hello!"}
-                   index-response)
-          (should= {:status 200 :headers {} :body "Interesting id: 1"}
-                   show-response)
-          (should= {:status 200 :headers {} :body "Created 123"}
-                   create-response)))
-
-    (it "should inject the default middleware"
-
-        (let [a (atom 0)]
-          (with-redefs [default-middleware (fn [handler metadata]
-                                             (fn [request]
-                                               (swap! a inc)
-                                               (handler request)))]
-            (let [local-dispatch-table [[:get ["foo"] 'example.foo/index default-middleware]]
-                  handler (dispatcher/compile-dispatch-table local-dispatch-table)]
-              (handler (mock/request :get "/foo"))
-              (should= 1 @a))))))
-
-  (describe "namespace-dispatch-table"
-
-    (it "should return a DT reflecting the state of the namespace"
-
-        (let [dt (set (dispatcher/unnest-dispatch-table
-                        (dispatcher/namespace-dispatch-table
-                          [["foo"] 'example.foo default-middleware])))]
-          (should= (set simple-dispatch-table) dt)))
-
-    (it "should respect the :context option"
-
-        (let [dt (set (dispatcher/unnest-dispatch-table
-                        (dispatcher/namespace-dispatch-table
-                          {:context ["api"]}
-                          [["foo"] 'example.foo default-middleware])))]
-          (should= (set (map (fn [[_ pathvec :as entry]]
-                               (update-in entry [1] #(into ["api"] %)))
-                             simple-dispatch-table))
-                   dt)))
-
-    (it "should respect the :default-middleware option"
-
-        (let [dt (dispatcher/unnest-dispatch-table
-                   (dispatcher/namespace-dispatch-table
-                     {:default-middleware 'very-strange-middleware}
-                     [["foo"] 'example.foo]))]
-          (should (every? #{'very-strange-middleware} (map peek dt)))))
-
-    (it "should only use :default-middleware in absence of explicit middleware"
-
-        (let [completely-regular-middleware (fn [handler meta])
-              very-strange-middleware (fn [handler meta])
-              dt (dispatcher/unnest-dispatch-table
-                   (dispatcher/namespace-dispatch-table
-                     {:default-middleware very-strange-middleware}
-                     [["foo"] 'example.foo]
-                     [["bar"] 'example.bar completely-regular-middleware]))
-              foos (filter (fn [[_ [seg] & _]] (= seg "foo")) dt)
-              bars (filter (fn [[_ [seg] & _]] (= seg "bar")) dt)]
-          (should= 3 (count foos))
-          (should= 3 (count bars))
-          (should= #{very-strange-middleware completely-regular-middleware}
-                   (set (map peek dt)))
-          (should= #{very-strange-middleware}
-                   (set (map peek foos)))
-          (should= #{completely-regular-middleware}
-                   (set (map peek bars)))))
-
-    (it "should support ns-specs consisting of the ns symbol alone"
-
-        (let [dt (dispatcher/unnest-dispatch-table
-                   (dispatcher/namespace-dispatch-table
-                     {:context            ["foo"]
-                      :default-middleware default-middleware}
-                     ['example.foo]))]
-          (should= (set simple-dispatch-table)
-                   (set dt))))
-
-
-    (it "should report invalid namespace specs well"
-        (try
-          (dispatcher/namespace-dispatch-table {}
-                                               ;; A simple, comment error: example.foo is nested incorrectly.
-                                               [[:post "/foo" 'example.foo]])
-          (should-fail)
-          (catch Throwable t
-            (should-contain "Parsing namespace specification `[[:post \"/foo\" example.foo]]'."
-                            (-> t .getData :operation-trace))))))
+    (it "passes containing namespace values as defaults to nested"
+        (->> (d/build-namespace-table ["api"] mock-default-arg-resolvers :default-middleware
+                                      [["alpha" 'namespace.alpha ^:replace {:alpha :one} override-middleware
+                                        ["one" 'namespace.alpha-1]
+                                        ["two" 'namespace.alpha-2]]
+                                       ["beta" 'namespace.beta]])
+             (should= [[["api" "alpha"]
+                        'namespace.alpha
+                        {:alpha :one}
+                        override-middleware]
+                       [["api" "alpha" "one"]
+                        'namespace.alpha-1
+                        {:alpha :one}
+                        override-middleware]
+                       [["api" "alpha" "two"]
+                        'namespace.alpha-2
+                        {:alpha :one}
+                        override-middleware]
+                       [["api" "beta"]
+                        'namespace.beta
+                        mock-default-arg-resolvers
+                        :default-middleware]]))))
 
   (describe "compiled handlers using map traversal"
 
@@ -268,8 +188,7 @@
                               (-> handler
                                   ring.middleware.keyword-params/wrap-keyword-params
                                   ring.middleware.params/wrap-params))
-                         dt (dispatcher/namespace-dispatch-table ['rook-test mw])
-                         handler (dispatcher/compile-dispatch-table nil dt)
+                         [handler] (d/construct-namespace-handler nil [['rook-test mw]])
                          body #(:body % %)]
                      (-> (mock/request method path)
                          (update-in [:params] merge extra-params)
@@ -294,8 +213,7 @@
                  handler
                  :body
                  :matched
-                 (should= "second-match")
-                 ))))
+                 (should= "second-match")))))
 
     (describe "argument resolution"
 
@@ -322,13 +240,13 @@
     (it "should return a channel with the correct response"
 
         (let [handler (rook/namespace-handler {:async? true}
-                                              [[] 'barney default-middleware])]
+                                              ['barney default-middleware])]
           (should= {:message "ribs!"}
                    (-> (mock/request :get "/") handler async/<!! :body))))
 
     (it "should expose the request's :params key as an argument"
         (let [handler (rook/namespace-handler {:async? true}
-                                              [[] 'echo-params])
+                                              ['echo-params])
               params {:foo :bar}]
           (should-be-same params
                           (-> (mock/request :get "/")
@@ -351,9 +269,8 @@
   (describe "handlers with schema attached"
 
     (it "should respond appropriately given a valid request"
-        (let [handler (->> (dispatcher/namespace-dispatch-table
-                             [["validating"] 'validating rook-async/wrap-with-schema-validation])
-                           (dispatcher/compile-dispatch-table {:async? true})
+        (let [handler (->> (rook/namespace-handler {:async? true}
+                                                   [["validating"] 'validating rook-async/wrap-with-schema-validation])
                            rook-async/async-handler->ring-handler)
               response (-> (mock/request :post "/validating")
                            (merge {:params {:name "Vincent"}})
@@ -362,9 +279,8 @@
           (should= [:name] (:body response))))
 
     (it "should send schema validation failures"
-        (let [handler (->> (dispatcher/namespace-dispatch-table
+        (let [handler (->> (rook/namespace-handler {:async? true}
                              ["validating" 'validating rook-async/wrap-with-schema-validation])
-                           (dispatcher/compile-dispatch-table {:async? true})
                            rook-async/async-handler->ring-handler
                            ring.middleware.keyword-params/wrap-keyword-params
                            ring.middleware.params/wrap-params)
@@ -383,15 +299,14 @@
                  ((let [size 500]
                     (remove-ns 'rook.example.huge)
                     (generate-huge-resource-namespace 'rook.example.huge size)
-                    (dispatcher/compile-dispatch-table
-                      (dispatcher/namespace-dispatch-table ['rook.example.huge])))
-                  {:request-method :get
-                   :uri            "/foo0/123"
-                   :server-name    "127.0.0.1"
-                   :port           8080
-                   :remote-addr    "127.0.0.1"
-                   :scheme         :http
-                   :headers        {}}))))
+                    (rook/namespace-handler ['rook.example.huge]))
+                   {:request-method :get
+                    :uri            "/foo0/123"
+                    :server-name    "127.0.0.1"
+                    :port           8080
+                    :remote-addr    "127.0.0.1"
+                    :scheme         :http
+                    :headers        {}}))))
 
   (describe "running inside jetty-async-adapter"
 
@@ -411,9 +326,9 @@
                                 ["creator" 'creator]
                                 ["creator-loopback" 'creator-loopback]
                                 ["static" 'static]
-                                [["static2" :foo "asdf"] 'static2 dispatcher/default-namespace-middleware]
-                                ["catch-all" 'catch-all dispatcher/default-namespace-middleware]
-                                ["surprise" 'surprise dispatcher/default-namespace-middleware
+                                [["static2" :foo "asdf"] 'static2 d/default-namespace-middleware]
+                                ["catch-all" 'catch-all d/default-namespace-middleware]
+                                ["surprise" 'surprise d/default-namespace-middleware
                                  [[:id "foo"] 'surprise-foo]]
                                 ["foobar" 'foobar])
                               rook-async/wrap-session

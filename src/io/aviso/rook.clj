@@ -12,7 +12,7 @@
 
 (p/import-vars
 
-  [io.aviso.rook.internals get-injection])
+  [io.aviso.rook.internals get-injection compose-middleware])
 
 (defn find-injection
   "Retrieves an optional injected value from the request, returning nil if the value does not exist."
@@ -65,10 +65,10 @@
 
 (defmacro try-swagger [& body]
   `(try
-    (require 'io.aviso.rook.swagger)
-    ~@body
-    (catch ClassNotFoundException e#
-      (l/warn ":swagger was specified as an option but is not available - check dependencies to ensure ring-swagger is included"))))
+     (require 'io.aviso.rook.swagger)
+     ~@body
+     (catch ClassNotFoundException e#
+       (l/warn ":swagger was specified as an option but is not available - check dependencies to ensure ring-swagger is included"))))
 
 (defn namespace-handler
   "Examines the given namespaces and produces either a Ring handler or
@@ -81,7 +81,7 @@
   The individual namespaces are specified as vectors of the following
   shape:
 
-      [context? ns-sym middleware?]
+      [context? ns-sym argument-resolvers? middleware? nested...?]
 
   The optional fragments are interpreted as below (defaults listed in
   brackets):
@@ -95,14 +95,21 @@
 
      The symbol for the namespace that is to be mapped.
 
+   - argument-resolvers?
+
+     A map of argument resolvers that apply to the namespace, and to any child namespaces.
+
    - middleware? ([[dispatcher/default-namespace-middleware]] or as supplied in options):
 
      Middleware to be applied to terminal handlers found in this
      namespace.
 
+   - nested...? are child namespaces, each its own recursive namespace spec.
+     Child namespaces inherite the context, argument resolvers, and middleware
+     of the containing namespace.
+
   The options map, if supplied, can include a number of values
-  as defined by [[dispatcher/compile-dispatch-table]] and
-  [[dispatcher/namespace-dispatch-table]].
+  as defined by [[dispatcher/construct-namespace-handler]].
 
   Example call:
 
@@ -115,54 +122,20 @@
         ;; quux has special requirements:
         [[\"quux\"] 'example.quux special-middleware])."
   {:arglists '([options & ns-specs]
-               [& ns-specs])}
+                [& ns-specs])}
   [& &ns-specs]
   (t/track
     #(format "Building namespace handler for %s." (pretty-print &ns-specs))
     (consume &ns-specs
-      [options map? :?
-       ns-specs :&]
-      (let [swagger-enabled (:swagger options)
-            options' (if swagger-enabled
-                       (try-swagger
-                         (assoc-in options [:arg-resolvers 'swagger]
-                                   (constantly
-                                     ((resolve 'io.aviso.rook.swagger/namespace-swagger) options ns-specs))))
-                       (or options {}))
-            ns-specs' (if swagger-enabled
-                        (try-swagger
-                          ((resolve 'io.aviso.rook.swagger/swaggerize-ns-specs) ns-specs))
-                        ns-specs)
-            dispatch-table (apply dispatcher/namespace-dispatch-table options' ns-specs')]
-        (dispatcher/compile-dispatch-table options' dispatch-table)))))
+             [options map? :?
+              ns-specs :&]
+             (let [swagger-enabled (:swagger options)
+                   ns-specs' (if swagger-enabled
+                               (try-swagger
+                                 ((resolve 'io.aviso.rook.swagger/swaggerize-ns-specs) ns-specs))
+                               ns-specs)
+                   [handler routing-table] (dispatcher/construct-namespace-handler options ns-specs')]
+               ;; A bit more coming w.r.t. Swagger
+               handler))))
 
 
-(defn- convert-middleware-form
-  [handler-sym metadata-sym form]
-  `(or
-     ~(if (list? form)
-        (list* (first form) handler-sym metadata-sym (rest form))
-        (list form handler-sym metadata-sym))
-     ~handler-sym))
-
-(defmacro compose-middleware
-  "Assembles multiple endpoint middleware forms into a single endpoint middleware. Each middleware form
-  is either a list or a single form, that will be wrapped as a list.
-
-  The list is modified so that the first two values passed in are the previous handler and the metadata (associated
-  with the endpoint function).
-
-  The form should evaluate to a new handler, or the old handler. As a convienience, the form may
-  evaluate to nil, which will keep the original handler passed in.
-
-  Returns a function that accepts a handler and middleware and invokes each middleware form in turn, returning
-  a final handler function.
-
-  This is patterned on Clojure's -> threading macro, with some significant differences."
-  [& middlewares]
-  (let [handler-sym (gensym "handler")
-        metadata-sym (gensym "metadata")]
-    `(fn [~handler-sym ~metadata-sym]
-       (let [~@(interleave (repeat handler-sym)
-                           (map (partial convert-middleware-form handler-sym metadata-sym) middlewares))]
-         ~handler-sym))))
