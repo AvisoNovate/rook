@@ -1,5 +1,6 @@
 (ns io.aviso.rook.internals
   "Unsupported internal functions used in the implementation."
+  {:no-doc true}
   (:require
     [io.aviso.toolchest.exceptions :refer [to-message]]
     [io.aviso.rook.utils :as utils]

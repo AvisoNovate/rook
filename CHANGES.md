@@ -1,5 +1,9 @@
 ## 0.1.20 - UNRELEASED
 
+* Rewritten io.aviso.rook.dispatcher; simplified, and adds the ability to define
+  argument resolvers for each namespace.
+* Consolidated the documentation for namespace specifications and options in a single place.
+
 ## 0.1.19 - 11 Dec 2014
 
 * Improvements to response validation, especially when exceptions occur during validation

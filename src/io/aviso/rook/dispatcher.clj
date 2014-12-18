@@ -1,44 +1,14 @@
 (ns io.aviso.rook.dispatcher
-  "This namespace deals with dispatch tables mapping route specs of
-  the form
+  "The heart of Rooks dispatch logic, converting namespace specifications into a Ring request handler
+  (with special hooks to deal with Rook's async variant on the standard Ring pipeline).
 
-      [method [path-segment ...]]
-
-  to endpoint functions. The recognized format is described at
-  length in the docstrings of the [[unnest-dispatch-table]] and
-  [[request-route-spec]] functions exported by this namespace.
-
-  User code interested in setting up a handler for a RESTful API will
-  typically not interact with this namespace directly; rather, it will
-  use [[io.aviso.rook/namespace-handler]]. Functions exported by this
-  namespace can be useful, however, to code that wishes to use the
-  dispatcher in a more flexible way (perhaps avoiding the namespace to
-  resource correspondence) and utility add-ons that wish to deal with
-  dispatch tables directly.
-
-  The expected way to use this namespace is as follows:
-
-   - namespaces correspond to resources;
-
-   - [[namespace-dispatch-table]] produces a dispatch table for a single
-     namespace
-
-   - any number of such dispatch tables can be concatenated to form a
-     dispatch table for a collection of resources
-
-   - such compound dispatch tables can be compiled using
-     [[compile-dispatch-table]].
-
-  The individual endpoint functions are expected to support a
-  single arity only. The arglist for that arity and the metadata on
-  the endpoint function will be examined to determine the
-  correct argument resolution strategy at dispatch table compilation
-  time."
+  The main function is [[construct-namespace-handler]], but this is normally only invoked
+  by [[namespace-handler]]."
   {:added "0.1.10"}
   (:import
     [java.net URLDecoder])
   (:require
-    [clojure.core.async :as async :refer [chan close!]]
+    [clojure.core.async :refer [chan close!]]
     [clojure.string :as string]
     [io.aviso.tracker :as t]
     [io.aviso.toolchest.macros :refer [consume cond-let]]
@@ -97,30 +67,30 @@
   [handler metadata]
   handler)
 
-(defn make-header-arg-resolver [sym]
+(defn- make-header-arg-resolver [sym]
   (fn [request]
     (-> request :headers (get (name sym)))))
 
-(defn make-param-arg-resolver [sym]
+(defn- make-param-arg-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (-> request :params kw))))
 
-(defn make-request-key-resolver [sym]
+(defn- make-request-key-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (kw request))))
 
-(defn make-route-param-resolver [sym]
+(defn- make-route-param-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (-> request ::route-params kw))))
 
-(defn make-resource-uri-arg-resolver [sym]
+(defn- make-resource-uri-arg-resolver [sym]
   (fn [request]
     (resource-uri-for request)))
 
-(defn make-injection-resolver [sym]
+(defn- make-injection-resolver [sym]
   (let [kw (keyword sym)]
     (fn [request]
       (internals/get-injection request kw))))
@@ -243,7 +213,7 @@
                               (str/join ", " resolver-ks))
                       {:arg arg :resolver-tags resolver-ks})))))
 
-(defn identify-argument-resolver
+(defn- identify-argument-resolver
   "Identifies the specific argument resolver function for an argument, which can come from many sources based on
   configuration in general, metadata on the argument symbol and on the function's metadata (merged with
   the containing namespace's metadata).
@@ -587,44 +557,7 @@
   "Invoked from [[namespace-handler]] to construct a Ring request handler for the provided
   options and namespace specifications.
 
-  Supported options and their default values:
 
-  :async?
-  : _Default: false_
-  : Determines the way in which middleware is applied to the terminal
-    handler. Pass in true when compiling async handlers.
-  : Note that when async is enabled, you must be careful to only apply middleware that
-    is appropriately async aware.
-
-  :sync-wrapper
-  : _Default: anonymous_
-  : Converts a synchronous request handler into
-    an asynchronous handler; this is only used in async mode, when the endpoint
-    function has the :sync metadata. The value is an async Rook middleware
-    (passed the request handler, and the endpoint function's metadata).
-
-  :arg-resolvers
-  : _Default: nil]_
-  : Map of symbol to (keyword or function of request) or keyword
-    to (function of symbol returning function of request). Entries of
-    the former provide argument resolvers to be used when resolving
-    arguments named by the given symbol; in the keyword case, a known
-    resolver factory will be used. Entries of the latter type
-    introduce custom resolver factories. Tag with {:replace true} to
-    exclude default resolvers and resolver factories; tag with
-    {:replace-resolvers true} or {:replace-factories true} to leave
-    out default resolvers or resolver factories, respectively.
-
-  :context
-  : _Default: []_
-  : A root context that all namespaces are placed under, for example [\"api\"].
-
-  :default-middleware
-  : _Default: [[default-namespace-middleware]]
-  : Default endpoint middleware applied to the basic handler for
-    each endpoint function (the basic handler resolver arguments and passes
-    them to the endpoint function).
-    The default leaves the basic handler unchanged.
 
   Returns a tuple of the constructed handler and the routing table (the flattened
   version of the namespace specifications)."

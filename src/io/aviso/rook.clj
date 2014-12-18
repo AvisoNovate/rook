@@ -63,7 +63,7 @@
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
 
-(defmacro try-swagger [& body]
+(defmacro ^:no-doc try-swagger [& body]
   `(try
      (require 'io.aviso.rook.swagger)
      ~@body
@@ -83,44 +83,89 @@
 
       [context? ns-sym argument-resolvers? middleware? nested...?]
 
-  The optional fragments are interpreted as below (defaults listed in
-  brackets):
+  The optional fragments are interpreted as below:
 
-   - context? ([]):
+  context?
+  : A context (a string, or a vector of strings and/or keywords) to be prepended to paths for all entries
+  emitted for this namespace.
 
-     A context (a string, or a vector of strings and/or keywords) to be prepended to paths for all entries
-     emitted for this namespace.
+  ns-sym
+  : The symbol for the namespace that is to be mapped.
+  : This is the only required value in the namespace specification.
 
-   - ns-sym
+  argument-resolvers?
+  : A map of argument resolvers that apply to the namespace, and to any child namespaces.
 
-     The symbol for the namespace that is to be mapped.
+  middleware?
+  : Middleware to be applied to terminal handlers found in this
+  namespace.
 
-   - argument-resolvers?
+  nested...?
+  : Defines child namespaces, each its own recursive namespace specification.
+  Child namespaces inherit the context, argument resolvers, and middleware
+  of the containing namespace.
 
-     A map of argument resolvers that apply to the namespace, and to any child namespaces.
+  Supported options and their default values:
 
-   - middleware? ([[dispatcher/default-namespace-middleware]] or as supplied in options):
+  :async?
+  : _Default: false_
+  : Determines the way in which middleware is applied to the terminal
+    handler. Pass in true when compiling async handlers.
 
-     Middleware to be applied to terminal handlers found in this
-     namespace.
+  : Note that when async is enabled, you must be careful to only apply middleware that
+    is appropriately async aware.
 
-   - nested...? are child namespaces, each its own recursive namespace spec.
-     Child namespaces inherite the context, argument resolvers, and middleware
-     of the containing namespace.
+  :sync-wrapper
+  : Converts a synchronous request handler into
+  an asynchronous handler; this is only used in async mode, when the endpoint
+  function has the :sync metadata. The value is an async Rook middleware
+  (passed the request handler, and the endpoint function's metadata).
 
-  The options map, if supplied, can include a number of values
-  as defined by [[dispatcher/construct-namespace-handler]].
+  : Generally, you only need to override the default when you want to change
+  the exception catching and reporting behavior built into the default wrapper.
+
+  :arg-resolvers
+  : Map of symbol to (keyword or function of request) or keyword
+  to (function of symbol returning function of request). Entries of
+  the former provide argument resolvers to be used when resolving
+  arguments named by the given symbol; in the keyword case, a known
+  resolver factory will be used.
+
+  : Normally, the provided map is merged into the map inherited from
+  the containing namespace (or elsewhere), but this can be controlled
+  using metadata on the map.
+
+  Tag with {:replace true} to
+  exclude inherited resolvers and resolver factories; tag with
+  {:replace-resolvers true} or {:replace-factories true} to leave
+  out default resolvers or resolver factories, respectively.
+
+  :context
+  : _Default: []_
+  : A root context that all namespaces are placed under, for example [\"api\"].
+
+  :default-middleware
+  : _Default: [[default-namespace-middleware]]_
+  : Default endpoint middleware applied to the basic handler for
+  each endpoint function (the basic handler resolver arguments and passes
+  them to the endpoint function).
+  The default leaves the basic handler unchanged.
 
   Example call:
 
-      (namespace-handler
-        {:context            [\"api\"]
-         :default-middleware basic-middleware}
-        ;; foo & bar use basic middleware:
-        [\"foo\" 'example.foo]
-        [\"bar\" 'example.bar]
-        ;; quux has special requirements:
-        [[\"quux\"] 'example.quux special-middleware])."
+       (namespace-handler
+         {:context            [\"api\"]
+          :default-middleware custom-middleware
+          :arg-resolvers      {'if-unmodified-since :header
+                               'if-modified-since   :header}}
+         ;; foo & bar use custom-middleware:
+         [\"hotels\" 'org.example.resources.hotels
+           [[:hotel-id \"rooms\"] 'org.example.resources.rooms]]
+         [\"bars\" 'org.example.resources.bars]
+         ;; taxis has special requirements:
+         [\"taxis\" 'org.example.resources.taxis
+           {:dispatcher dispatcher-resolver-factory}
+           taxi-middleware])."
   {:arglists '([options & ns-specs]
                 [& ns-specs])}
   [& &ns-specs]
