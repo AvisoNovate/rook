@@ -13,7 +13,8 @@
     rook-test6
     [ring.mock.request :as mock]
     ring.middleware.params
-    ring.middleware.keyword-params))
+    ring.middleware.keyword-params
+    [io.aviso.rook :as rook]))
 
 
 (defn param-handling [handler]
@@ -119,6 +120,17 @@
             (assoc :uri "/nested2")
             handler
             (get-in [:headers "Location"])))
+
+    (it "uses actual path values from the current request, not keywords, when building the path"
+        (let [handler (rook/namespace-handler
+                        ["hotels" 'hotels
+                         [[:hotel-id "rooms"] 'rooms]])
+              response (-> (mock/request :post "/hotels/1023/rooms")
+                           handler)]
+          (should= "http://localhost/hotels/1023/rooms/227" (get-in response [:headers "Location"]))
+          ;; This makes sense, the "1023" is a string from the request path, but the 227 is
+          ;; a placeholder for a database-generated numeric id.
+          (should= {:id 227 :hotel-id "1023"} (:body response))))
 
     (it "will use the :server-uri key if present"
         (should= "http://overrride.com/api/"
