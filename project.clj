@@ -22,7 +22,7 @@
                            [medley "0.5.3" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.4.0" :excludes [cheshire]]
                            [prismatic/schema "0.3.3" :exclusions [potemkin]]
-                           [metosin/ring-swagger "0.14.0" :optional true :exclusions [org.clojure/clojure]]
+                           [metosin/ring-swagger "0.15.0" :optional true :exclusions [org.clojure/clojure]]
                            [metosin/ring-swagger-ui "2.0.17" :optional true]
                            [clj-http "1.0.1" :optional true]]
             :plugins [[speclj "3.1.0"]
