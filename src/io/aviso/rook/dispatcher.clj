@@ -445,8 +445,8 @@
            doall))))
 
 (defn- construct-routing-table
-  "Expands the output of [[build-namespace-table]], converting each namespace entry into
-  a series of entries:
+  "Expands the output of [[build-namespace-table]] and [[expand-namespace-metadata]], converting each namespace entry into
+  a seq of routing entries:
 
       [method path handler endpoint-meta route-params]
 
@@ -465,21 +465,29 @@
 
   The handler-wrapper is a special middleware placed *before* any normal middleware for the
   endpoint. For synchronous Rook, it is always identity. For async Rook, it converts
-  a synchronous handler into an asynchronous handler, using the core.async thread macro."
-  [handler-wrapper ns-table]
-  (mapcat (partial expand-namespace-entry handler-wrapper) ns-table))
+  a synchronous handler into an asynchronous handler, using the core.async thread macro.
+
+  Returns a map whose keys are ns-specs (the inputs from the ns-table) and whose
+  values are a seq of routing entries (for that immediate namespace)."
+  [sync-wrapper ns-table]
+  (reduce
+    (fn [result ns-spec]
+      (assoc result ns-spec (expand-namespace-entry sync-wrapper ns-spec)))
+    {}
+    ns-table))
 
 (defn- construct-dispatch-map
-  "Constructs the dispatch map from the handlers. The structure of the dispatch map
+  "Constructs the dispatch map from routing specs (created by
+  [[construct-routing-table]]. The structure of the dispatch map
   is a tree. Each node on the tree is a map.
 
-  String keys in a node are literal terms in the path, the value is a nested nodes.
+  String keys in a node are literal terms in the path, the value is a nested node.
 
   The :_ key in a node represents a position of a path argument, the value is a nested node.
 
   The other keys in a node are request methods (:get, :put, etc., or :all). The value
   is a vector of handler data, each of which is a vector of [handler endpoint-meta route-params]."
-  [routing-table]
+  [routing-specs]
   (let [conj' (fnil conj [])]
     (reduce
       (fn [dispatch-map [method path handler endpoint-meta]]
@@ -491,11 +499,14 @@
                                           (assoc m term i)
                                           m))
                                       {}
-                                      path)]
+                                      path)
+              ;; Only these two keys are needed by the map traversal dispatcher, so there's no reason to keep
+              ;; the full metdata of the endpoint.
+              endpoint-meta' (select-keys endpoint-meta [:function :match])]
           (update-in dispatch-map path'
-                     conj' [handler endpoint-meta route-params])))
+                     conj' [handler endpoint-meta' route-params])))
       {}
-      routing-table)))
+      routing-specs)))
 
 (defn- endpoint-filter
   [request [_ {endpoint-matcher :match}]]
@@ -583,8 +594,11 @@
                              (if async?
                                (get options :sync-wrapper default-sync-wrapper)
                                default-namespace-middleware)))
-        handler (->> routing-table
-                     construct-dispatch-map
-                     (create-map-traversal-handler
-                       (if async? closed-channel)))]
+        handler (->>
+                  routing-table
+                  vals
+                  (apply concat)
+                  construct-dispatch-map
+                  (create-map-traversal-handler
+                    (if async? closed-channel)))]
     [handler routing-table]))
