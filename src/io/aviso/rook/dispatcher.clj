@@ -341,7 +341,31 @@
                          (reduce conj! $ nested'))
                    (rest remaining)))))))
 
+(defn- evaluate-namespace-metadata
+  [context ns-sym]
+  (t/track
+    #(format "Loading namespace `%s'." ns-sym))
+  (try
+    (if-not (find-ns ns-sym)
+      (require ns-sym))
+    (catch Exception e
+      (throw (ex-info (format "Failed to require namespace `%s': %s"
+                              ns-sym
+                              (to-message e))
+                      {:context   context
+                       :namespace ns-sym}
+                      e))))
+  (t/track
+    #(format "Evaluating metadata for namespace `%s'." ns-sym)
+    (binding [*ns* (the-ns ns-sym)]
+      (-> *ns* meta eval))))
 
+(defn- expand-namespace-metadata
+  "Adds a fifth element to each ns-spec, the evaluated namespace meta-data"
+  [ns-specs]
+  (map (fn [[context ns-sym :as ns-spec]]
+         (conj ns-spec (evaluate-namespace-metadata context ns-sym)))
+       ns-specs))
 
 (defn- construct-namespace-table-entry
   [sync-wrapper container-context ns-sym arg-resolvers middleware ns-metadata fn-name fn-var]
@@ -408,29 +432,16 @@
           [method endpoint-context request-handler merged-metadata])))))
 
 (defn- expand-namespace-entry
-  [sync-wrapper [context ns-sym arg-resolvers middleware]]
+  [sync-wrapper [context ns-sym arg-resolvers middleware ns-metadata]]
   (t/track
-    (format "Identifying endpoints in namespace `%s.'" ns-sym)
-
-    (try
-      (if-not (find-ns ns-sym)
-        (require ns-sym))
-      (catch Exception e
-        (throw (ex-info (format "Failed to require namespace `%s': %s"
-                                ns-sym
-                                (to-message e))
-                        {:context   context
-                         :namespace ns-sym}
-                        e))))
-
-    (let [ns-metadata (binding [*ns* (the-ns ns-sym)]
-                        (-> *ns* meta eval (dissoc :doc)))
-          arg-resolvers' (merge-arg-resolver-maps arg-resolvers (:arg-resolvers ns-metadata))]
+    #(format "Identifying endpoints in namespace `%s.'" ns-sym)
+    (let [ns-metadata' (dissoc ns-metadata :doc)
+          arg-resolvers' (merge-arg-resolver-maps arg-resolvers (:arg-resolvers ns-metadata'))]
       (->> ns-sym
            ns-publics
            (keep (fn [[k v]]
                    (if (ifn? @v)
-                     (construct-namespace-table-entry sync-wrapper context ns-sym arg-resolvers' middleware ns-metadata k v))))
+                     (construct-namespace-table-entry sync-wrapper context ns-sym arg-resolvers' middleware ns-metadata' k v))))
            doall))))
 
 (defn- construct-routing-table
@@ -557,8 +568,6 @@
   "Invoked from [[namespace-handler]] to construct a Ring request handler for the provided
   options and namespace specifications.
 
-
-
   Returns a tuple of the constructed handler and the routing table (the flattened
   version of the namespace specifications)."
   {:added "0.1.20"}
@@ -569,6 +578,7 @@
                              (get options :context [])
                              (merge-arg-resolver-maps default-arg-resolvers (get options :arg-resolvers))
                              (get options :default-middleware default-namespace-middleware))
+                           expand-namespace-metadata
                            (construct-routing-table
                              (if async?
                                (get options :sync-wrapper default-sync-wrapper)
