@@ -1,4 +1,4 @@
-## 0.1.20 - UNRELEASED
+## 0.1.20 - 23 Dec 2014
 
 * Rewritten io.aviso.rook.dispatcher; simplified, and adds the ability to define
   argument resolvers for each namespace.
