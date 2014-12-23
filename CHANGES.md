@@ -3,6 +3,11 @@
 * Rewritten io.aviso.rook.dispatcher; simplified, and adds the ability to define
   argument resolvers for each namespace.
 * Consolidated the documentation for namespace specifications and options in a single place.
+* Attempting to use Swagger without the necessary dependencies will now be a failure (a
+  descriptive exception will be thrown).
+* Lots of other progress on making the Swagger support usable.
+
+[Closed Issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aclosed+milestone%3A0.1.20+)
 
 ## 0.1.19 - 11 Dec 2014
 
