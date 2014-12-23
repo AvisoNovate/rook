@@ -152,6 +152,11 @@
   them to the endpoint function).
   The default leaves the basic handler unchanged.
 
+  :swagger
+  : _Default: false_
+  : If true, then the *expermental* swagger support is enabled.
+  : See the [[io.aviso.rook.swagger]] namespace for more details.
+
   Example call:
 
        (namespace-handler
