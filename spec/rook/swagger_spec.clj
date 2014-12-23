@@ -45,8 +45,7 @@
     :routes      [{:method :get
                    :uri    "/hotels"
                    :metadata
-                           {:summary
-                                              "Returns a list of all hotels, with control over sort order."
+                           {:summary          "Returns a list of all hotels, with control over sort order."
                             :return           200
                             :responseMessages [{:code          200
                                                 :message       ""
@@ -76,7 +75,7 @@
     :routes      [{:method :post
                    :uri    "/hotels/{hotel-id}/rooms"
                    :metadata
-                           {:summary          nil
+                           {:summary          "No endpoint description provided."
                             :return           nil
                             :responseMessages ()
                             :parameters
@@ -116,6 +115,6 @@
              (map :path)
              sort
              ;; This is wrong and a fix is coming:
-             (should= ["//hotels" "//hotels/{hotel-id}/rooms"])))))
+             (should= ["/hotels" "/hotels/{hotel-id}/rooms"])))))
 
 (run-specs)

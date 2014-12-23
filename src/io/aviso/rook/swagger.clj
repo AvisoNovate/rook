@@ -6,20 +6,24 @@
   into a description compatible with the ring-swagger library."
   {:since "0.1.14"
    :sync  true}
-  (:require [io.aviso.rook.dispatcher :as dispatcher]
-            [io.aviso.rook.internals :as internals]
+  (:require [io.aviso.rook.internals :as internals]
             [ring.swagger.core :as swagger]
             [ring.swagger.ui :as ui]
             [clojure.string :as string]
             [io.aviso.rook :as rook]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [io.aviso.rook.utils :as utils]))
 
 ;;; 'swagger presumed resolvable (namespace-handler will provide an
 ;;; injection if asked to swaggerize the handler)
 
 (defn index
   [swagger]
-  (swagger/api-listing {} swagger))
+  (-> swagger/swagger-defaults
+      (assoc :apis (for [[path {:keys [description]}] swagger]
+                     {:path        path
+                      :description description}))
+      (utils/response)))
 
 (defn show
   [request swagger id]
@@ -98,7 +102,7 @@
                swagger-args (arglist-swagger schema route-params arglist)]
            {:method   method
             :uri      (->swagger-path path)
-            :metadata {:summary          (:doc endpoint-meta)
+            :metadata {:summary          (or (:doc endpoint-meta) "No endpoint description provided.")
                        :return           (get-success responses)
                        :responseMessages (for [[status schema] responses]
                                            {:code          (long status)
@@ -121,7 +125,7 @@
     (fn [swagger [[context _ _ _ ns-meta] routing-specs]]
       (assoc swagger
              (->swagger-path context)
-             {:description (:doc ns-meta)
+             {:description (or (:doc ns-meta) "No resource description provided.")
               :routes      (routing-specs->swagger-routes routing-specs)}))
     {}
     routing-table))
