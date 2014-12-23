@@ -344,21 +344,22 @@
 (defn- evaluate-namespace-metadata
   [context ns-sym]
   (t/track
-    #(format "Loading namespace `%s'." ns-sym))
-  (try
-    (if-not (find-ns ns-sym)
-      (require ns-sym))
-    (catch Exception e
-      (throw (ex-info (format "Failed to require namespace `%s': %s"
-                              ns-sym
-                              (to-message e))
-                      {:context   context
-                       :namespace ns-sym}
-                      e))))
-  (t/track
-    #(format "Evaluating metadata for namespace `%s'." ns-sym)
-    (binding [*ns* (the-ns ns-sym)]
-      (-> *ns* meta eval))))
+    #(format "Loading namespace `%s'." ns-sym)
+    (try
+      (if-not (find-ns ns-sym)
+        (require ns-sym))
+      (catch Exception e
+        (throw (ex-info (format "Failed to require namespace `%s': %s"
+                                ns-sym
+                                (to-message e))
+                        {:context   context
+                         :namespace ns-sym}
+                        e))))
+
+    (t/track
+      #(format "Evaluating metadata for namespace `%s'." ns-sym)
+      (binding [*ns* (the-ns ns-sym)]
+        (-> *ns* meta eval)))))
 
 (defn- expand-namespace-metadata
   "Adds a fifth element to each ns-spec, the evaluated namespace meta-data"
