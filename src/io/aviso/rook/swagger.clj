@@ -2,26 +2,41 @@
 
   "ALPHA / EXPERIMENTAL
 
-  Adapter for ring-swagger. Consumes dispatch table descriptors in the
-  format used by [[io.aviso.rook/namespace-handler]]."
-  {:since "0.1.14"}
+  Adapter for ring-swagger. Converts an intermediate description of the namespaces
+  into a description compatible with the ring-swagger library."
+  {:since "0.1.14"
+   :sync  true}
   (:require [io.aviso.rook.dispatcher :as dispatcher]
+            [io.aviso.rook.internals :as internals]
             [ring.swagger.core :as swagger]
             [ring.swagger.ui :as ui]
             [clojure.string :as string]
-            [clojure.core.async :as async]))
+            [io.aviso.rook :as rook]
+            [clojure.string :as str]))
 
-(defn nickname [sym]
+;;; 'swagger presumed resolvable (namespace-handler will provide an
+;;; injection if asked to swaggerize the handler)
+
+(defn index
+  [swagger]
+  (swagger/api-listing {} swagger))
+
+(defn show
+  [request swagger id]
+  (swagger/api-declaration {} swagger id
+                           (swagger/basepath request)))
+
+(defn- nickname [sym]
   (string/replace (str (namespace sym) "__" (name sym)) #"[/.-]" "_"))
 
-(defn prefix [pathvec]
+(defn- prefix [pathvec]
   (string/join "_"
                (map #(if (or (keyword? %) (symbol? %))
                       (str "_" (name %))
                       %)
                     pathvec)))
 
-(defn get-success
+(defn- get-success
   ([responses]
     (get-success responses nil))
   ([responses not-found]
@@ -30,16 +45,34 @@
         s?
         not-found))))
 
+(defn- ->swagger-term [value]
+  (if (keyword? value)
+    (str \{ (name value) \})
+    value))
+
+(defn- ->swagger-path
+  "Create a string from a dispatcher path, which consists of strings and keywords.
+  Result will have a leading slash."
+  [path]
+  (->>
+    (map ->swagger-term path)
+    (str/join "/")
+    (apply str "/")))
+
 ;;; FIXME
-(defn header? [arg]
+(defn- header? [arg]
   (:header (meta arg)))
 
 ;;; FIXME
-(defn param? [arg]
+(defn- param? [arg]
   (:param (meta arg)))
 
 ;;; FIXME
-(defn arglist-swagger [schema route-params arglist]
+;; My current thoughts are that the argument resolvers should provide
+;; metadata for each argument that can be passed through here, to identify
+;; the Swagger data for the parameter.  Injections and the like would
+;; simply be ignored.
+(defn- arglist-swagger [schema route-params arglist]
   (vec
     (keep (fn [arg]
             (cond
@@ -52,107 +85,65 @@
               :else nil))
           arglist)))
 
-(defn routing-table->swagger-routes
-  [routing-table]
-  #_ (let [routes (-> (dispatcher/namespace-dispatch-table options ns-spec)
-                   dispatcher/unnest-dispatch-table
-                   (dispatcher/analyse-dispatch-table options))]
-    (mapv (fn [[method pathvec handler endpoint-metadata]]
-            (let [path (dispatcher/pathvec->path pathvec)
-                  arglist (-> endpoint-metadata :arglists first)
-                  route-params (->> endpoint-metadata
-                                    :route
-                                    second
-                                    (filter keyword?)
-                                    (map (comp symbol name))
-                                    set)
-                  schema (:schema endpoint-metadata)
-                  ps (arglist-swagger schema (set route-params) arglist)]
-              {:method   method
-               :uri      path
-               :metadata {:summary          (:doc endpoint-metadata)
-                          :return           (get-success (:responses endpoint-metadata))
-                          :responseMessages (for [[status schema] (:responses endpoint-metadata)]
-                                              {:code          (long status)
-                                               :message       ""
-                                               :responseModel schema})
-                          :nickname         (-> handler :verb-fn-sym nickname)
-                          :parameters       ps}}))
-          routing-table)))
+(defn- routing-specs->swagger-routes
+  [routing-specs]
+  (map (fn [[method path _ endpoint-meta]]
+         (let [responses (:responses endpoint-meta)
+               route-params (->> path
+                                 (filter keyword?)
+                                 (map (comp symbol name))
+                                 set)
+               schema (:schema endpoint-meta)
+               arglist (-> endpoint-meta :arglists first)
+               swagger-args (arglist-swagger schema route-params arglist)]
+           {:method   method
+            :uri      (->swagger-path path)
+            :metadata {:summary          (:doc endpoint-meta)
+                       :return           (get-success responses)
+                       :responseMessages (for [[status schema] responses]
+                                           {:code          (long status)
+                                            :message       ""
+                                            :responseModel schema})
+                       :parameters       swagger-args}}))
+       routing-specs))
 
-(defn namespace-swagger
-  "Takes ns-specs in the format expected by
-  [[io.aviso.rook/namespace-handler]] and returns a
-  ring-swagger-compatible description of the API they define.
-
-  The `options` map used with [[io.aviso.rook/namespace-handler]], if
-  any, should be passed in to enable correct parameter types to be
-  established.
+(defn construct-swagger
+  "Provided with the routing table produced by
+  [[io.aviso.rook.dispatcher/construct-namespace-handler]]
+  and constructs a the swagger datastructure that will be provided
+  as an injection to the various endpoint functions in this namespace.
 
   Formal parameters resolved to :param will be annotated as being of
   Swagger paramType \"query\". Formal parameters resolved to
   injections and the like will be omitted."
   [routing-table]
-  #_ (let [options' (merge default-opts options)
-        default-middleware (:default-middleware options')
-        ns-specs (dispatcher/canonicalize-ns-specs
-                   []
-                   default-middleware
-                   (if (map? options)
-                     ns-specs
-                     (cons options ns-specs)))]
-    (reduce (fn [swagger [pathvec ns-sym :as ns-spec]]
-              (let [prefix (prefix pathvec)
-                    ns-doc (:doc (meta (find-ns ns-sym)))
-                    routes-swagger (routing-table->swagger-routes
-                                     options' ns-spec)]
-                (-> swagger
-                    (assoc-in [prefix :description] ns-doc)
-                    (assoc-in [prefix :routes]
-                              routes-swagger))))
-            {}
-            ns-specs)))
-
-;;; 'swagger presumed resolvable (namespace-handler will provide an
-;;; injection if asked to swaggerize the handler)
-
-(defn index
-  {:sync  true
-   :route [:get ["swagger"]]}
-  [swagger]
-  (swagger/api-listing {} swagger))
-
-(defn show
-  {:sync  true
-   :route [:get ["swagger" :id]]}
-  [request swagger id]
-  (swagger/api-declaration {} swagger id
-                           (swagger/basepath request)))
-
-(defn swaggerize-ns-specs
-  "Adds Swagger endpoints to the given ns-specs. Intended for use by
-  [[io.aviso.rook/namespace-handler]]."
-  [ns-specs]
-  (cons ['io.aviso.rook.swagger {'swagger :injection} dispatcher/default-namespace-middleware] ns-specs))
-
-(def swagger-ui (ui/swagger-ui "/swagger-ui" :swagger-docs "/swagger"))
+  (reduce
+    (fn [swagger [[context _ _ _ ns-meta] routing-specs]]
+      (assoc swagger
+             (->swagger-path context)
+             {:description (:doc ns-meta)
+              :routes      (routing-specs->swagger-routes routing-specs)}))
+    {}
+    routing-table))
 
 (defn wrap-with-swagger-ui
   "Gives swagger-ui the opportunity to handle a request before passing
   it on to the wrapped handler. Wraps swagger responses in channels if
   `:async? true` is supplied. (The wrapped handler is presumed async
   in that case and its responses are not wrapped.)"
-  ([handler]
-    (wrap-with-swagger-ui handler {:async? false}))
-  ([handler {:keys [async?]}]
-    (if async?
-      (fn [request]
-        (if-let [swagger-response (swagger-ui request)]
-          (async/to-chan [swagger-response])
-          (handler request)))
-      (fn [request]
-        (or (swagger-ui request)
-            (handler request))))))
+  [handler {:keys [async?]} routing-table]
+  (let [swagger (construct-swagger routing-table)
+        swagger-ui (ui/swagger-ui "/swagger-ui" :swagger-docs "/swagger")
+        handler' (if async?
+                   (fn [request]
+                     (if-let [swagger-response (swagger-ui request)]
+                       (internals/result->channel swagger-response)
+                       (handler request)))
+                   (fn [request]
+                     (or (swagger-ui request)
+                         (handler request))))]
+    ;; Remove the mapping for swagger itself form what's exposed.
+    (rook/wrap-with-injection handler' :swagger (dissoc swagger "/swagger"))))
 
 (defmethod ring.swagger.json-schema/json-type Integer [_]
   {:type "integer" :format "int32"})

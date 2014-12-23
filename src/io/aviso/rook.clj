@@ -182,11 +182,13 @@
               ns-specs :&]
              (let [swagger-enabled (:swagger options)
                    ns-specs' (if swagger-enabled
-                               (try-swagger
-                                 ((resolve 'io.aviso.rook.swagger/swaggerize-ns-specs) ns-specs))
+                               (cons ["swagger" 'io.aviso.rook.swagger {'swagger :injection} dispatcher/default-namespace-middleware]
+                                     ns-specs)
                                ns-specs)
                    [handler routing-table] (dispatcher/construct-namespace-handler options ns-specs')]
-               ;; A bit more coming w.r.t. Swagger
-               handler))))
+               (if swagger-enabled
+                 (try-swagger
+                   ((resolve 'io.aviso.rook.swagger/wrap-with-swagger-ui) handler options routing-table))
+                 handler)))))
 
 
