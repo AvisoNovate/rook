@@ -1,20 +1,18 @@
 (ns rook.rook-spec
-  (:use
-  io.aviso.rook
-  speclj.core
-  clojure.template)
-  (:require
-    [io.aviso.rook.dispatcher :as d]
-    rook-test
-    rook-test2
-    rook-test3
-    rook-test4
-    rook-test5
-    rook-test6
-    [ring.mock.request :as mock]
-    ring.middleware.params
-    ring.middleware.keyword-params
-    [io.aviso.rook :as rook]))
+  (:use io.aviso.rook
+        speclj.core
+        clojure.template)
+  (:require [io.aviso.rook.dispatcher :as d]
+            rook-test
+            rook-test2
+            rook-test3
+            rook-test4
+            rook-test5
+            rook-test6
+            [ring.mock.request :as mock]
+            ring.middleware.params
+            ring.middleware.keyword-params
+            [io.aviso.rook :as rook]))
 
 
 (defn param-handling [handler]
