@@ -68,7 +68,8 @@
      (require 'io.aviso.rook.swagger)
      ~@body
      (catch ClassNotFoundException e#
-       (l/warn ":swagger was specified as an option but is not available - check dependencies to ensure ring-swagger is included"))))
+       (throw (ex-info ":swagger was specified as an option but is not available - check dependencies to ensure ring-swagger is included."
+                       {})))))
 
 (defn namespace-handler
   "Examines the given namespaces and produces either a Ring handler or
