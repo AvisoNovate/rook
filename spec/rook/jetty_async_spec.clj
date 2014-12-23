@@ -40,7 +40,8 @@
 
   (it "can process requests and return responses"
 
-      (let [response (client/get "http://localhost:9988/fred" {:accept :json})]
+      (let [response (client/get "http://localhost:9988/fred" {:accept           :json
+                                                               :throw-exceptions false})]
         (should= HttpServletResponse/SC_OK (:status response))
         (should= "application/json; charset=utf-8" (-> response :headers (get "Content-Type")))
         (should= "{\"message\":\":barney says `ribs!'\"}" (:body response))))
