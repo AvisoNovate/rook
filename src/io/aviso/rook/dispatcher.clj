@@ -466,7 +466,7 @@
   endpoint-meta
   : Merged meta-data for the handler, including key :function (namespace qualified name of the function)
 
-  The handler-wrapper is a special middleware placed *before* any normal middleware for the
+  The sync-wrapper is a special middleware placed *before* any normal middleware for the
   endpoint. For synchronous Rook, it is always identity. For async Rook, it converts
   a synchronous handler into an asynchronous handler, using the core.async thread macro.
 
