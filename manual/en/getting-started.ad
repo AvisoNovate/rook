@@ -45,8 +45,6 @@ Rook applies a naming convention to functions, so simply naming a function with 
 |===
 
 
-
-
 Keywords in the path, such as `:id` for the `show` function, represent values that
 can be provided to the endpoint functions; it's just a matter of providing
 a argument with a matching name:

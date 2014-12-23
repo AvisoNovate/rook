@@ -83,7 +83,7 @@ of the function.
 So the work cycle is:
 
 * Start the application
-* Navigate as normal
+* Navigate in the browser as normal
 * Make changes to source files
 * Use Cursive to reload the affected namespaces footnote:[Cursive is good about loading all changed namespaces, in dependency order]
 * Refresh in the browser and continue

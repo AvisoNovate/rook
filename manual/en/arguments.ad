@@ -191,7 +191,7 @@ Finding the argument resolver for an argument involves checks in the following o
 * By metadata tag
 * By convention name
 
-WARNING: Each argument to an endpoint function *must* have an argument resolver or an exception will
+WARNING: Each argument to an endpoint function *must* have a corresponding argument resolver or an exception will
 be thrown when constructing the namespace handler.
 
 == Overriding Default Argument Resolvers
@@ -215,9 +215,10 @@ this merge-or-replace behavior:
 :replace-resolvers
 : Resolver functions (symbol keys) are removed from the default map before merging.
 
-Argument resolver merging occurs in two places:
+Argument resolver merging occurs in several places:
 
-First, the :arg-resolvers option passed to namespace-handler is used to merge or replace the hard-coded
-default set of resolvers.
-The result of that merge becomes the new base set of argument resolvers, allowing each endpoint function's :arg-resolvers metadata to
-further merge or replace.
+* The :arg-resolvers option passed to namespace-handler merges or replaces the hard-coded default set of resolvers
+* Each namespace may provide a map of argument resolvers in the link:namespaces.html[namespace specification]
+* Each individual endpoint function may provide :arg-resolvers metadata (often inherited from the namespace containing the function)
+
+

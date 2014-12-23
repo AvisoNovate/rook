@@ -26,7 +26,9 @@ With using run-async-jetty, you can specify a request timeout. The default timeo
 A request that is not processed before the timeout is sent an 504 Gateway Timeout response.
 
 The timeout is managed using a core.async channel; this channel is stored in the request
-as key :timeout-ch.
+as key :timeout-ch. If you have long running operations that should terminate if the request
+as a whole times out, you can use this channel to determine when the request has timed out. footnote:[As with
+any core.async timeout channel, *never* close this channel explicitly.]
 
 == Wrapping Synchronous Handlers
 

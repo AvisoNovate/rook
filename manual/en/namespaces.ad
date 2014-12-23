@@ -73,6 +73,24 @@ The default middleware only applies to namespaces with no explicit middleware.
 In this example, the /status resource uses the standard-middleware; the
 other two resources use the auth-middleware.
 
+== Argument Resolvers
+
+A namespace may require a specific set of argument resolvers; this can be specified as a map
+that comes after the namespace symbol. This map is merged into the map of argument resolvers
+inherited from a containing namespace.
+
+== Order of Specification Elements
+
+A namespace specification is a vector that consists of the following optional and required elements:
+
+* The context for the namespace as a string, or a vector of strings and keywords (optional)
+* The symbol identifying the namespace (required)
+* A map of argument resolvers for the namespace (optional)
+* The endpoint middleware function for the namespace (optional)
+* Any number of nested namespace specifications (optional)
+
+The goal is to make the namespace declarations compact and concise, but allow for refinement when necessary.
+
 == Nested Namespaces
 
 In many real world cases, resources are nested. For example, you application may be modelling hotels; each hotel contains rooms that can be booked by customers.
@@ -96,6 +114,9 @@ set of middleware specs.
 Now, every endpoint function inside the rooms namespace will have the
 [:hotel-id "rooms"] prefix. hotel-id will be a resolvable argument.
 
+Nested namespaces inherit the argument resolvers and middleware from their containing namespace, and may further override
+these values.
+
 An example function might be to book a room with a URI like +/hotels/_12345_/rooms/237/book+:
 
 [source,clojure]
@@ -108,9 +129,6 @@ An example function might be to book a room with a URI like +/hotels/_12345_/roo
 
 Any number of namespaces may be nested this way: for example, a hotel may also rent conferences spaces and function halls.
 
-In addition, it is possible to specify overriding options, as a map, just before
-the first nested namespace spec.
-
 == Context Path
 
 It is common to want to place your resources under a common prefix; such as +/api+.
@@ -119,7 +137,7 @@ Rook doesn't use link:https://github.com/weavejester/compojure[Compojure] (which
 
 Instead another namespace-handler option can be used, :context.
 
-This value is a series of path elements that are prefixed to any paths.
+This value is a series of path elements that are prefixed to any namespace paths.
 
 [source,clojure]
 ----
