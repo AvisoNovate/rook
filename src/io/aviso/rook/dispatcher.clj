@@ -20,6 +20,10 @@
     [io.aviso.rook.utils :as utils]
     [medley.core :as medley]))
 
+(def ^:private supported-methods
+  "The supported methods, used to \"split\" a route with method :all."
+  #{:get :put :post :patch :delete :head :options})
+
 (def ^:private default-mappings
 
   "Default function -> route spec mappings.
@@ -377,7 +381,15 @@
        [method path :as route] (or (:route fn-meta)
                                    (get default-mappings fn-name))]
 
-      (if (some? route)
+      (when (some? route)
+
+        (if-not (or (= :all method)
+                    (supported-methods method))
+          (throw (ex-info (format "HTTP method %s is not supported. Supported methods are: %s, or :all (to match regardless of method)."
+                                  method
+                                  (->> supported-methods sort (str/join ", ")))
+                          {:function fn-name})))
+
         (let [endpoint-name (str ns-sym "/" fn-name)
               merged-metadata (merge ns-metadata
                                      {:function endpoint-name
@@ -479,6 +491,12 @@
     {}
     ns-table))
 
+(def ^:private conj' (fnil conj []))
+
+(defn- add-handler-to-dispatch-map [dispatch-map path method handler endpoint-meta route-params]
+  (update-in dispatch-map (conj path method)
+             conj' [handler endpoint-meta route-params]))
+
 (defn- construct-dispatch-map
   "Constructs the dispatch map from routing specs (created by
   [[construct-routing-table]]. The structure of the dispatch map
@@ -491,25 +509,28 @@
   The other keys in a node are request methods (:get, :put, etc., or :all). The value
   is a vector of handler data, each of which is a vector of [handler endpoint-meta route-params]."
   [routing-specs]
-  (let [conj' (fnil conj [])]
-    (reduce
-      (fn [dispatch-map [method path handler endpoint-meta]]
-        (let [path' (conj (mapv #(if (keyword? %) :_ %) path)
-                          method)
-              ;; Build a map from keyword to its position in the path
-              route-params (reduce-kv (fn [m i term]
-                                        (if (keyword? term)
-                                          (assoc m term i)
-                                          m))
-                                      {}
-                                      path)
-              ;; Only these two keys are needed by the map traversal dispatcher, so there's no reason to keep
-              ;; the full metdata of the endpoint.
-              endpoint-meta' (select-keys endpoint-meta [:function :match])]
-          (update-in dispatch-map path'
-                     conj' [handler endpoint-meta' route-params])))
-      {}
-      routing-specs)))
+  (reduce
+    (fn [dispatch-map [method path handler endpoint-meta]]
+      (let [path' (mapv #(if (keyword? %) :_ %) path)
+            ;; Build a map from keyword to its position in the path
+            route-params (reduce-kv (fn [m i term]
+                                      (if (keyword? term)
+                                        (assoc m term i)
+                                        m))
+                                    {}
+                                    path)
+            ;; Only these two keys are needed by the map traversal dispatcher, so there's no reason to keep
+            ;; the full metdata of the endpoint.
+            endpoint-meta' (select-keys endpoint-meta [:function :match])]
+        (if (= :all method)
+          (reduce (fn [dispatch-map method]
+                    (add-handler-to-dispatch-map dispatch-map path' method handler endpoint-meta' route-params))
+                  dispatch-map
+                  supported-methods)
+          ;; This is the standard case:
+          (add-handler-to-dispatch-map dispatch-map path' method handler endpoint-meta' route-params))))
+    {}
+    routing-specs))
 
 (defn- endpoint-filter
   [request [_ {endpoint-matcher :match}]]
@@ -519,8 +540,7 @@
 
 (defn- invoke-leaf'
   [request request-method request-path dispatch-node]
-  (let [potentials (concat (get dispatch-node request-method)
-                           (get dispatch-node :all))
+  (let [potentials (get dispatch-node request-method)
         matches (filterv (partial endpoint-filter request) potentials)]
     (case (count matches)
       1 (let [[handler _ route-params] (first matches)]

@@ -140,6 +140,11 @@
                         mock-default-arg-resolvers
                         :default-middleware]])))
 
+    (it "throws an exception for an unrecognized method in a route"
+        (->>
+          (d/construct-namespace-handler {} [['invalid-route]])
+          (should-throw Throwable "HTTP method :update is not supported. Supported methods are: :delete, :get, :head, :options, :patch, :post, :put, or :all (to match regardless of method).")))
+
     (it "passes containing namespace values as defaults to nested"
         (->> (d/build-namespace-table ["api"] mock-default-arg-resolvers :default-middleware
                                       [["alpha" 'namespace.alpha ^:replace {:alpha :one} override-middleware
