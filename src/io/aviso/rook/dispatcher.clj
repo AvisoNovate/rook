@@ -395,11 +395,13 @@
 
               arglist (-> fn-meta :arglists first)
 
+              route-params (->> endpoint-context
+                                (filter keyword?)
+                                (map (comp symbol name))
+                                set)
+
               arglist-resolver (create-arglist-resolver endpoint-arg-resolvers
-                                                        (->> endpoint-context
-                                                             (filter keyword?)
-                                                             (map (comp symbol name))
-                                                             set)
+                                                        route-params
                                                         arglist)
 
               context-length (count container-context)
