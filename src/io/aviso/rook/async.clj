@@ -24,22 +24,21 @@
     perform its own async operations, is more challenging.
     The delegated handler should be invoked inside a [[safe-go]] block, so that the result from the handler
     can be obtained without blocking."
-  (:import (javax.servlet.http HttpServletResponse))
-  (:require
-    io.aviso.rook.internals
-    [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
-    [io.aviso.toolchest.exceptions :refer [to-message]]
-    ring.middleware.params
-    ring.middleware.keyword-params
-    [ring.middleware
-     [session :as session]
-     [format-params :as format-params]
-     [format-response :as format-response]]
-    [io.aviso.rook
-     [schema-validation :as sv]
-     [response-validation :as rv]
-     [utils :as utils]]
-    [potemkin :as p]))
+  (:require io.aviso.rook.internals
+            [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
+            [io.aviso.toolchest.exceptions :refer [to-message]]
+            ring.middleware.params
+            ring.middleware.keyword-params
+            [ring.middleware
+             [session :as session]
+             [format-params :as format-params]
+             [format-response :as format-response]]
+            [io.aviso.rook
+             [schema-validation :as sv]
+             [response-validation :as rv]
+             [utils :as utils]]
+            [potemkin :as p])
+  (:import (javax.servlet.http HttpServletResponse)))
 
 (p/import-vars [io.aviso.rook.internals
 
@@ -59,31 +58,31 @@
   "Asychronous version of `ring.middleware.format/wrap-restful-format`; this implementation
   will work properly inside an asynchronous pipeline."
   ([handler]
-   (wrap-restful-format handler [:json-kw :edn]))
+    (wrap-restful-format handler [:json-kw :edn]))
   ([handler formats]
-   (let [req-handler (format-params/wrap-restful-params handler :formats formats)]
-     (fn [request]
-       (let [response-ch (chan 1)]
-         ;; To keep things fully asynchronous, we first invoke the downstream handler.
-         (take! (try
-                  (req-handler request)
-                  (catch Throwable t
-                         (result->channel
-                           (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                                           {:exception (to-message t)}))))
-                (fn [handler-response]
-                  (if handler-response
-                    (put! response-ch
-                          (->
-                            ;; We can't pass the asynchronous req-handler to w-r-r, it expects
-                            ;; a sync handler. Instead, we provide a "fake" sync handler
-                            ;; that returns the previously obtained handler response.
-                            (constantly handler-response)
-                            (format-response/wrap-restful-response :formats formats)
-                            ;; Capture and invoke the wrapped, fake handler
-                            (as-> f (f request))))
-                    (close! response-ch))))
-         response-ch)))))
+    (let [req-handler (format-params/wrap-restful-params handler :formats formats)]
+      (fn [request]
+        (let [response-ch (chan 1)]
+          ;; To keep things fully asynchronous, we first invoke the downstream handler.
+          (take! (try
+                   (req-handler request)
+                   (catch Throwable t
+                     (result->channel
+                       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                                       {:exception (to-message t)}))))
+                 (fn [handler-response]
+                   (if handler-response
+                     (put! response-ch
+                           (->
+                             ;; We can't pass the asynchronous req-handler to w-r-r, it expects
+                             ;; a sync handler. Instead, we provide a "fake" sync handler
+                             ;; that returns the previously obtained handler response.
+                             (constantly handler-response)
+                             (format-response/wrap-restful-response :formats formats)
+                             ;; Capture and invoke the wrapped, fake handler
+                             (as-> f (f request))))
+                     (close! response-ch))))
+          response-ch)))))
 
 (defn wrap-with-standard-middleware
   "The equivalent of [[rook/wrap-with-standard-middleware]], but for an asynchronous pipeline."
@@ -102,28 +101,28 @@
   added in explicitly."
   ([handler] (wrap-session handler {}))
   ([handler options]
-   (let [options' (session-options-alias options)]
-     (fn [request]
-       (let [response-ch (chan 1)
-             request' (session/session-request request options')]
-         (take! (handler request')
-                (fn [handler-response]
-                  (if handler-response
-                    (put! response-ch (session/session-response handler-response request' options'))
-                    (close! response-ch))))
-         response-ch)))))
+    (let [options' (session-options-alias options)]
+      (fn [request]
+        (let [response-ch (chan 1)
+              request' (session/session-request request options')]
+          (take! (handler request')
+                 (fn [handler-response]
+                   (if handler-response
+                     (put! response-ch (session/session-response handler-response request' options'))
+                     (close! response-ch))))
+          response-ch)))))
 
 (defn wrap-with-response-validation
   "The async version of [[rv/wrap-with-response-validation]]."
   {:since "0.1.11"}
   ([handler metadata]
-   (wrap-with-response-validation handler metadata true))
+    (wrap-with-response-validation handler metadata true))
   ([handler metadata enabled]
-   (if enabled
-     (if-let [responses (:responses metadata)]
-       (fn [request]
-         (let [response-ch (chan 1)]
-           (take! (handler request)
-                  (fn [response]
-                    (put! response-ch (rv/ensure-matching-response response (:function metadata) responses))))
-           response-ch))))))
+    (if enabled
+      (if-let [responses (:responses metadata)]
+        (fn [request]
+          (let [response-ch (chan 1)]
+            (take! (handler request)
+                   (fn [response]
+                     (put! response-ch (rv/ensure-matching-response response (:function metadata) responses))))
+            response-ch))))))
