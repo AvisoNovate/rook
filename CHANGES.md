@@ -1,4 +1,8 @@
-## 0.2.21 - URELEASED
+## 0.2.21 - 9 Jan 2014
+
+* Removed the io.aviso.rook.jetty-async-adapter namespace; use [Jet](https://github.com/mpenet/jet) instead.
+* The dependency on Ring was switched from ring to ring/ring-core; you may need to add ring/ring-jetty-adapter 
+  in to your project.
 
 ## 0.1.20 - 23 Dec 2014
 
@@ -8,9 +12,6 @@
 * Attempting to use Swagger without the necessary dependencies will now be a failure (a
   descriptive exception will be thrown).
 * Lots of other progress on making the Swagger support usable.
-* Removed the io.aviso.rook.jetty-async-adapter namespace; use [Jet](https://github.com/mpenet/jet) instead.
-* The dependency on Ring was switched from ring to ring/ring-core; you may need to add ring/ring-jetty-adapter 
-  in to your project.
 
 [Closed Issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aclosed+milestone%3A0.1.20+)
 
