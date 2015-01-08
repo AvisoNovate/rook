@@ -7,21 +7,35 @@ request handler had to be converted into a normal, blocking, synchronous handler
 That's a shame, as it means that the number of request handling threads started by
 Jetty is a limiting factor on how many simultaneous requests can be processed.
 
-However, Jetty has an option to process requests using link:http://wiki.eclipse.org/Jetty/Feature/Continuations[_continuations_].
-The continuations approach separates the thread that receives the incoming HTTP request from
-the thread that sends the outgoing HTTP response. In this way, a relatively small
-number of HTTP request processing threads can handle a large number
-of concurrent requests.
+By switching dependency from ring/ring-jetty-adapter to cc.qbits/jet (link:https://github.com/mpenet/jet[Jet]),
+you can have the best of both worlds.
 
-Rook provides an alternate Ring adaptor for Jetty, using continuations, in
-the namespace io.aviso.rook.jetty-async-adapter.
+Jet uses Jetty version 9 (ring-jetty-adapter uses Jetty 7). It enables the use of asynchronous processing:
+handlers can return a core.async channel containing a Ring response map.
 
-The function run-async-jetty does all the work; it is passed an asynchronous request handler.
+Jet initializes slightly differently than Ring:
+
+[source,clojure]
+----
+(ns org.example.server-async
+  (:require
+    [qbits.jet.server :as jet]
+    [io.aviso.rook :as rook])
+
+(defn start-server
+   [port]
+   (let [handler (-> (rook/namespace-handler
+                       {:async? true}
+                       ["users" 'org.example.resources.users])
+                      rook/wrap-with-standard-middleware)]
+     (jet/run-jetty {:port port
+                     :join? false
+                     :ring-handler handler})))
+----
 
 == Timeouts
 
-With using run-async-jetty, you can specify a request timeout. The default timeout is
-10 seconds.
+Function io.aviso.rook.server/wrap-with-timeout wraps an asynchronous Ring handler with a timeout.
 
 A request that is not processed before the timeout is sent an 504 Gateway Timeout response.
 
@@ -33,6 +47,10 @@ any core.async timeout channel, *never* close this channel explicitly.]
 == Wrapping Synchronous Handlers
 
 The function io.aviso.rook.async/ring-handler->async-handler can be used
-to wrap a synchronous handler as an asynchronous handler. This is useful when
-you application exposed a RESTful API, but also contains a normal web application
+to wrap a synchronous handler as an asynchronous handler. This may is useful when
+you application exposes a RESTful API, but also contains a normal web application
 (including, perhaps, the use of link:../twixt/[Twixt]).
+
+Jet is smart about responses: when the response is a channel, it will take the value
+from the channel and expect that to be the true response map. This gives you a bit of flexibility
+to divide the URI space into asynchronous Rook portions, and traditional (synchronous) sections.

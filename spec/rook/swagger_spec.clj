@@ -10,7 +10,7 @@
             [io.aviso.rook :as rook]
             [clj-http.client :as client]
             [io.aviso.toolchest.collections :refer [pretty-print]]
-            [ring.adapter.jetty :as jetty]
+            [qbits.jet.server :as jet]
             [clojure.tools.logging :as l]))
 
 (defn- swagger-data [options & ns-specs]
@@ -35,7 +35,8 @@
                       expected-status#
                       (pretty-print response#))))))
 
-(defn tap [message data]
+(defn tap
+  [message data]
   (l/debugf "%s: %s" message (pretty-print data))
   data)
 
@@ -97,7 +98,9 @@
                                                    [[:hotel-id "rooms"] 'rooms]])
                           rook/wrap-with-standard-middleware))
 
-    (with-all server (jetty/run-jetty @handler {:join? false :port 8192}))
+    (with-all server (jet/run-jetty {:ring-handler @handler
+                                     :join? false
+                                     :port 8192}))
 
     (it "can start the server"
         (should-not-be-nil @server))

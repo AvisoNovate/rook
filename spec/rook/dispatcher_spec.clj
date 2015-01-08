@@ -5,14 +5,15 @@
             [io.aviso.rook.utils :as utils]
             [io.aviso.rook.async :as rook-async]
             [io.aviso.rook :as rook]
-            [io.aviso.rook.jetty-async-adapter :as jetty]
+            [qbits.jet.server :as jet]
             [clj-http.client :as http]
             [clj-http.cookies :as cookies]
             [ring.mock.request :as mock]
             [clojure.core.async :as async]
             ring.middleware.params
             ring.middleware.keyword-params
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [io.aviso.rook.server :as server])
   (:import [javax.servlet.http HttpServletResponse]))
 
 
@@ -285,7 +286,7 @@
 
     (it "should send schema validation failures"
         (let [handler (->> (rook/namespace-handler {:async? true}
-                             ["validating" 'validating rook-async/wrap-with-schema-validation])
+                                                   ["validating" 'validating rook-async/wrap-with-schema-validation])
                            rook-async/async-handler->ring-handler
                            ring.middleware.keyword-params/wrap-keyword-params
                            ring.middleware.params/wrap-params)
@@ -313,7 +314,7 @@
                     :scheme         :http
                     :headers        {}}))))
 
-  (describe "running inside jetty-async-adapter"
+  (describe "running end-to-end with Jetty (via Jet)"
 
     (with-all server
               (let [handler (->
@@ -338,9 +339,12 @@
                                 ["foobar" 'foobar])
                               rook-async/wrap-session
                               rook-async/wrap-with-standard-middleware
-                              (rook/wrap-with-injection :strange-injection "really surprising"))]
-                (jetty/run-async-jetty handler
-                                       {:host "localhost" :port 9988 :join? false :async-timeout 100})))
+                              (rook/wrap-with-injection :strange-injection "really surprising")
+                              (server/wrap-with-timeout 100))]
+                (jet/run-jetty {:host         "localhost"
+                                :port         9988
+                                :join?        false
+                                :ring-handler handler})))
 
     (it "initializes the server successfully"
         (should-not-be-nil @server))

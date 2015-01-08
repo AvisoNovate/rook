@@ -2,7 +2,8 @@
             :description "An example rook resource"
             :main org.example.server/main
             :dependencies [[org.clojure/clojure "1.6.0"]
-                           [io.aviso/rook "0.1.19"]]
+                           [io.aviso/rook "0.1.21"]
+                           [ring "1.3.2"]]
             :plugins [[speclj "3.1.0"]]
             :test-paths ["spec"]
             :profiles {:dev {:dependencies [[speclj "3.1.0"]

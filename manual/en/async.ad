@@ -8,7 +8,7 @@ A reasonable understanding of core.async is expected, to understand Rook's async
 
 In a nutshell, when processing async, endpoint functions no longer return
 a response directly; instead they must return a channel to which the response map
-will be put (using core.async's >!, >!!, or put! functions), when ready.
+will be put (using clojure.core.async/>!, >!!, or put! functions), when ready.
 
 In many cases, the endpoint function will use a core.async go or thread block,
 which automates the creation of the response channel, and the writing of the
@@ -16,16 +16,13 @@ response map into the channel.
 
 === Async Advantages
 
-Usng async, fewer threads can handle a large load (this is especially true when
-using end-to-end async). As requests come in, they consume some memory on the heap,
+Using the async approach, fewer threads can handle a large load (this is especially true when
+using link:end-to-end.html[end-to-end async]). As requests come in, they consume some memory on the heap,
 rather than tying up an entire request processing thread.
 
 Async makes it easier to apply a timeout to the processing of the entire request, as the
 request comes into the system. This makes it easier for the system to respond
 to sudden increases in load.
-
-When the system must communicate with itself, it can use link:loopbacks.html[loopbacks],
-which is an efficient way to send request and return results without involving HTTP or HTTPS; it allows for requests and responses containing Clojure data.
 
 Async allows select operations to work in parallel that would otherwise have to be serialized.
 
@@ -38,6 +35,11 @@ code that executes inside a go or thread block runs on a new thread.
 Exceptions that occur provide very little contextual information in their stack trace.
 
 Some middleware, including common middleware related to session management, must be rewritten for async.
+
+core.async can be more difficult to reason about; the behavior of channels is completely opaque.
+A failure inside a CSP is often hard to relate to the overall system, or even an individual request
+being processed; this is largely because CSPs (go and thread blocks) run in their own threads, so
+a stack trace is largely meaningless.
 
 == Basic Async
 
@@ -154,7 +156,7 @@ body of the macro throws an exception.
 
 In many cases, perhaps the majority of cases, the endpoint functions do not perform any asynchronous
 work; typically, they execute some number of database queries (which, since Java JDBC is a blocking API,
-can not benefit from asynchronicity). 
+can not benefit from asynchronous execution).
 
 By adding the :sync metadata to a function, the function can be implemented as synchronous code; that is
 it doesn't need to use an explicit go or thread block, and can simply return a response map (or nil), not
@@ -179,11 +181,11 @@ metadata to the namespace and it will apply to all functions within the namespac
 
 When using the :sync metadata, it is necessary to convert the normal Ring request handler (that itself
 invokes the endpoint function) into an async Ring request handler.
-Rook normally does this using a Rook middleware that invokes the function
+Rook normally does this using an endpoint middleware that invokes the function
 io.aviso.rook.async/ring-handler->async-handler.
 
-This is pluggable; in the options map passed to namespace-handler, the key :sync-wrapper can be specified
-(overriding the default); the value is a Rook middleware function.
+This is configurable; in the options map passed to namespace-handler, the key :sync-wrapper can be specified
+(overriding the default); the value is a endpoint middleware function.
 
 Why would you do this? Primarily it is about capturing exceptions inside the handler.
 Rook logs exceptions and provides a 500 Internal server error response map ... however, your application

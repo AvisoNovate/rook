@@ -1,25 +1,29 @@
 (ns rook.jetty-async-spec
   (:import (javax.servlet.http HttpServletResponse))
-  (:use
-  speclj.core
-  clojure.pprint)
-  (:require
-    [clojure.edn :as edn]
-    [clojure.core.async :refer [thread]]
-    [clj-http
-     [cookies :as cookies]
-     [client :as client]]
-    [io.aviso.rook :as rook]
-    [io.aviso.rook
-     [async :as async]
-     [utils :as utils]
-     [clj-http :as ch]
-     [jetty-async-adapter :as jetty]]))
+  (:use speclj.core
+        clojure.pprint)
+  (:require [clojure.edn :as edn]
+            [clojure.core.async :refer [thread]]
+            [clj-http
+             [cookies :as cookies]
+             [client :as client]]
+            [qbits.jet.server :as jet]
+            [io.aviso.rook :as rook]
+            [io.aviso.rook
+             [async :as async]
+             [utils :as utils]
+             [clj-http :as ch]]
+            [io.aviso.rook.server :as server]))
 
-(describe "io.aviso.rook.jetty-async-adapter"
+(describe "jetty-async"
 
   (with-all handler
             (ch/handler "http://localhost:9988/"))
+
+  ;; At one time, the concept of a loopback was part of Rook more explicitly, now it is just
+  ;; a common pattern (useful when resources must collaborate). The point of resources
+  ;; (and perhaps microservices) is that they should communicate as if they don't know
+  ;; whether they are remove (even when they are co-located in the same JVM).
 
   (with-all server
             (-> (rook/namespace-handler {:async?        true
@@ -33,9 +37,13 @@
                 async/wrap-session
                 async/wrap-with-standard-middleware
                 (rook/wrap-with-injection :loopback-handler @handler)
-                (jetty/run-async-jetty {:port 9988 :join? false :async-timeout 100})))
+                (server/wrap-with-timeout 100)
+                (as-> % (jet/run-jetty {:ring-handler %
+                                        :port         9988
+                                        :join?        false
+                                        :min-threads  1}))))
 
-  (it "did initialize the server successfully"
+  (it "can initialize the server successfully"
       (should-not-be-nil @server))
 
   (it "can process requests and return responses"

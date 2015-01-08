@@ -73,9 +73,7 @@
 
 (defn namespace-handler
   "Examines the given namespaces and produces either a Ring handler or
-  an asynchronous Ring handler (for use with functions exported by the
-  io.aviso.rook.async and io.aviso.rook.jetty-async-adapter
-  namespaces).
+  an asynchronous Ring handler.
 
   Options can be provided as a leading map (which is optional).
 
@@ -113,33 +111,34 @@
   : Determines the way in which middleware is applied to the terminal
     handler. Pass in true when compiling async handlers.
 
-  : Note that when async is enabled, you must be careful to only apply middleware that
-    is appropriately async aware.
+  : Note that when async is enabled, you must be careful to only apply
+    endpoint middleware that is appropriately async aware. Further,
+    the returned handler will itself be asynchronous (returning a
+    channel, not a response map), which affects any Ring middleware
+    applied to it.
 
   :sync-wrapper
   : Converts a synchronous request handler into
-  an asynchronous handler; this is only used in async mode, when the endpoint
-  function has the :sync metadata. The value is an async Rook middleware
-  (passed the request handler, and the endpoint function's metadata).
+    an asynchronous handler; this is only used in async mode, when the endpoint
+    function has the :sync metadata. The value is an async Rook middleware
+    (passed the request handler, and the endpoint function's metadata).
 
   : Generally, you only need to override the default when you want to change
-  the exception catching and reporting behavior built into the default wrapper.
+    the exception catching and reporting behavior built into the default wrapper.
 
   :arg-resolvers
   : Map of symbol to (keyword or function of request) or keyword
-  to (function of symbol returning function of request). Entries of
-  the former provide argument resolvers to be used when resolving
-  arguments named by the given symbol; in the keyword case, a known
-  resolver factory will be used.
-
+    to (function of symbol returning function of request). Entries of
+    the former provide argument resolvers to be used when resolving
+    arguments named by the given symbol; in the keyword case, a known
+    resolver factory will be used.
   : Normally, the provided map is merged into the map inherited from
-  the containing namespace (or elsewhere), but this can be controlled
-  using metadata on the map.
-
-  Tag with {:replace true} to
-  exclude inherited resolvers and resolver factories; tag with
-  {:replace-resolvers true} or {:replace-factories true} to leave
-  out default resolvers or resolver factories, respectively.
+    the containing namespace (or elsewhere), but this can be controlled
+    using metadata on the map.
+  : Tag with {:replace true} to
+    exclude inherited resolvers and resolver factories; tag with
+    {:replace-resolvers true} or {:replace-factories true} to leave
+    out default resolvers or resolver factories, respectively.
 
   :context
   : _Default: []_
@@ -148,9 +147,9 @@
   :default-middleware
   : _Default: [[default-namespace-middleware]]_
   : Default endpoint middleware applied to the basic handler for
-  each endpoint function (the basic handler resolver arguments and passes
-  them to the endpoint function).
-  The default leaves the basic handler unchanged.
+    each endpoint function (the basic handler resolver arguments and passes
+    them to the endpoint function).
+    The default leaves the basic handler unchanged.
 
   :swagger
   : _Default: false_
