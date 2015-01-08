@@ -5,20 +5,18 @@
   The main function is [[construct-namespace-handler]], but this is normally only invoked
   by [[namespace-handler]]."
   {:added "0.1.10"}
-  (:import
-    [java.net URLDecoder])
-  (:require
-    [clojure.core.async :refer [chan close!]]
-    [clojure.string :as string]
-    [io.aviso.tracker :as t]
-    [io.aviso.toolchest.macros :refer [consume cond-let]]
-    [io.aviso.toolchest.collections :refer [pretty-print]]
-    [io.aviso.toolchest.exceptions :refer [to-message]]
-    [io.aviso.rook.internals :as internals]
-    [clojure.string :as str]
-    [clojure.tools.logging :as l]
-    [io.aviso.rook.utils :as utils]
-    [medley.core :as medley]))
+  (:require [clojure.core.async :refer [chan close!]]
+            [clojure.string :as string]
+            [io.aviso.tracker :as t]
+            [io.aviso.toolchest.macros :refer [consume cond-let]]
+            [io.aviso.toolchest.collections :refer [pretty-print]]
+            [io.aviso.toolchest.exceptions :refer [to-message]]
+            [io.aviso.rook.internals :as internals]
+            [clojure.string :as str]
+            [clojure.tools.logging :as l]
+            [io.aviso.rook.utils :as utils]
+            [medley.core :as medley])
+  (:import [java.net URLDecoder]))
 
 (def ^:private supported-methods
   "The supported methods, used to \"split\" a route with method :all."
