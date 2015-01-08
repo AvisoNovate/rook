@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.1.21-SNAPSHOT"
+(defproject io.aviso/rook "0.1.21"
             :description "Sane, smart, fast, Clojure web services"
             :url "http://howardlewisship.com/io.aviso/documentation/rook"
             :license {:name "Apache Sofware License 2.0"
@@ -20,7 +20,7 @@
                            [org.clojure/tools.logging "0.3.1"]
                            [io.aviso/tracker "0.1.2"]
                            [ring/ring-core "1.3.2" :exclusions [org.clojure/tools.reader]]
-                           [medley "0.5.3" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
+                           [medley "0.5.5" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.4.0" :exclusions [cheshire com.cognitect/transit-clj ring/ring-devel ring/ring-jetty-adapter]]
                            [prismatic/schema "0.3.3" :exclusions [potemkin]]
                            ;; ring-core and ring-swagger have a conflict w.r.t clj-time "0.6.0" vs. "0.8.0".
