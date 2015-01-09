@@ -340,7 +340,8 @@
                               rook-async/wrap-session
                               rook-async/wrap-with-standard-middleware
                               (rook/wrap-with-injection :strange-injection "really surprising")
-                              (server/wrap-with-timeout 100))]
+                              (server/wrap-with-timeout 100)
+                              server/wrap-debug-request)]
                 (jet/run-jetty {:host         "localhost"
                                 :port         9988
                                 :join?        false

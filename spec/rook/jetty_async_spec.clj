@@ -38,6 +38,7 @@
                 async/wrap-with-standard-middleware
                 (rook/wrap-with-injection :loopback-handler @handler)
                 (server/wrap-with-timeout 100)
+                server/wrap-debug-request
                 (as-> % (jet/run-jetty {:ring-handler %
                                         :port         9988
                                         :join?        false

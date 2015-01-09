@@ -5,13 +5,13 @@
                       :url  "http://www.apache.org/licenses/LICENSE-2.0.html"}
             :profiles {:dev
                         {:dependencies [[ring-mock "0.1.5"]
-                                        [io.aviso/pretty "0.1.13"]
                                         [cc.qbits/jet "0.5.4"]
                                         [speclj "3.1.0"]
                                         [log4j "1.2.17"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
+                           [io.aviso/pretty "0.1.13"]
                            [io.aviso/toolchest "0.1.1"]
                            [cheshire "5.4.0"]
                            [potemkin "0.3.11"]

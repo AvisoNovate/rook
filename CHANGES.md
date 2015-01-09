@@ -6,6 +6,8 @@
 * The dependency on Ring was switched from ring to ring/ring-core; you may need to add ring/ring-jetty-adapter 
   in to your project.
 
+* Beefed up the logging of requests and responses inside io.aviso.rook.server. 
+
 ## 0.1.20 - 23 Dec 2014
 
 * Rewritten io.aviso.rook.dispatcher; simplified, and adds the ability to define
