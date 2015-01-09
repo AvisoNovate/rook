@@ -60,7 +60,7 @@
                                         (l/debugf "Response:%n%s" (pretty-print response))
                                         response)
                                       (do
-                                        (l/debugf "Handler for %f closed response channel." (utils/summarize-request request))
+                                        (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
                                         not-found-response))))))))
 
 (defn construct-handler
