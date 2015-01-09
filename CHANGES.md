@@ -1,12 +1,14 @@
-## 0.2.22 - UNRELEASED
+## 0.2.22 - 9 Jan 2014
 
-## 0.2.21 - 9 Jan 2014
+* Beefed up the logging of requests and responses inside io.aviso.rook.server. 
+
+[Closed Issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aclosed+milestone%3A0.1.22+)
+
+## 0.2.21 - 8 Jan 2014
 
 * Removed the io.aviso.rook.jetty-async-adapter namespace; use [Jet](https://github.com/mpenet/jet) instead.
 * The dependency on Ring was switched from ring to ring/ring-core; you may need to add ring/ring-jetty-adapter 
   in to your project.
-
-* Beefed up the logging of requests and responses inside io.aviso.rook.server. 
 
 ## 0.1.20 - 23 Dec 2014
 

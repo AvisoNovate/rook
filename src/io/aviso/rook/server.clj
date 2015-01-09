@@ -94,7 +94,7 @@
 
 (defn- log-response
   "Logs the response at debug level (if enabled) with nice formatting; returns a new response (since reading
-  a InputStream body is destructive)."
+  an InputStream body is destructive)."
   [response]
   (cond-let
     (not (l/enabled? :debug))
@@ -136,7 +136,11 @@
   (and any later response from the downstream handler is ignored).
 
   In addition, the handler identifies unmatched requests and converts them to 404. This is important when using Jet
-  as it does not have default behavior for a nil response (it throws an exception)."
+  as it does not have default behavior for a nil response (it throws an exception).
+
+  This is obviously meant for asynchronous handlers only; it also includes logging of the response (as provided
+  by [[wrap-debug-response]] for synchronous handlers)."
+  {:added "0.1.21"}
   [handler timeout-ms]
   (fn [request]
     (async/safe-go request
@@ -151,13 +155,23 @@
                                                    (utils/response HttpServletResponse/SC_GATEWAY_TIMEOUT message)
                                                    (r/content-type "text/plain"))]
                                     (l/warn message)
-                                    response)
+                                    (log-response response))
                        handler-ch ([response]
                                     (if response
                                       (log-response response)
                                       (do
                                         (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
                                         not-found-response))))))))
+
+(defn wrap-debug-response
+  "Used with synchronous handlers to log the response sent back to the client at debug level.  [[wrap-with-timeout]]
+  includes this functionality for asynchronous handlers."
+  {:added "0.1.22"}
+  [handler]
+  (fn [request]
+    (-> request
+        handler
+        log-response)))
 
 (defn construct-handler
   "Constructs a root handler using a creator function.  Normally, the creator function
