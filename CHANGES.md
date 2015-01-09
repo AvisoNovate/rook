@@ -1,3 +1,8 @@
+## 0.2.23 - UNRELEASED
+
+* In the options map passed to server/construct-handler, :log is no longer implied by :debug,
+  they are entirely separate now.
+
 ## 0.2.22 - 9 Jan 2014
 
 * Beefed up the logging of requests and responses inside io.aviso.rook.server. 

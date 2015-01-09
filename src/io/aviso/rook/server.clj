@@ -190,17 +190,18 @@
   : enables the above-described reloading of the handler.
 
   :debug
-  : enables logging of each incoming request.
+  : enables logging (at debug level) of each incoming request via [[wrap-debug-request]]
 
   :log
-  : enables a summary of each incoming request (method and path) to be logged. :log is implied if :debug is true.
+  : enables logging of a summary of each incoming request (at info level) via [[wrap-log-request]]
 
   The extra logging and debugging middleware is added around the root handler (or the
   reloading handler that creates the root handler)."
   [{:keys [reload log debug]} creator & creator-args]
   (let [handler (if reload
-                  (-> #(apply creator creator-args) reloading-handler)
+                  (reloading-handler #(apply creator creator-args))
+                  ;; Or just do it once, right now.
                   (apply creator creator-args))]
     (cond-> handler
             debug wrap-debug-request
-            (or debug log) wrap-log-request)))
+            log wrap-log-request)))
