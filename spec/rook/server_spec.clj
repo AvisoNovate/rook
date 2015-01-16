@@ -30,8 +30,9 @@
                            handler
                            <!!)]
           (should= {:status  HttpServletResponse/SC_GATEWAY_TIMEOUT
-                    :headers {"Content-Type" "text/plain"}
-                    :body    "Processing of request GET /foo/bar timed out after 10 ms."}
+                    :headers {}
+                    :body {:error   "timeout"
+                           :message "Processing of request GET /foo/bar timed out after 10 ms."}}
                    response)))))
 
 (run-specs)

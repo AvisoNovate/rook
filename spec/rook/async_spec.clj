@@ -42,9 +42,10 @@
                            handler)]
           (should= HttpServletResponse/SC_BAD_REQUEST
                    (:status response))
-          (should= "validation-error" (-> response :body :error))
           ;; TODO: Not sure that's the exact format I want sent back to the client!
-          (should= "{:name missing-required-key}" (-> response :body :failures))))
+          (should= {:error   "invalid-request-data"
+                    :message "Request for endpoint `validating/create' contained invalid data: {:name missing-required-key}"}
+                   (:body response))))
 
 
     (it "returns a 500 response if a sync handler throws an error"

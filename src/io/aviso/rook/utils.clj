@@ -45,3 +45,13 @@
   "Returns a summary of the request: the :request-method and the :uri, formatted as a single string."
   [request]
   (summarize-method-and-uri (:request-method request) (:uri request)))
+
+(defn failure-response
+  "Builds a standard failure response, consisting of two keys, :error and :message, each a string.
+
+  This method can be overridden (via alter-var-root!) to impose a different format for such responses."
+  {:added "0.1.23"}
+  [status error message]
+  (response status
+            {:error   error
+             :message message}))

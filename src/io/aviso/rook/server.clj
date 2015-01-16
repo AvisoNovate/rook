@@ -132,14 +132,18 @@
       (assoc response :body (io/input-stream body-array)))))
 
 (defn wrap-with-timeout
-  "Asynchronous Ring middleware that applies a timeout to a request. When the timeout occurs, a 504 response is returned
-  (and any later response from the downstream handler is ignored).
+  "Asynchronous Ring middleware that applies a timeout to a request. When the timeout occurs, a 504 [[failure-response]]
+  is returned (and any later response from the downstream handler is ignored).
 
   In addition, the handler identifies unmatched requests and converts them to 404. This is important when using Jet
   as it does not have default behavior for a nil response (it throws an exception).
 
   This is obviously meant for asynchronous handlers only; it also includes logging of the response (as provided
-  by [[wrap-debug-response]] for synchronous handlers)."
+  by [[wrap-debug-response]] for synchronous handlers).
+
+  Since it can return a response that requires encoding, it should generally be placed inside
+  [[io.aviso.rook.async/wrap-restful-format]], which handles conversion from Clojure data in the body to
+  appropriate character streams for the client."
   {:added "0.1.21"}
   [handler timeout-ms]
   (fn [request]
@@ -150,18 +154,15 @@
                      (alt!
                        timeout-ch (let [message (format "Processing of request %s timed out after %,d ms."
                                                         (utils/summarize-request request)
-                                                        timeout-ms)
-                                        response (->
-                                                   (utils/response HttpServletResponse/SC_GATEWAY_TIMEOUT message)
-                                                   (r/content-type "text/plain"))]
+                                                        timeout-ms)]
                                     (l/warn message)
-                                    (log-response response))
+                                    (log-response (utils/failure-response HttpServletResponse/SC_GATEWAY_TIMEOUT "timeout" message)))
                        handler-ch ([response]
-                                    (if response
-                                      (log-response response)
-                                      (do
-                                        (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
-                                        not-found-response))))))))
+                                    (log-response (if response
+                                                    response
+                                                    (do
+                                                      (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
+                                                      not-found-response)))))))))
 
 (defn wrap-debug-response
   "Used with synchronous handlers to log the response sent back to the client at debug level.  [[wrap-with-timeout]]

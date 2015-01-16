@@ -68,8 +68,9 @@
     (catch Throwable t
       (let [extended-message (format "Exception validating response from %s: %s" fn-name (to-message t))]
         (l/error t extended-message)
-        (-> (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR extended-message)
-            (r/content-type "text/plain"))))))
+        (-> (utils/failure-response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                                    "invalid-response"
+                                    extended-message))))))
 
 (defn wrap-with-response-validation
   "Middleware to ensure that the response provided matches the :responses metadata on the endpoint function.

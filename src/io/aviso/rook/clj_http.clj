@@ -47,8 +47,9 @@
                     (to-message t))
 
           ;; Instead of returning nothing, returning a 500, which is better for anything downstream.
-          (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                          (format "Request failure to `%s'." (:url client-request))))))))
+          (utils/failure-response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                                  "failed-outgoing-request"
+                                  (format "Request failure to `%s'." (:url client-request))))))))
 
 (defn handler
   "Creates a request handler that accepts the request map (defined by [[io.aviso.rook.client]])

@@ -3,10 +3,10 @@
            (java.util Date TimeZone Calendar UUID)
            (java.text SimpleDateFormat))
   (:use
-    speclj.core
-    ring.mock.request
-    io.aviso.rook
-    io.aviso.rook.schema-validation)
+  speclj.core
+  ring.mock.request
+  io.aviso.rook
+  io.aviso.rook.schema-validation)
   (:require
     [clojure.core.async :refer [<!!]]
     [schema.core :as s]
@@ -39,10 +39,12 @@
 
     (it "returns a failure response if validation fails"
         (let [[failures new-request] (validate-against-schema {:params {:user-name "Rook"}} example-schema)
-              response (wrap-invalid-response failures)]
+              response (wrap-invalid-response "my/endpoint" failures)]
           (should-be-nil new-request)
           (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
-          (should= "validation-error" (-> response :body :error))))
+          (should= {:error   "invalid-request-data"
+                    :message "Request for endpoint `my/endpoint' contained invalid data: {:user-name disallowed-key, :name missing-required-key}"}
+                   (-> response :body))))
 
     (describe "coercions"
 

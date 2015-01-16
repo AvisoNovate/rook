@@ -35,8 +35,9 @@
      (catch Throwable t#
        (let [r# ~request]
          (l/error t# "Exception processing request" (utils/summarize-request r#)))
-       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                       {:exception (to-message t#)}))))
+       (utils/failure-response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                               "unexpected-exception"
+                               (to-message t#)))))
 
 (defmacro safe-go
   "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by [[safety-first]] if it must

@@ -68,8 +68,9 @@
                    (req-handler request)
                    (catch Throwable t
                      (result->channel
-                       (utils/response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                                       {:exception (to-message t)}))))
+                       (utils/failure-response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                                               "unexpected-exception"
+                                               (to-message t)))))
                  (fn [handler-response]
                    (if handler-response
                      (put! response-ch

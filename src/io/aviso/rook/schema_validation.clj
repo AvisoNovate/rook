@@ -12,14 +12,6 @@
            (java.util TimeZone Date UUID)))
 
 
-(defn format-failures
-  "Format Schema validation errors for presentation to the user; currently this just uses `pr-str`, which is not
-  very useful."
-  [failures]
-  {:error    "validation-error"
-   ;; This needs work; it won't transfer very well to the client for starters.
-   :failures (pr-str failures)})
-
 ;; Borrowed from clojure.instant:
 (def ^:private thread-local-utc-date-format
   ;; SimpleDateFormat is not thread-safe, so we use a ThreadLocal proxy for access.
@@ -54,8 +46,14 @@
   (or (string-coercions schema)
       (coerce/string-coercion-matcher schema)))
 
-(defn wrap-invalid-response [failures]
-  (utils/response HttpServletResponse/SC_BAD_REQUEST (format-failures failures)))
+(defn wrap-invalid-response
+  {:no-doc true}
+  [endpoint-name failures]
+  (utils/failure-response HttpServletResponse/SC_BAD_REQUEST
+                          "invalid-request-data"
+                          (format "Request for endpoint `%s' contained invalid data: %s"
+                                  endpoint-name
+                                  (pr-str failures))))
 
 (defn validate-against-schema
   "Performs the validation. The data is coerced using the string-cooercion-matcher (which makes sense
@@ -83,12 +81,12 @@
   The three-argument version includes a function used to wrap the bad request response;
   this is identity in the normal case (and is provided to support async processing)."
   ([handler metadata]
-   (wrap-with-schema-validation handler metadata identity))
-  ([handler metadata response-wrapper]
-   (when-let [schema (:schema metadata)]
-     (fn [request]
-       (let [[failures new-request] (validate-against-schema request schema)]
-         (if failures
-           (-> failures wrap-invalid-response response-wrapper)
-           (handler new-request)))))))
+    (wrap-with-schema-validation handler metadata identity))
+  ([handler {:keys [schema function]} response-wrapper]
+    (when schema
+      (fn [request]
+        (let [[failures new-request] (validate-against-schema request schema)]
+          (if failures
+            (->> failures (wrap-invalid-response function) response-wrapper)
+            (handler new-request)))))))
 

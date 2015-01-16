@@ -293,9 +293,10 @@
               response (-> (mock/request :post "/validating")
                            handler)]
           (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
-          (should= "validation-error" (-> response :body :error))
           ;; TODO: Not sure that's the exact format I want sent back to the client!
-          (should= "{:name missing-required-key}" (-> response :body :failures)))))
+          (should= {:error   "invalid-request-data"
+                    :message "Request for endpoint `validating/create' contained invalid data: {:name missing-required-key}"}
+                   (:body response)))))
 
 
   (describe "handlers with a large number of endpoints"
@@ -338,9 +339,9 @@
                                  [[:id "foo"] 'surprise-foo]]
                                 ["foobar" 'foobar])
                               rook-async/wrap-session
+                              (server/wrap-with-timeout 100)
                               rook-async/wrap-with-standard-middleware
                               (rook/wrap-with-injection :strange-injection "really surprising")
-                              (server/wrap-with-timeout 100)
                               server/wrap-debug-request)]
                 (jet/run-jetty {:host         "localhost"
                                 :port         9988
@@ -366,8 +367,10 @@
                                    :as               :clojure
                                    :throw-exceptions false})]
           ;; this is actually client error, but we don't guard against it
-          (should= 500 (:status response))
-          (should= {:exception "EOF while reading"} (:body response))))
+          (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR (:status response))
+          (should= {:error   "unexpected-exception"
+                    :message "EOF while reading"}
+                   (:body response))))
 
     (it "can manage server-side session state"
         (let [k (utils/new-uuid)

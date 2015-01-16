@@ -35,9 +35,9 @@
                                         ["creator" 'creator]
                                         ["creator-loopback" 'creator-loopback])
                 async/wrap-session
+                (server/wrap-with-timeout 100)
                 async/wrap-with-standard-middleware
                 (rook/wrap-with-injection :loopback-handler @handler)
-                (server/wrap-with-timeout 100)
                 server/wrap-debug-request
                 (as-> % (jet/run-jetty {:ring-handler %
                                         :port         9988
@@ -62,8 +62,10 @@
                                    :body             "{not valid EDN"
                                    :as               :clojure
                                    :throw-exceptions false})]
-        (should= 500 (:status response))
-        (should= {:exception "EOF while reading"} (:body response))))
+        (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR (:status response))
+        (should= {:error   "unexpected-exception"
+                  :message "EOF while reading"}
+                 (:body response))))
 
   (it "can manage server-side session state"
       (let [key (utils/new-uuid)
