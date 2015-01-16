@@ -1,4 +1,4 @@
-## 0.2.23 - UNRELEASED
+## 0.2.23 - 15 Jan 2015
 
 * In the options map passed to server/construct-handler, :log is no longer implied by :debug,
   they are entirely separate now.
