@@ -141,6 +141,27 @@
   This is obviously meant for asynchronous handlers only; it also includes logging of the response (as provided
   by [[wrap-debug-response]] for synchronous handlers).
 
+  The wrapped handler is passed the request with two additional keys:
+
+  :timeout-ch
+  : The timeout channel. This can be used for waiting, but should *not* be closed.
+
+  :timeout-control-ch
+  : A channel that can be used to control timeouts from further downstream. If the channel receives
+    the value :cancel, then the timeout is canceled (really, the timeout is ignored should it take place).
+    If the channel is closed, then the request times out immediately.
+  : Any other value in the channel is logged as an error, and ignored.
+
+  The intent of :timeout-ch is to allow a long-running operation inside an endpoint function to set
+  an upper limit how long it should wait for some outside activity (such as a request to another server,
+  or any other kind of I/O).  When the timeout closes, there's no point in continuing or even creating a response,
+  as a the 504 timeout failure response will already have been sent to the client.
+
+  On the other hand, if request is going to take a while *and* will overrun the default timeout, then putting
+  :cancel into the control channel will change this code to ignore the eventual timeout. It becomes the
+  downstream code's responsibility to return a value at some point ... or close the timeout control channel
+  to force an immediate timeout response.
+
   Since it can return a response that requires encoding, it should generally be placed inside
   [[io.aviso.rook.async/wrap-restful-format]], which handles conversion from Clojure data in the body to
   appropriate character streams for the client."
@@ -149,20 +170,44 @@
   (fn [request]
     (async/safe-go request
                    (let [timeout-ch (timeout timeout-ms)
-                         request' (assoc request :timeout-ch timeout-ch)
+                         timeout-control-ch (chan 1)
+                         request' (assoc request :timeout-ch timeout-ch
+                                                 :timeout-control-ch timeout-control-ch)
                          handler-ch (handler request')]
-                     (alt!
-                       timeout-ch (let [message (format "Processing of request %s timed out after %,d ms."
-                                                        (utils/summarize-request request)
-                                                        timeout-ms)]
-                                    (l/warn message)
-                                    (log-response (utils/failure-response HttpServletResponse/SC_GATEWAY_TIMEOUT "timeout" message)))
-                       handler-ch ([response]
-                                    (log-response (if response
-                                                    response
-                                                    (do
-                                                      (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
-                                                      not-found-response)))))))))
+                     (log-response
+                       (loop [timeout-ch' timeout-ch]
+                         (alt!
+
+                           timeout-control-ch ([v]
+                                                (cond
+                                                  (= :cancel v)
+                                                  ;; Here's what the loop is for, replace the timeout channel with a channel that will
+                                                  ;; never close.
+                                                  (recur (chan))
+
+                                                  (nil? v)
+                                                  (let [message (format "Processing of request %s timed out."
+                                                                        (utils/summarize-request request))]
+                                                    (utils/failure-response HttpServletResponse/SC_GATEWAY_TIMEOUT "timeout" message))
+
+                                                  :else
+                                                  (do
+                                                    (l/errorf "An unexpected value %s was received in the timeout control channel for request %s and has been ignored."
+                                                              (pr-str v)
+                                                              (utils/summarize-request request))
+                                                    (recur timeout-ch'))))
+
+                           timeout-ch' (let [message (format "Processing of request %s timed out after %,d ms."
+                                                             (utils/summarize-request request)
+                                                             timeout-ms)]
+                                         (l/warn message)
+                                         (utils/failure-response HttpServletResponse/SC_GATEWAY_TIMEOUT "timeout" message))
+
+                           handler-ch ([response]
+                                        (or response
+                                            (do
+                                              (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
+                                              not-found-response))))))))))
 
 (defn wrap-debug-response
   "Used with synchronous handlers to log the response sent back to the client at debug level.  [[wrap-with-timeout]]

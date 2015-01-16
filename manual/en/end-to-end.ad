@@ -20,14 +20,16 @@ Jet initializes slightly differently than Ring:
 (ns org.example.server-async
   (:require
     [qbits.jet.server :as jet]
-    [io.aviso.rook :as rook])
+    [io.aviso.rook :as rook]
+    [io.aviso.rook.async :as async])
 
 (defn start-server
    [port]
    (let [handler (-> (rook/namespace-handler
                        {:async? true}
                        ["users" 'org.example.resources.users])
-                      rook/wrap-with-standard-middleware)]
+                      ;; Note use of async variation here:
+                      async/wrap-with-standard-middleware)]
      (jet/run-jetty {:port port
                      :join? false
                      :ring-handler handler})))
@@ -43,6 +45,29 @@ The timeout is managed using a core.async channel; this channel is stored in the
 as key :timeout-ch. If you have long running operations that should terminate if the request
 as a whole times out, you can use this channel to determine when the request has timed out. footnote:[As with
 any core.async timeout channel, *never* close this channel explicitly.]
+
+[source,clojure]
+----
+(ns org.example.server-async-timeout
+  (:require
+    [qbits.jet.server :as jet]
+    [io.aviso.rook :as rook]
+    [io.aviso.rook.server :as server]
+    [io.aviso.rook.async :as async])
+
+(defn start-server
+   [port]
+   (let [handler (-> (rook/namespace-handler
+                       {:async? true}
+                       ["users" 'org.example.resources.users])
+                      ;; Must be inside the standard middleware:
+                      (server/wrap-with-timeout 10000)
+                      ;; Includes wrap-restful-format:
+                      async/wrap-with-standard-middleware)]
+     (jet/run-jetty {:port port
+                     :join? false
+                     :ring-handler handler})))
+----
 
 == Wrapping Synchronous Handlers
 

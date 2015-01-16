@@ -13,7 +13,7 @@
             :dependencies [[org.clojure/clojure "1.6.0"]
                            [io.aviso/pretty "0.1.14"]
                            [io.aviso/toolchest "0.1.1"]
-                           [cheshire "5.4.0"]
+                           [cheshire "5.4.0"]`
                            [potemkin "0.3.11"]
                            [org.clojure/tools.reader "0.8.13"]
                            [org.clojure/core.async "0.1.346.0-17112a-alpha"]
