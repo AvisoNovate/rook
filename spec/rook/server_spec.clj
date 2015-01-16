@@ -35,8 +35,10 @@
                               :message "Processing of request GET /foo/bar timed out after 10 ms."}}
                    response)))
 
-    (it "responds with a timeout immediately if the control channel is closed."
-        (let [handler (-> #(-> % :timeout-control-ch close!)
+    (it "responds with a timeout immediately if the control channel is closed"
+        (let [handler (-> (fn [request]
+                            (thread
+                              (-> request :timeout-control-ch close!)))
                           (server/wrap-with-timeout 1000))
               start-time (System/currentTimeMillis)
               response (-> (mock/request :get "/fast/timeout")
