@@ -207,7 +207,12 @@
                                         (or response
                                             (do
                                               (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
-                                              not-found-response))))))))))
+                                              not-found-response)))
+
+                           ;; In testing at least, the close of the control channel and returning nil (closing
+                           ;; the response channel) can happen close enough together that the handler-ch
+                           ;; wins over the timeout-control-ch, resulting in a 404 response not a 504.
+                           :priority true)))))))
 
 (defn wrap-debug-response
   "Used with synchronous handlers to log the response sent back to the client at debug level.  [[wrap-with-timeout]]
