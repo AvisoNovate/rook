@@ -173,7 +173,7 @@
                          timeout-control-ch (chan 1)
                          request' (assoc request :timeout-ch timeout-ch
                                                  :timeout-control-ch timeout-control-ch)
-                         handler-ch (handler request')]
+                         response-ch (handler request')]
                      (log-response
                        (loop [timeout-ch' timeout-ch]
                          (alt!
@@ -203,14 +203,14 @@
                                          (l/warn message)
                                          (utils/failure-response HttpServletResponse/SC_GATEWAY_TIMEOUT "timeout" message))
 
-                           handler-ch ([response]
-                                        (or response
-                                            (do
-                                              (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
-                                              not-found-response)))
+                           response-ch ([response]
+                                         (or response
+                                             (do
+                                               (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
+                                               not-found-response)))
 
                            ;; In testing at least, the close of the control channel and returning nil (closing
-                           ;; the response channel) can happen close enough together that the handler-ch
+                           ;; response-ch) can happen close enough together that the handler-ch
                            ;; wins over the timeout-control-ch, resulting in a 404 response not a 504.
                            :priority true)))))))
 
