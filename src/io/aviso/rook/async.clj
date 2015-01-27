@@ -25,7 +25,7 @@
     The delegated handler should be invoked inside a [[safe-go]] block, so that the result from the handler
     can be obtained without blocking."
   (:require io.aviso.rook.internals
-            [clojure.core.async :refer [chan go >! <! <!! >!! thread put! take! close!]]
+            [clojure.core.async :as async :refer [chan go >! <! <!! >!! thread put! take! close!]]
             [io.aviso.toolchest.exceptions :refer [to-message]]
             ring.middleware.params
             ring.middleware.keyword-params
@@ -127,3 +127,13 @@
                    (fn [response]
                      (put! response-ch (rv/ensure-matching-response response (:function metadata) responses))))
             response-ch))))))
+
+(defn timed-out?
+  "Checks if timeout-ch is closed. ATTN: if applied to a non-timeout
+  channel, will consume and discard a single value from the channel's
+  buffer if there is one."
+  [timeout-ch]
+  (let [sentinel-ch (doto (async/chan 1)
+                      (async/>!! :sentinel))
+        [_ ch] (async/alts!! [timeout-ch sentinel-ch] :priority true)]
+    (identical? ch timeout-ch)))
