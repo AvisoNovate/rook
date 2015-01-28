@@ -36,7 +36,7 @@
     (.toByteArray output-stream)))
 
 (defn- format-bytes
-  [label byte-array]
+  [label ^bytes byte-array]
   (let [length (if (some? byte-array)
                  (alength byte-array)
                  0)]
@@ -107,8 +107,9 @@
       (l/debugf "Response:%n%s" (pretty-print body))
       response)
 
-    [mark-supported? (.markSupported body)
-     _ (and mark-supported? (.mark body Integer/MAX_VALUE))
+    [^InputStream body' body
+     mark-supported? (.markSupported body')
+     _ (and mark-supported? (.mark body' Integer/MAX_VALUE))
 
      content-length-str (get-in response [:headers "Content-Length"])
 
@@ -127,7 +128,7 @@
       ;; Mark is more commonly supported on the response side than on the request side.
       (if mark-supported?
         (do
-          (.reset body)
+          (.reset body')
           response))
       (assoc response :body (io/input-stream body-array)))))
 
