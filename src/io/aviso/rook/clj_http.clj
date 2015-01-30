@@ -6,7 +6,7 @@
   The implementation is restricted to sending and receiving
   EDN formatted data.
 
-  In order to make use of this namespace, you must add clj-http to your classpath:"
+  In order to make use of this namespace, you must [add clj-http to your classpath](https://clojars.org/clj-http)."
   {:added "0.1.19"}
   (:import [javax.servlet.http HttpServletResponse])
   (:require [clojure.core.async :refer [thread]]
