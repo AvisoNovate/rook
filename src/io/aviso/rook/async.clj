@@ -129,9 +129,13 @@
             response-ch))))))
 
 (defn timed-out?
-  "Checks if timeout-ch is closed. ATTN: if applied to a non-timeout
-  channel, will consume and discard a single value from the channel's
+  "Checks if timeout-ch (a channel returned from clojure.core.async/timeout) is closed.
+
+  Remember to never close a timeout channel.
+
+  This should not be applied to a non-timeout channel, will consume and discard a single value from the channel's
   buffer if there is one."
+  {:added "0.1.24"}
   [timeout-ch]
   (let [sentinel-ch (doto (chan 1)
                       (>!! :sentinel))
