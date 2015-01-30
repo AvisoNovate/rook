@@ -1,5 +1,7 @@
 ## 0.1.24 - UNRELEASED
 
+Straightened out some conflicts and missing dependencies.
+
 ## 0.1.23 - 15 Jan 2015
 
 * In the options map passed to server/construct-handler, :log is no longer implied by :debug,

@@ -8,9 +8,9 @@
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [clojure.tools.logging :as l]
             [clojure.java.io :as io]
-            [ring.util.response :as r]
             [medley.core :as medley]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [io.aviso.tracker :as t])
   (:import [javax.servlet.http HttpServletResponse]
            [java.io ByteArrayOutputStream InputStream]))
 
@@ -28,6 +28,14 @@
   (fn [request]
     (l/info (utils/summarize-request request))
     (handler request)))
+
+(defn wrap-track-request
+  "An alternative to [[wrap-log-request]]; adds tracking with a label via [[summarize-request]]."
+  {:added "0.1.24"}
+  [handler]
+  (fn [request]
+    (t/track #(utils/summarize-request request)
+             (handler request))))
 
 (defn- read-bytes
   [stream length]
@@ -236,24 +244,28 @@
   The optional creator-args are additional arguments to be passed to the creator function;
   these are usually configuration data or dependencies.
 
-  The options map contains three flags:
+  The options map contains several flags:
 
   :reload
   : enables the above-described reloading of the handler.
 
   :debug
-  : enables logging (at debug level) of each incoming request via [[wrap-debug-request]]
+  : enables logging (at debug level) of each incoming request via [[wrap-debug-request]],
 
   :log
-  : enables logging of a summary of each incoming request (at info level) via [[wrap-log-request]]
+  : enables logging of a summary of each incoming request (at info level) via [[wrap-log-request]].
+
+  :track
+  : enables tracking a summary of each incoming request via [[wrap-track-request]].
 
   The extra logging and debugging middleware is added around the root handler (or the
   reloading handler that creates the root handler)."
-  [{:keys [reload log debug]} creator & creator-args]
+  [{:keys [reload log debug track]} creator & creator-args]
   (let [handler (if reload
                   (reloading-handler #(apply creator creator-args))
                   ;; Or just do it once, right now.
                   (apply creator creator-args))]
     (cond-> handler
             debug wrap-debug-request
-            log wrap-log-request)))
+            log wrap-log-request
+            track wrap-track-request)))
