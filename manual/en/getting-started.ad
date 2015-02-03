@@ -5,7 +5,8 @@ The basic idea in Rook is that incoming URIs are matched to a specific Clojure n
 
 The exact mapping within a namespace is based on a set of conventions that can be overridden or tuned using metadata.
 
-Rook applies a naming convention to functions, so simply naming a function with a particular name implies a certain path specification.
+Rook applies a naming convention to functions, so simply naming a function with a particular name implies a certain route footnote:[a route is a combination
+of HTTP verb and path.].
 
 .Default Resource Handler Functions
 [options="header"]
@@ -45,7 +46,7 @@ Rook applies a naming convention to functions, so simply naming a function with 
 |===
 
 
-Keywords in the path, such as `:id` for the `show` function, represent values that
+Keywords in the path, such as :body for the `show` function, represent values that
 can be provided to the endpoint functions; it's just a matter of providing
 a argument with a matching name:
 
@@ -55,10 +56,11 @@ a argument with a matching name:
   ...)
 ----
 
-Rook has a well-thought out system for providing endpoint functions with
-any data or dependencies they may require, not just keywords from the request path.
+Rook has a well-thought out system for
+link:arguments.html[providing endpoint functions with any data or dependencies]
+they may require, not just keywords from the request path.
 
-An endpoint function should return a Ring response map (with keys :status, :headers, and :body).
+An endpoint function should return a Ring response map (with keys :body, :body, and :body).
 
 .PUT vs. PATCH
 NOTE:  One interpretation of REST is that the PUT method is used to replace the entirety of a resource,
@@ -69,8 +71,8 @@ whereas PATCH is used to modify selected properties of the resource.
 Any public function in a resource namespace may be an endpoint function;
 for those not covered by the conventions, it's just a matter of providing the correct metadata.
 
-$$:route-spec$$::
-A route spec consists of a vector of two values; the first is a keyword for the HTTP method.
+$$:route$$::
+A route consists of a vector of two values; the first is a keyword for the HTTP method.
 The second value is itself a vector of path elements. The path elements can be strings, or
 keywords.
 
@@ -78,7 +80,7 @@ The HTTP method keyword is one of :get, :put, :post, :delete, :patch, or a speci
 
 .Example
 
-If you want to match a URI such as PUT +/users/_12345_/activate+, you would map +/user+ to a namespace, and then provide a function:
+If you want to match a URI such as `PUT /users/_12345_/activate`, you would map `/user` to a namespace, and then provide a function:
 
 [source,clojure]
 ----
@@ -108,9 +110,10 @@ several reasons), but it will suffice to show the essentials:
      (jetty/run-jetty handler {:port port :join? false})))
 ----
 
-The namespace-handler function is provided with details about one or more namespaces to match; in this case, the mapping is from the URI +/users+ to the `users` namespace.
+The namespace-handler function is provided with details about one or more namespaces to match; in this case, the mapping is from the URI `/users` to the `users` namespace.
 
-The wrap-with-standard-middleware function uses standard Ring middleware to handle JSON or EDN requests, to parse query and form parameters, and to convert parameter keys from strings to keywords. Some of the support in Rook, especially that related to argument resolution, requires this.
+The wrap-with-standard-middleware function uses standard Ring middleware to handle JSON or EDN requests, to parse query and form parameters, and to convert parameter keys from strings to keywords.
+Some of the support in Rook, especially that related to argument resolution, requires this pre-processing.
 
 The result is a Ring request handler that takes care of dispatch directly to the endpoint function (as well as quite a few things we have yet to discuss).
 

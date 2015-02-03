@@ -101,9 +101,9 @@ For the SC_OK case, the body must have a :rooms key containing an array of rooms
 rooms-schema, not shown).
 
 For the SC_FORBIDDEN case, the body may be omitted, or have any value. 
-The body is not validated.
+The body is not validated (because the schema associated with SC_FORBIDDEN is nil).
 
 Any response with a 5xx status code is passed through unchanged and unvalidated. 
-It is not necessary or helpful to list those status codes.
+It is not necessary or helpful to list such status codes.
 
 A response that is not otherwise listed in the :responses metadata is logged, and converted into a SC_INTERNAL_SERVER_ERROR (500) response.

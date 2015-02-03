@@ -2,6 +2,11 @@
 
 Straightened out some conflicts and missing dependencies.
 
+New functions:
+
+* io.aviso.rook.server/wrap-track-reqeust
+* io.aviso.rook.async/timed-out?
+
 ## 0.1.23 - 15 Jan 2015
 
 * In the options map passed to server/construct-handler, :log is no longer implied by :debug,

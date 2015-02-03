@@ -50,7 +50,7 @@ we can make a few changes:
   (:require
     [ring.adapter.jetty :as jetty]
     [io.aviso.rook :as rook]
-    [io.aviso.rook.serer :as server])
+    [io.aviso.rook.server :as server])
 
 (defn app
   []
@@ -71,10 +71,11 @@ are passed to the function.
 
 When the :reload option is true, then construct-handler will rebuild the handler _on every request_.
 
-This may seem slow, it is not; Clojure is plenty fast enough to build even very large dispatchers in milliseconds, perfect for testing. footnote:[The only really slow thing in Clojure is initial startup.] 
+This may seem slow, it is not; Clojure is plenty fast enough to build even very large dispatchers in milliseconds, perfect for testing. footnote:[The only really slow thing in Clojure is initial startup.]
+It is very much inappropriate in a production system, however. Make sure :reload is false in production.
 
 TIP: You do need to carefully consider resources such as caches and database connection pools; you
-don't want to re-create those on every request!
+don't want to re-create those on every request, even when testing.
 
 Notice that it is the org.example.server/app Var that is passed in, not the function inside the Var.
 This dovetails with Cursive's reloading; it ensures that construct-handler will use the latest definition
@@ -88,9 +89,10 @@ So the work cycle is:
 * Use Cursive to reload the affected namespaces footnote:[Cursive is good about loading all changed namespaces, in dependency order]
 * Refresh in the browser and continue
 
-There are two other options for construct-handler:
+There are several other options for construct-handler:
 
 $$:log$$:: If true, then the request method and URI is logged before each request
 $$:debug$$:: If true, then the Ring request map is pretty-printed and logged before each request
+$$:track$$:: If true, then the request method and URI is link:https://github.com/AvisoNovate/tracker[tracked] during execution.
 
 Logging is based on link:https://github.com/clojure/tools.logging[tools.logging].

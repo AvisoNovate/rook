@@ -22,7 +22,7 @@ This is a convenience and is equivalent to returning the same handler.
 
 Every endpoint function is wrapped as a Ring handler, then
 passed through the middleware associated with the namespace, forming
-a new handler specific to that endpoint function.
+a new handler specific to that individual endpoint function.
 
 For example:
 
@@ -58,7 +58,7 @@ Ring handler is created via the io.aviso.rook/namespace-handler function.
 
 == Metadata
 
-The metadata passed to a middleware function is composed of the enclosing namespace's metdata
+The metadata passed to a middleware function is composed of the enclosing namespace's metadata
 merged with the specific endpoint function's metadata.
 This is to allow a namespace to specify defaults for any endpoints in the namespace.
 
