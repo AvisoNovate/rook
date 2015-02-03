@@ -17,7 +17,7 @@
                            [potemkin "0.3.11"]
                            ;; This overrides the version from ring/ring-core with the version from metosin/ring-swagger
                            ;; Can't simply exclude it from ring-core, because ring-swagger is an optional dependency.
-                           [clj-time "0.8.0"]
+                           [clj-time "0.9.0"]
                            ;; Likewise, the conflict between clj-http (optional) and ring-middleware-format over
                            [com.cognitect/transit-clj "0.8.259"]
                            [org.clojure/tools.reader "0.8.13"]
@@ -27,8 +27,8 @@
                            [ring/ring-core "1.3.2" :exclusions [org.clojure/tools.reader]]
                            [medley "0.5.5" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.4.0" :exclusions [cheshire ring/ring-devel ring/ring-jetty-adapter]]
-                           [prismatic/schema "0.3.3" :exclusions [potemkin]]
-                           ;; ring-core and ring-swagger have a conflict w.r.t clj-time "0.6.0" vs. "0.8.0".
+                           [prismatic/schema "0.3.7" :exclusions [potemkin]]
+                           ;; ring-core and ring-swagger have a conflict w.r.t clj-time "0.6.0" vs. "0.9.0".
                            [metosin/ring-swagger "0.15.0" :optional true :exclusions [org.clojure/clojure]]
                            [metosin/ring-swagger-ui "2.0.17" :optional true]
                            [clj-http "1.0.1" :optional true]]
