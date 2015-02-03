@@ -1,10 +1,12 @@
-## 0.1.24 - UNRELEASED
+## 0.1.24 - 3 Feb 2015
 
 Straightened out some conflicts and missing dependencies.
 
+Big improvements to the documentation, especially the description of mapping namespaces.
+
 New functions:
 
-* io.aviso.rook.server/wrap-track-reqeust
+* io.aviso.rook.server/wrap-track-request
 * io.aviso.rook.async/timed-out?
 
 ## 0.1.23 - 15 Jan 2015
