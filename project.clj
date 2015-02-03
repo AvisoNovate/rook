@@ -11,7 +11,7 @@
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
-                           [io.aviso/pretty "0.1.14"]
+                           [io.aviso/pretty "0.1.15"]
                            [io.aviso/toolchest "0.1.1"]
                            [cheshire "5.4.0"]
                            [potemkin "0.3.11"]
@@ -23,7 +23,7 @@
                            [org.clojure/tools.reader "0.8.13"]
                            [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                            [org.clojure/tools.logging "0.3.1"]
-                           [io.aviso/tracker "0.1.2"]
+                           [io.aviso/tracker "0.1.4"]
                            [ring/ring-core "1.3.2" :exclusions [org.clojure/tools.reader]]
                            [medley "0.5.5" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.4.0" :exclusions [cheshire ring/ring-devel ring/ring-jetty-adapter]]
