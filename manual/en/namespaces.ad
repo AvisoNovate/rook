@@ -45,10 +45,10 @@ resource instance.
 ----
 
 For the endpoint functions to operate, they'll need a access to the hotel database; this is provided as
-an argument resolver function: a function that accepts the request map (ignored in this case) and returns the value
+an argument resolver function: a function that accepts the Ring request map (ignored in this case) and returns the value
 for the argument.
 
-The argument resolvers map provided for each namespace is merged into the default argument resolvers map.
+The argument resolvers map provided for each namespace is merged into the link:arguments.html[default argument resolvers map].
 
 After that, it's a matter of identifying each of the namespaces.
 
@@ -80,7 +80,8 @@ Let's see what our resource namespaces look like:
 ----
 
 We've elided all the details not essential to Rook.
-Mostly, we identify which incoming routes match which endpoint functions.
+Mostly, we identify which incoming routes match which endpoint functions (using the :route metadata).
+The parameters to our methods identify what argument values we expect to receive.
 
 For function create-hotel, we need the hotel-db and the params map (which contains the data posted to the
 in the request).  params is one of the built-in link:arguments.html[argument convention names].
@@ -121,12 +122,12 @@ unless qualified by the hotel containing it.
 == Removing route redundancy
 
 You should have noticed that there's quite a bit of duplication across functions and between namespaces.
-We can fix that.
+
+We can fix that.  We'll start in our call to rook/namespace-handler.
 
 First off, it is possible to provide an option that sets a root context for all namespaces.
 
 Secondly, before each namespace symbol we can provide a context specific to that namespace.
-
 
 [source,clojure]
 .service.clj
@@ -186,7 +187,10 @@ Secondly, before each namespace symbol we can provide a context specific to that
   ...)
 ----
 
-So you can see that the :route meta data for each endpoint is prefixed with the context inherited by the containing namespace.
+So you can see that the :route meta data for each endpoint is actually just an extension of the context provided for the entire namespace.
+
+This is a common pattern in Rook; the containers provide a base line, and things inside the container extend the base line
+with additional (or overriding) data.
 
 == Nesting namespaces
 
@@ -212,11 +216,11 @@ When a context is just a single string value, then it may be abbreviated as that
 containing a string, through that is also valid).
 
 So the ex.rooms namespace will inherit the argument resolver map from the ex.hotels namespace.
-It also inherits the context, ["api" "hotels"], from the ex.hotels namespace, which is then extends
+It also inherits the context, ["api" "hotels"], from the ex.hotels namespace, which it then extends
 with [:hotel-id "rooms"].
 
-If the ex.rooms namespace needed additional argument resolvers, though could be provided; the argument resolver map
-would be merged on top of the argument resolver map for the ex.hotels namespace.
+If the ex.rooms namespace needed additional argument resolvers, those could be provided as a map following
+the ex.room symbol; such a map would be merged on top of the argument resolver map for the ex.hotels namespace.
 
 == Leveraging naming conventions
 
@@ -262,8 +266,8 @@ Rook has some naming conventions built in that let you omit metadata for common 
 
 Using the naming conventions ensure consistency across namespaces.
 
-These functions can still have their own metadata where needed; it's just merged with the metadata associated
-with the convention name (which is just a :route key).
+These functions can still have their own metadata where needed; it's just merged with a :route metadata, associated
+with the convention name.
 
 = Order of specification elements
 
