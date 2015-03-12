@@ -11,7 +11,8 @@ By switching dependency from ring/ring-jetty-adapter to cc.qbits/jet (link:https
 you can have the best of both worlds.
 
 Jet uses Jetty version 9 (ring-jetty-adapter uses Jetty 7). It enables the use of asynchronous processing:
-handlers can return a core.async channel containing a Ring response map.
+handlers have the option a core.async channel containing a Ring response map, which aligns with
+Rook's asynchronous pipeline.
 
 Jet initializes slightly differently than Ring:
 
