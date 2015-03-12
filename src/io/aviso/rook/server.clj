@@ -6,6 +6,7 @@
             [io.aviso.binary :refer [format-binary]]
             [io.aviso.toolchest.macros :refer [cond-let]]
             [io.aviso.toolchest.collections :refer [pretty-print]]
+            [io.aviso.toolchest.exceptions :refer [to-message]]
             [clojure.tools.logging :as l]
             [clojure.java.io :as io]
             [medley.core :as medley]
@@ -13,6 +14,21 @@
             [io.aviso.tracker :as t])
   (:import [javax.servlet.http HttpServletResponse]
            [java.io ByteArrayOutputStream InputStream]))
+
+(defn wrap-creator
+  "Wraps a creator and arguments as a function of no arguments. If the creator fails, then
+  the error is logged and a handler that always responds with a 500 status is returned."
+  {:added "0.1.25"}
+  [creator creator-args]
+  (fn []
+    (try
+      (apply creator creator-args)
+      (catch Throwable t
+        (l/error t "Unable to construct handler.")
+        (let [fixed-response (utils/failure-response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
+                                                     "handler-creation-failure"
+                                                     (to-message t))]
+          (constantly fixed-response))))))
 
 (defn reloading-handler
   "Wraps a handler creator function such that the root handler is created fresh on each request;
@@ -261,10 +277,11 @@
   The extra logging and debugging middleware is added around the root handler (or the
   reloading handler that creates the root handler)."
   [{:keys [reload log debug track]} creator & creator-args]
-  (let [handler (if reload
-                  (reloading-handler #(apply creator creator-args))
+  (let [creator' (wrap-creator creator creator-args)
+        handler (if reload
+                  (reloading-handler creator')
                   ;; Or just do it once, right now.
-                  (apply creator creator-args))]
+                  (creator'))]
     (cond-> handler
             debug wrap-debug-request
             log wrap-log-request

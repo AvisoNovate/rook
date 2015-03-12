@@ -1,5 +1,10 @@
 ## 0.1.25 - UNRELEASED
 
+When there is an exception creating the handler, io.aviso.rook.server now replaces the handler with one that returns
+a 500 response that includes the error message from the exception.
+Previously, a handler that handler creator that threw an exception would prevent the server from starting up (in production mode), or
+cause a Jetty exception on each request (in development mode).
+
 ## 0.1.24 - 3 Feb 2015
 
 Straightened out some conflicts and missing dependencies.
@@ -19,13 +24,13 @@ New functions:
 * When using wrap-with-timeout, there is now a :timeout-control-ch key added to the request, allowing
   the timeout to be triggered early or canceled entirely.
 
-## 0.1.22 - 9 Jan 2014
+## 0.1.22 - 9 Jan 2015
 
 * Beefed up the logging of requests and responses inside io.aviso.rook.server. 
 
 [Closed Issues](https://github.com/AvisoNovate/rook/issues?q=is%3Aclosed+milestone%3A0.1.22+)
 
-## 0.1.21 - 8 Jan 2014
+## 0.1.21 - 8 Jan 2015
 
 * Removed the io.aviso.rook.jetty-async-adapter namespace; use [Jet](https://github.com/mpenet/jet) instead.
 * The dependency on Ring was switched from ring to ring/ring-core; you may need to add ring/ring-jetty-adapter 
