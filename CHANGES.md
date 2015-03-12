@@ -1,4 +1,4 @@
-## 0.1.25 - UNRELEASED
+## 0.1.25 - 12 Mar 2015
 
 When there is an exception creating the handler, io.aviso.rook.server now replaces the handler with one that returns
 a 500 response that includes the error message from the exception.
