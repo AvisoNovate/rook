@@ -54,14 +54,15 @@ we can make a few changes:
 
 (defn app
   []
-  (-> (rook/namespace-handler
-        ["users" 'org.example.resources.users])
-      rook/wrap-with-standard-middleware))
+  (rook/namespace-handler
+    ["users" 'org.example.resources.users]))
 
 (defn start-server
    [port]
    (let []
-     (jetty/run-jetty (server/construct-handler {:reload true} #'app) {:port port :join? false})))
+     (jetty/run-jetty
+       (server/construct-handler {:reload true :standard true} #'app)
+       {:port port :join? false})))
 ----
 
 construct-handler accepts a map of options, and a function that creates the Ring request handler.
@@ -77,6 +78,13 @@ It is very much inappropriate in a production system, however. Make sure :reload
 TIP: You do need to carefully consider resources such as caches and database connection pools; you
 don't want to re-create those on every request, even when testing.
 
+When the :standard option is true, then the standard Rook middleware (which handles request parsing and
+response encoding) is added.
+This simplifies the app function.
+
+INFO: Other options to construct-handler can added logging of requests and responses, or tracking of
+requests (using the io.aviso/tracker library).
+
 Notice that it is the org.example.server/app Var that is passed in, not the function inside the Var.
 This dovetails with Cursive's reloading; it ensures that construct-handler will use the latest definition
 of the function.
@@ -88,11 +96,3 @@ So the work cycle is:
 * Make changes to source files
 * Use Cursive to reload the affected namespaces footnote:[Cursive is good about loading all changed namespaces, in dependency order]
 * Refresh in the browser and continue
-
-There are several other options for construct-handler:
-
-$$:log$$:: If true, then the request method and URI is logged before each request
-$$:debug$$:: If true, then the Ring request map is pretty-printed and logged before each request
-$$:track$$:: If true, then the request method and URI is link:https://github.com/AvisoNovate/tracker[tracked] during execution.
-
-Logging is based on link:https://github.com/clojure/tools.logging[tools.logging].
