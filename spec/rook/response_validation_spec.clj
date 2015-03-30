@@ -1,14 +1,12 @@
 (ns rook.response-validation-spec
-  (:import (javax.servlet.http HttpServletResponse))
   (:use
     speclj.core
     clojure.pprint
     ring.mock.request
     io.aviso.rook
     io.aviso.rook.response-validation)
-  (:require [schema.core :as s]
-            [clojure.core.async :refer [thread <!!]]
-            [io.aviso.rook.async :as async]))
+  (:require [schema.core :as s])
+  (:import [javax.servlet.http HttpServletResponse]))
 
 (describe "io.aviso.rook.response-validation"
 
@@ -76,24 +74,6 @@
                 wrapped (wrap-with-response-validation handler {:function  "inline/handler"
                                                                 :responses @responses})
                 actual-response (wrapped nil)]
-            (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                     (actual-response :status)))))
-
-    (context "async/wrap-with-response-validation"
-
-      (it "returns nil when not enabled"
-
-          (should-be-nil
-            (async/wrap-with-response-validation :handler nil false)))
-
-      (it "returns nil when :responses not present"
-          (should-be-nil (async/wrap-with-response-validation :handler nil)))
-
-      (it "returns a validating handler when :responses present"
-          (let [handler (fn [request] (thread {:status 200 :body {:player :purple}}))
-                wrapped (async/wrap-with-response-validation handler {:function  "inline/handler"
-                                                                      :responses @responses})
-                actual-response (<!! (wrapped nil))]
             (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
                      (actual-response :status)))))))
 

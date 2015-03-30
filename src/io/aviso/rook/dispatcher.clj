@@ -5,8 +5,7 @@
   The main function is [[construct-namespace-handler]], but this is normally only invoked
   by [[namespace-handler]]."
   {:added "0.1.10"}
-  (:require [clojure.core.async :refer [chan close!]]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [io.aviso.tracker :as t]
             [io.aviso.toolchest.macros :refer [consume cond-let]]
             [io.aviso.toolchest.collections :refer [pretty-print]]
@@ -277,11 +276,6 @@
       (apply juxt))
     (constantly ())))
 
-(defn- default-sync-wrapper
-  [handler metadata]
-  (if (:sync metadata)
-    (internals/ring-handler->async-handler handler)))
-
 (defn- expand-context
   [context]
   (cond
@@ -371,7 +365,7 @@
        ns-specs))
 
 (defn- construct-namespace-table-entry
-  [sync-wrapper container-context ns-sym arg-resolvers middleware ns-metadata fn-name fn-var]
+  [container-context ns-sym arg-resolvers middleware ns-metadata fn-name fn-var]
   (t/track
     #(format "Building mapping for `%s/%s'." ns-sym fn-name)
     (let
@@ -431,13 +425,12 @@
 
               endpoint-fn @fn-var
 
-              full-middleware (internals/compose-middleware sync-wrapper middleware)
+              ;; This ensures that even when middleware returns nil, the handler is non-nil.
+              full-middleware (internals/compose-middleware  middleware)
 
               request-handler (-> (fn [request]
                                     (apply endpoint-fn (arglist-resolver request)))
 
-                                  ;; This is always via compose-middleware, so it will never
-                                  ;; return nil.
                                   (full-middleware merged-metadata)
 
                                   apply-context-middleware
@@ -445,7 +438,7 @@
           [method endpoint-context request-handler merged-metadata])))))
 
 (defn- expand-namespace-entry
-  [sync-wrapper [context ns-sym arg-resolvers middleware ns-metadata]]
+  [[context ns-sym arg-resolvers middleware ns-metadata]]
   (t/track
     #(format "Identifying endpoints in namespace `%s.'" ns-sym)
     (let [ns-metadata' (dissoc ns-metadata :doc)
@@ -454,7 +447,7 @@
            ns-publics
            (keep (fn [[k v]]
                    (if (ifn? @v)
-                     (construct-namespace-table-entry sync-wrapper context ns-sym arg-resolvers' middleware ns-metadata' k v))))
+                     (construct-namespace-table-entry context ns-sym arg-resolvers' middleware ns-metadata' k v))))
            doall))))
 
 (defn- construct-routing-table
@@ -470,22 +463,18 @@
   : seq of path terms (each is a string or a keyword)
 
   handler
-  : a Ring request handler (or async variation) derived from a function of the namespace,
-    that includes middleware, argument resolution, etc.
+  : a Ring request handler derived from an endpoint function of the namespace,
+    that has been intercepted to include middleware, argument resolution, etc.
 
   endpoint-meta
   : Merged meta-data for the handler, including key :function (namespace qualified name of the function)
 
-  The sync-wrapper is a special middleware placed *before* any normal middleware for the
-  endpoint. For synchronous Rook, it is always identity. For async Rook, it converts
-  a synchronous handler into an asynchronous handler, using the core.async thread macro.
-
   Returns a map whose keys are ns-specs (the inputs from the ns-table) and whose
   values are a seq of routing entries (for that immediate namespace)."
-  [sync-wrapper ns-table]
+  [ns-table]
   (reduce
     (fn [result ns-spec]
-      (assoc result ns-spec (expand-namespace-entry sync-wrapper ns-spec)))
+      (assoc result ns-spec (expand-namespace-entry ns-spec)))
     {}
     ns-table))
 
@@ -565,7 +554,7 @@
                        :endpoints (map (comp :function second) matches)})))))
 
 (defn- create-map-traversal-handler
-  [not-found-response dispatch-map]
+  [dispatch-map]
   (fn [request]
     (let [[request-method request-path] (request-route-spec request)]
       (loop [[path-term & remaining-path] request-path
@@ -574,8 +563,7 @@
 
           ;; Managed to get to the end of the path?
           (nil? path-term)
-          (or (invoke-leaf' request request-method request-path node)
-              not-found-response)
+          (invoke-leaf' request request-method request-path node)
 
           [literal-node (get node path-term)]
 
@@ -590,11 +578,7 @@
 
           ;; Reach a term in the path that is neither a literal term
           ;; nor a route param placeholder, which results in a non-match.
-          :else
-          not-found-response)))))
-
-(def ^:private closed-channel
-  (doto (chan) close!))
+          )))))
 
 (defn construct-namespace-handler
   "Invoked from [[namespace-handler]] to construct a Ring request handler for the provided
@@ -604,22 +588,17 @@
   version of the namespace specifications)."
   {:added "0.1.20"}
   [options ns-specs]
-  (let [async? (get options :async? false)
-        routing-table (->> ns-specs
+  (let [routing-table (->> ns-specs
                            (build-namespace-table
                              (get options :context [])
                              (merge-arg-resolver-maps default-arg-resolvers (get options :arg-resolvers))
                              (get options :default-middleware default-namespace-middleware))
                            expand-namespace-metadata
-                           (construct-routing-table
-                             (if async?
-                               (get options :sync-wrapper default-sync-wrapper)
-                               default-namespace-middleware)))
+                           construct-routing-table)
         handler (->>
                   routing-table
                   vals
                   (apply concat)
                   construct-dispatch-map
-                  (create-map-traversal-handler
-                    (if async? closed-channel)))]
+                  create-map-traversal-handler)]
     [handler routing-table]))

@@ -3,7 +3,6 @@
   {:sync true}
   (:require
    [io.aviso.rook.utils :as utils]
-   [ring.util.response :as r]
    [clojure.tools.logging :as l]))
 
 (defn store

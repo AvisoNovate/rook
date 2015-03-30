@@ -2,13 +2,9 @@
   "Unsupported internal functions used in the implementation."
   {:no-doc true}
   (:require
-    [io.aviso.toolchest.exceptions :refer [to-message]]
-    [io.aviso.rook.utils :as utils]
     [medley.core :as medley]
-    [clojure.core.async :as async]
     [clojure.tools.logging :as l]
-    [ring.util.response :as r])
-  (:import (javax.servlet.http HttpServletResponse)))
+    [ring.util.response :as r]))
 
 (defn to-clojureized-keyword
   "Converts a keyword with embedded underscores into one with embedded dashes."
@@ -22,57 +18,6 @@
   (->> request
        :params
        (medley/map-keys to-clojureized-keyword)))
-
-(defmacro safety-first
-  "Provides a safe environment for the implementation of a thread or go block; any uncaught exception
-  is converted to a 500 response.
-
-  The request is used when reporting the exception; it is passed the incoming request
-  so that it can report the method and URI."
-  [request & body]
-  `(try
-     ~@body
-     (catch Throwable t#
-       (let [r# ~request]
-         (l/error t# "Exception processing request" (utils/summarize-request r#)))
-       (utils/failure-response HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                               "unexpected-exception"
-                               (to-message t#)))))
-
-(defmacro safe-go
-  "Wraps the body in a [[safety-first]] block and then in a go block. The request is used by [[safety-first]] if it must
-  log an error. Requires at least one expression."
-  [request expr & more]
-  `(async/go (safety-first ~request ~expr ~@more)))
-
-(defmacro safe-thread
-  "Wraps the body in a [[safety-first]] block and then in a thread block. The request is used by [[safety-first]] if it must
-  log an error. Requires at least one expression."
-  [request expr & more]
-  `(async/thread (safety-first ~request ~expr ~@more)))
-
-(defn async-handler->ring-handler
-  "Wraps an asynchronous handler function as a standard synchronous handler. The synchronous handler uses `<!!`, so it may block."
-  [async-handler]
-  (fn [request]
-    (-> request async-handler async/<!!)))
-
-(defn result->channel
-  "Wraps the result from a synchronous handler into a channel. Non-nil results are `put!` on to the channel;
-  a nil result causes the channel to be `close!`ed."
-  [result]
-  (let [ch (async/chan 1)]
-    (if (some? result)
-      (async/put! ch result)
-      (async/close! ch))
-    ch))
-
-(defn ring-handler->async-handler
-  "Wraps a syncronous Ring handler function as an asynchronous handler. The handler is invoked in another
-   thread, and a nil response is converted to a `close!` action."
-  [handler]
-  (fn [request]
-    (safe-thread request (handler request))))
 
 (defn get-injection
   "Retrieves an injected value stored in the request. Throws an exception if the value is falsey."

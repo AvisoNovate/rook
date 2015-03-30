@@ -22,8 +22,6 @@ Rook combines several features together:
 
 * Request and response validation using link:https://github.com/Prismatic/schema[Prismatic Schema]
 
-* Optional asynchronous processing pipeline based on https://github.com/clojure/core.async[Clojure core.async]
-
 * Development-friendly environment
 
 This philosophy of Rook is to map URIs to namespaces, and have the functions inside those namespaces,

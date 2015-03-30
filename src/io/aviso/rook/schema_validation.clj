@@ -47,8 +47,7 @@
   (or (string-coercions schema)
       (coerce/string-coercion-matcher schema)))
 
-(defn wrap-invalid-response
-  {:no-doc true}
+(defn ^:no-doc wrap-invalid-response
   [endpoint-name failures]
   (utils/failure-response HttpServletResponse/SC_BAD_REQUEST
                           "invalid-request-data"
@@ -77,17 +76,12 @@
 
 (defn wrap-with-schema-validation
   "Wraps a handler with validation, which is triggered by the :schema key in the
-  metadata.
-
-  The three-argument version includes a function used to wrap the bad request response;
-  this is identity in the normal case (and is provided to support async processing)."
-  ([handler metadata]
-    (wrap-with-schema-validation handler metadata identity))
-  ([handler {:keys [schema function]} response-wrapper]
-    (when schema
-      (fn [request]
-        (let [[failures new-request] (validate-against-schema request schema)]
-          (if failures
-            (->> failures (wrap-invalid-response function) response-wrapper)
-            (handler new-request)))))))
+  metadata. "
+  [handler {:keys [schema function]}]
+  (when schema
+    (fn [request]
+      (let [[failures new-request] (validate-against-schema request schema)]
+        (if failures
+          (wrap-invalid-response function failures)
+          (handler new-request))))))
 

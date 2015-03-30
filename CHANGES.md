@@ -1,5 +1,16 @@
 ## 0.1.26 - UNRELEASED
 
+Rook is now focused on dispatch of incoming requests to endpoints; a hard look at the async features have found them to
+be problematic, and not returning on the desired investment and they have been removed.
+ 
+io.aviso.rook.server has a new function, wrap-with-exception-catching, which catches exceptions, reports them
+(using io.aviso/tracker), and returns a 500 failure response.
+
+The construct-handler function has been enhanced with new options to enable the exception catching, and to provide
+the standard Rook middleware. 
+
+In addition, there has been a general refresh of dependencies to latest.
+
 ## 0.1.25 - 12 Mar 2015
 
 When there is an exception creating the handler, io.aviso.rook.server now replaces the handler with one that returns

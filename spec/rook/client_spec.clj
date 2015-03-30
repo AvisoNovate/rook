@@ -1,14 +1,11 @@
 (ns rook.client-spec
-  (:import (javax.servlet.http HttpServletResponse))
-  (:use
-  [clojure.core.async :only [chan >!! <!! <! go]]
-  speclj.core)
-  (:require
-    [ring.util.response :as r]
-    [io.aviso.rook
-     [async :as async]
-     [client :as c]
-     [utils :as utils]]))
+  (:use [clojure.core.async :only [chan >!! <!! <! go]]
+        speclj.core)
+  (:require [ring.util.response :as r]
+            [io.aviso.rook
+             [client :as c]
+             [utils :as utils]])
+  (:import [javax.servlet.http HttpServletResponse]))
 
 (defn- respond
   "Async respons with value, as if computed by a go or thread block."
@@ -64,14 +61,14 @@
         (should= params
                  (-> (c/new-request :placeholder)
                      (c/with-query-params params)
-                                          :query-params))))
+                     :query-params))))
 
   (it "can pass body parameters in the request"
       (let [params {:foo 1 :bar 2}]
         (should= params
                  (-> (c/new-request :placeholder)
                      (c/with-body-params params)
-                                          :body-params))))
+                     :body-params))))
 
   (it "passes a Ring request to the handler"
       (should= {:request-method :put
@@ -89,14 +86,6 @@
                    :body
                    ;; Filter out some extra information
                    (select-keys [:request-method :uri :headers :query-params :body-params]))))
-
-  (it "converts an exception inside a try-go block into a 500"
-      (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-               (-> (c/new-request #(async/safe-go % (throw (IllegalArgumentException.))))
-                   (c/to :get)
-                   c/send
-                   <!!
-                   :status)))
 
   (context "then macro"
 

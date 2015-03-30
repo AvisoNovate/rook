@@ -3,13 +3,12 @@
   from endpoint functions. Response status must match expected values, and response bodies
   can be validated against a Schema. This is usually only enabled during development."
   {:since "0.1.11"}
-  (:import [javax.servlet.http HttpServletResponse])
   (:require [io.aviso.toolchest.exceptions :refer [to-message]]
             [clojure.tools.logging :as l]
             [schema.core :as schema]
             [io.aviso.toolchest.macros :refer [cond-let]]
-            [ring.util.response :as r]
-            [io.aviso.rook.utils :as utils]))
+            [io.aviso.rook.utils :as utils])
+  (:import [javax.servlet.http HttpServletResponse]))
 
 (defn ensure-matching-response
   "Given a response and a map from status code to a schema (for the body), ensures that the

@@ -11,8 +11,6 @@
                "middleware"
                "validation"
                "injection"
-               "async"
-               "end-to-end"
                "swagger"
                "dev"
                ] }

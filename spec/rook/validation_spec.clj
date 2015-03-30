@@ -1,17 +1,11 @@
 (ns rook.validation-spec
-  (:import (javax.servlet.http HttpServletResponse)
-           (java.util Date TimeZone Calendar UUID)
-           (java.text SimpleDateFormat))
-  (:use
-  speclj.core
-  ring.mock.request
-  io.aviso.rook
-  io.aviso.rook.schema-validation)
-  (:require
-    [clojure.core.async :refer [<!!]]
-    [schema.core :as s]
-    [clojure.tools.logging :as l]
-    [io.aviso.rook.async :as async]))
+  (:use speclj.core
+        ring.mock.request
+        io.aviso.rook
+        io.aviso.rook.schema-validation)
+  (:require [schema.core :as s])
+  (:import [javax.servlet.http HttpServletResponse]
+           [java.util Date UUID]))
 
 (def example-schema {:name                     s/Str
                      (s/optional-key :address) [s/Str]
@@ -96,28 +90,6 @@
                      (request :post "/")
                      (assoc :params {:first-name "Wrong Key"})
                      handler
-                     :status)))))
-
-  (describe "async middleware"
-
-    (let [handler (namespace-handler {:async? true} ['validating])]
-      (it "is present in the default async pipeline"
-          (should= HttpServletResponse/SC_BAD_REQUEST
-                   (->
-                     (request :post "/")
-                     (assoc :params {:first-name "Wrong Key"})
-                     handler
-                     <!!
-                     :status)))
-
-      (it "does not interfere with valid request"
-
-          (should= HttpServletResponse/SC_OK
-                   (->
-                     (request :post "/")
-                     (assoc :params {:name "Provided"})
-                     handler
-                     <!!
                      :status))))))
 
 (run-specs)

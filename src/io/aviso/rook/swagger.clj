@@ -6,8 +6,7 @@
   into a description compatible with the ring-swagger library."
   {:since "0.1.14"
    :sync  true}
-  (:require [io.aviso.rook.internals :as internals]
-            [ring.swagger.core :as swagger]
+  (:require [ring.swagger.core :as swagger]
             [ring.swagger.ui :as ui]
             [clojure.string :as string]
             [io.aviso.rook :as rook]
@@ -42,12 +41,12 @@
 
 (defn- get-success
   ([responses]
-    (get-success responses nil))
+   (get-success responses nil))
   ([responses not-found]
-    (let [s? (ffirst (drop-while #(< (first %) 200) (sort-by first responses)))]
-      (if (and s? (< s? 300))
-        s?
-        not-found))))
+   (let [s? (ffirst (drop-while #(< (first %) 200) (sort-by first responses)))]
+     (if (and s? (< s? 300))
+       s?
+       not-found))))
 
 (defn- ->swagger-term [value]
   (if (keyword? value)
@@ -124,28 +123,21 @@
   (reduce
     (fn [swagger [[context _ _ _ ns-meta] routing-specs]]
       (assoc swagger
-             (->swagger-path context)
-             {:description (or (:doc ns-meta) "No resource description provided.")
-              :routes      (routing-specs->swagger-routes routing-specs)}))
+        (->swagger-path context)
+        {:description (or (:doc ns-meta) "No resource description provided.")
+         :routes      (routing-specs->swagger-routes routing-specs)}))
     {}
     routing-table))
 
 (defn wrap-with-swagger-ui
   "Gives swagger-ui the opportunity to handle a request before passing
-  it on to the wrapped handler. Wraps swagger responses in channels if
-  `:async? true` is supplied. (The wrapped handler is presumed async
-  in that case and its responses are not wrapped.)"
-  [handler {:keys [async?]} routing-table]
+  it on to the wrapped handler."
+  [handler routing-table]
   (let [swagger (construct-swagger routing-table)
         swagger-ui (ui/swagger-ui "/swagger-ui" :swagger-docs "/swagger")
-        handler' (if async?
-                   (fn [request]
-                     (if-let [swagger-response (swagger-ui request)]
-                       (internals/result->channel swagger-response)
-                       (handler request)))
-                   (fn [request]
-                     (or (swagger-ui request)
-                         (handler request))))]
+        handler' (fn [request]
+                   (or (swagger-ui request)
+                       (handler request)))]
     ;; Remove the mapping for swagger itself form what's exposed.
     (rook/wrap-with-injection handler' :swagger (dissoc swagger "/swagger"))))
 

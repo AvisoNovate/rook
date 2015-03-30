@@ -3,13 +3,13 @@
         clojure.pprint)
   (:require [io.aviso.rook.dispatcher :as d]
             [io.aviso.rook.utils :as utils]
-            [io.aviso.rook.async :as rook-async]
             [io.aviso.rook :as rook]
+            [io.aviso.rook.schema-validation :as sv]
             [qbits.jet.server :as jet]
             [clj-http.client :as http]
             [clj-http.cookies :as cookies]
             [ring.mock.request :as mock]
-            [clojure.core.async :as async]
+            [ring.middleware.session :as session]
             ring.middleware.params
             ring.middleware.keyword-params
             [clojure.edn :as edn]
@@ -241,64 +241,6 @@
                 handler
                 (should= "42 -- **presto[extra]**"))))))
 
-  (describe "async handlers"
-
-    (it "should return a channel with the correct response"
-
-        (let [handler (rook/namespace-handler {:async? true}
-                                              ['barney default-middleware])]
-          (should= {:message "ribs!"}
-                   (-> (mock/request :get "/") handler async/<!! :body))))
-
-    (it "should expose the request's :params key as an argument"
-        (let [handler (rook/namespace-handler {:async? true}
-                                              ['echo-params])
-              params {:foo :bar}]
-          (should-be-same params
-                          (-> (mock/request :get "/")
-                              (assoc :params params)
-                              handler
-                              async/<!!
-                              :body
-                              :params-arg))))
-
-
-    (it "should return a 500 response if a sync handler throws an exception"
-        (let [handler (-> (rook/namespace-handler
-                            ["fail" 'failing])
-                          rook-async/wrap-restful-format
-                          rook-async/async-handler->ring-handler)]
-          (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR
-                   (-> (mock/request :get "/fail") handler :status)))))
-
-
-  (describe "handlers with schema attached"
-
-    (it "should respond appropriately given a valid request"
-        (let [handler (->> (rook/namespace-handler {:async? true}
-                                                   [["validating"] 'validating rook-async/wrap-with-schema-validation])
-                           rook-async/async-handler->ring-handler)
-              response (-> (mock/request :post "/validating")
-                           (merge {:params {:name "Vincent"}})
-                           handler)]
-          (should= HttpServletResponse/SC_OK (:status response))
-          (should= [:name] (:body response))))
-
-    (it "should send schema validation failures"
-        (let [handler (->> (rook/namespace-handler {:async? true}
-                                                   ["validating" 'validating rook-async/wrap-with-schema-validation])
-                           rook-async/async-handler->ring-handler
-                           ring.middleware.keyword-params/wrap-keyword-params
-                           ring.middleware.params/wrap-params)
-              response (-> (mock/request :post "/validating")
-                           handler)]
-          (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
-          ;; TODO: Not sure that's the exact format I want sent back to the client!
-          (should= {:error   "invalid-request-data"
-                    :message "Request for endpoint `validating/create' contained invalid data: {:name missing-required-key}"}
-                   (:body response)))))
-
-
   (describe "handlers with a large number of endpoints"
 
     (it "should compile and handle requests as expected using map traversal"
@@ -318,10 +260,9 @@
   (describe "running end-to-end with Jetty (via Jet)"
 
     (with-all server
-              (let [handler (->
+              (let [creator #(->
                               (rook/namespace-handler
-                                {:async?             true
-                                 :default-middleware rook-async/wrap-with-schema-validation
+                                {:default-middleware sv/wrap-with-schema-validation
                                  :arg-resolvers      {'strange-injection :injection}
                                  ;; just to make sure Swagger support doesn't break things
                                  :swagger            true}
@@ -338,11 +279,12 @@
                                 ["surprise" 'surprise d/default-namespace-middleware
                                  [[:id "foo"] 'surprise-foo]]
                                 ["foobar" 'foobar])
-                              rook-async/wrap-session
-                              (server/wrap-with-timeout 100)
-                              rook-async/wrap-with-standard-middleware
-                              (rook/wrap-with-injection :strange-injection "really surprising")
-                              server/wrap-debug-request)]
+                              session/wrap-session
+                              (rook/wrap-with-injection :strange-injection "really surprising"))
+                    handler (server/construct-handler {:debug     true
+                                                       :standard  true
+                                                       :exception true}
+                                                      creator)]
                 (jet/run-jetty {:host         "localhost"
                                 :port         9988
                                 :join?        false
@@ -358,19 +300,6 @@
           (should= "application/json; charset=utf-8"
                    (-> response :headers (get "Content-Type")))
           (should= "{\"message\":\"rubble-1 is a very fine id!\"}" (:body response))))
-
-    (it "will respond with a failure if the content is not valid"
-        (let [response (http/post "http://localhost:9988/static"
-                                  {:accept           :edn
-                                   :content-type     :edn
-                                   :body             "{not valid edn"
-                                   :as               :clojure
-                                   :throw-exceptions false})]
-          ;; this is actually client error, but we don't guard against it
-          (should= HttpServletResponse/SC_INTERNAL_SERVER_ERROR (:status response))
-          (should= {:error   "unexpected-exception"
-                    :message "EOF while reading"}
-                   (:body response))))
 
     (it "can manage server-side session state"
         (let [k (utils/new-uuid)
@@ -389,12 +318,6 @@
           (should= (pr-str {:result :ok}) (:body response))
           (should= 200 (:status response'))
           (should= v (-> response' :body edn/read-string :result))))
-
-    (it "handles a slow handler timeout"
-        (let [response (http/get "http://localhost:9988/slow"
-                                 {:accept           :json
-                                  :throw-exceptions false})]
-          (should= HttpServletResponse/SC_GATEWAY_TIMEOUT (:status response))))
 
     (it "responds with 404 if no handler can be found"
         (let [response (http/get "http://localhost:9988/wilma"

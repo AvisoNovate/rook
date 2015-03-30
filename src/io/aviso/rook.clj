@@ -7,8 +7,7 @@
     [ring.middleware params format keyword-params]
     [medley.core :as medley]
     [potemkin :as p]
-    [io.aviso.tracker :as t]
-    [clojure.tools.logging :as l]))
+    [io.aviso.tracker :as t]))
 
 (p/import-vars
 
@@ -106,26 +105,6 @@
 
   Supported options and their default values:
 
-  :async?
-  : _Default: false_
-  : Determines the way in which middleware is applied to the terminal
-    handler. Pass in true when compiling async handlers.
-
-  : Note that when async is enabled, you must be careful to only apply
-    endpoint middleware that is appropriately async aware. Further,
-    the returned handler will itself be asynchronous (returning a
-    channel, not a response map), which affects any Ring middleware
-    applied to it.
-
-  :sync-wrapper
-  : Converts a synchronous request handler into
-    an asynchronous handler; this is only used in async mode, when the endpoint
-    function has the :sync metadata. The value is an async Rook middleware
-    (passed the request handler, and the endpoint function's metadata).
-
-  : Generally, you only need to override the default when you want to change
-    the exception catching and reporting behavior built into the default wrapper.
-
   :arg-resolvers
   : Map of symbol to (keyword or function of request) or keyword
     to (function of symbol returning function of request). Entries of
@@ -187,7 +166,7 @@
                    [handler routing-table] (dispatcher/construct-namespace-handler options ns-specs')]
                (if swagger-enabled
                  (try-swagger
-                   ((resolve 'io.aviso.rook.swagger/wrap-with-swagger-ui) handler options routing-table))
+                   ((resolve 'io.aviso.rook.swagger/wrap-with-swagger-ui) handler routing-table))
                  handler)))))
 
 

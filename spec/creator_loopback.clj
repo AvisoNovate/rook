@@ -1,8 +1,6 @@
 (ns creator-loopback
   (:require
-    [io.aviso.rook
-     [async :as async]
-     [client :as c]]))
+    [io.aviso.rook.client :as c]))
 
 (defn create
   [^:injection loopback-handler]

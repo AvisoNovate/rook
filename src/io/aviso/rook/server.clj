@@ -1,8 +1,6 @@
 (ns io.aviso.rook.server
   "Utilities for creating Ring handlers."
-  (:require [clojure.core.async :refer [alt! chan timeout >!]]
-            [io.aviso.rook.async :as async]
-            [io.aviso.rook.utils :as utils]
+  (:require [io.aviso.rook.utils :as utils]
             [io.aviso.binary :refer [format-binary]]
             [io.aviso.toolchest.macros :refer [cond-let]]
             [io.aviso.toolchest.collections :refer [pretty-print]]
@@ -11,7 +9,8 @@
             [clojure.java.io :as io]
             [medley.core :as medley]
             [clojure.string :as str]
-            [io.aviso.tracker :as t])
+            [io.aviso.tracker :as t]
+            [io.aviso.rook :as rook])
   (:import [javax.servlet.http HttpServletResponse]
            [java.io ByteArrayOutputStream InputStream]))
 
@@ -156,98 +155,29 @@
           response))
       (assoc response :body (io/input-stream body-array)))))
 
-(defn wrap-with-timeout
-  "Asynchronous Ring middleware that applies a timeout to a request. When the timeout occurs, a 504 [[failure-response]]
-  is returned (and any later response from the downstream handler is ignored).
-
-  In addition, the handler identifies unmatched requests and converts them to 404. This is important when using Jet
-  as it does not have default behavior for a nil response (it throws an exception).
-
-  This is obviously meant for asynchronous handlers only; it also includes logging of the response (as provided
-  by [[wrap-debug-response]] for synchronous handlers).
-
-  The wrapped handler is passed the request with two additional keys:
-
-  :timeout-ch
-  : The timeout channel. This can be used for waiting, but should *not* be closed.
-
-  :timeout-control-ch
-  : A channel that can be used to control timeouts from further downstream. If the channel receives
-    the value :cancel, then the timeout is canceled (really, the timeout is ignored should it take place).
-    If the channel is closed, then the request times out immediately.
-  : Any other value in the channel is logged as an error, and ignored.
-
-  The intent of :timeout-ch is to allow a long-running operation inside an endpoint function to set
-  an upper limit how long it should wait for some outside activity (such as a request to another server,
-  or any other kind of I/O).  When the timeout closes, there's no point in continuing or even creating a response,
-  as a the 504 timeout failure response will already have been sent to the client.
-
-  On the other hand, if request is going to take a while *and* will overrun the default timeout, then putting
-  :cancel into the control channel will change this code to ignore the eventual timeout. It becomes the
-  downstream code's responsibility to return a value at some point ... or close the timeout control channel
-  to force an immediate timeout response.
-
-  Since it can return a response that requires encoding, it should generally be placed inside
-  [[io.aviso.rook.async/wrap-restful-format]], which handles conversion from Clojure data in the body to
-  appropriate character streams for the client."
-  {:added "0.1.21"}
-  [handler timeout-ms]
-  (fn [request]
-    (async/safe-go request
-                   (let [timeout-ch (timeout timeout-ms)
-                         timeout-control-ch (chan 1)
-                         request' (assoc request :timeout-ch timeout-ch
-                                                 :timeout-control-ch timeout-control-ch)
-                         response-ch (handler request')]
-                     (log-response
-                       (loop [timeout-ch' timeout-ch]
-                         (alt!
-
-                           timeout-control-ch ([v]
-                                                (cond
-                                                  (= :cancel v)
-                                                  ;; Here's what the loop is for, replace the timeout channel with a channel that will
-                                                  ;; never close.
-                                                  (recur (chan))
-
-                                                  (nil? v)
-                                                  (let [message (format "Processing of request %s timed out."
-                                                                        (utils/summarize-request request))]
-                                                    (utils/failure-response HttpServletResponse/SC_GATEWAY_TIMEOUT "timeout" message))
-
-                                                  :else
-                                                  (do
-                                                    (l/errorf "An unexpected value %s was received in the timeout control channel for request %s and has been ignored."
-                                                              (pr-str v)
-                                                              (utils/summarize-request request))
-                                                    (recur timeout-ch'))))
-
-                           timeout-ch' (let [message (format "Processing of request %s timed out after %,d ms."
-                                                             (utils/summarize-request request)
-                                                             timeout-ms)]
-                                         (l/warn message)
-                                         (utils/failure-response HttpServletResponse/SC_GATEWAY_TIMEOUT "timeout" message))
-
-                           response-ch ([response]
-                                         (or response
-                                             (do
-                                               (l/debugf "Handler for %s closed response channel." (utils/summarize-request request))
-                                               not-found-response)))
-
-                           ;; In testing at least, the close of the control channel and returning nil (closing
-                           ;; response-ch) can happen close enough together that the handler-ch
-                           ;; wins over the timeout-control-ch, resulting in a 404 response not a 504.
-                           :priority true)))))))
-
 (defn wrap-debug-response
-  "Used with synchronous handlers to log the response sent back to the client at debug level.  [[wrap-with-timeout]]
-  includes this functionality for asynchronous handlers."
+  "Used to log the response sent back to the client at debug level."
   {:added "0.1.22"}
   [handler]
   (fn [request]
     (-> request
         handler
         log-response)))
+
+(defn wrap-with-exception-catching
+  "A simple exception catching and reporting wrapper.
+
+   Establishes a tracking checkpoint (so it works very well with [[wrap-track-request]].
+
+   Exceptions are converted to 500 responses in the standard [[failure-response]] format."
+  {:added "0.1.26"}
+  [handler]
+  (fn [request]
+    (try
+      (t/checkpoint
+        (handler request))
+      (catch Throwable t
+        (utils/failure-response HttpServletResponse/SC_INTERNAL_SERVER_ERROR "unexpected-exception" (to-message t))))))
 
 (defn construct-handler
   "Constructs a root handler using a creator function.  Normally, the creator function
@@ -266,7 +196,8 @@
   : enables the above-described reloading of the handler.
 
   :debug
-  : enables logging (at debug level) of each incoming request via [[wrap-debug-request]],
+  : enables logging (at debug level) of each incoming request via [[wrap-debug-request]]
+    and [[wrap-debug-response]]
 
   :log
   : enables logging of a summary of each incoming request (at info level) via [[wrap-log-request]].
@@ -274,15 +205,24 @@
   :track
   : enables tracking a summary of each incoming request via [[wrap-track-request]].
 
-  The extra logging and debugging middleware is added around the root handler (or the
+  :standard
+  : Enables the standard Rook middleware, (see [[wrap-with-standard-middleware]]).
+
+  :exceptions
+  : Enables [[wrap-with-exception-catching]] to catch and report exceptions.
+
+  The extra middleware is added around the root handler (or the
   reloading handler that creates the root handler)."
-  [{:keys [reload log debug track]} creator & creator-args]
+  [{:keys [reload log debug track standard exceptions]} creator & creator-args]
   (let [creator' (wrap-creator creator creator-args)
         handler (if reload
                   (reloading-handler creator')
                   ;; Or just do it once, right now.
                   (creator'))]
     (cond-> handler
+            exceptions wrap-with-exception-catching
+            standard rook/wrap-with-standard-middleware
             debug wrap-debug-request
+            debug wrap-debug-response
             log wrap-log-request
             track wrap-track-request)))
