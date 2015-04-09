@@ -2,10 +2,7 @@
   (:use
     clojure.repl
     io.aviso.repl
-    speclj.config)
-  (:require
-    ;; See https://github.com/slagyr/speclj/issues/79
-    speclj.run.standard))
+    speclj.config))
 
 (install-pretty-exceptions)
 

@@ -6,7 +6,7 @@
             :profiles {:dev
                         {:dependencies [[ring-mock "0.1.5"]
                                         [cc.qbits/jet "0.5.4"]
-                                        [speclj "3.1.0"]
+                                        [speclj "3.2.0"]
                                         [log4j "1.2.17"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
