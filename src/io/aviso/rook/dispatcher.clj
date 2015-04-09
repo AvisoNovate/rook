@@ -1,6 +1,5 @@
 (ns io.aviso.rook.dispatcher
-  "The heart of Rooks dispatch logic, converting namespace specifications into a Ring request handler
-  (with special hooks to deal with Rook's async variant on the standard Ring pipeline).
+  "The heart of Rook's dispatch logic, converting namespace specifications into a Ring request handler.
 
   The main function is [[construct-namespace-handler]], but this is normally only invoked
   by [[namespace-handler]]."
