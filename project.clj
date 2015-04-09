@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.1.26"
+(defproject io.aviso/rook "0.1.27"
             :description "Sane, smart, fast, Clojure web services"
             :url "http://howardlewisship.com/io.aviso/documentation/rook"
             :license {:name "Apache Sofware License 2.0"
@@ -14,24 +14,19 @@
                            [io.aviso/pretty "0.1.17"]
                            [io.aviso/toolchest "0.1.1"]
                            [cheshire "5.4.0"]
-                           [potemkin "0.3.12"]
-                           ;; This overrides the version from ring/ring-core with the version from metosin/ring-swagger
-                           ;; Can't simply exclude it from ring-core, because ring-swagger is an optional dependency.
-                           [clj-time "0.9.0"]
+                           [potemkin "0.3.13"]
                            ;; Likewise, the conflict between clj-http (optional) and ring-middleware-format over
                            [com.cognitect/transit-clj "0.8.269"]
                            [org.clojure/tools.reader "0.8.16"]
                            [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                            [org.clojure/tools.logging "0.3.1"]
                            [io.aviso/tracker "0.1.6"]
-                           [ring/ring-core "1.3.2" :exclusions [org.clojure/tools.reader]]
+                           #_ [ring/ring-core "1.3.2" :exclusions [org.clojure/tools.reader]]
                            [medley "0.5.5" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
-                           [ring-middleware-format "0.5.0"]
+                           [ring-middleware-format "0.5.0" :exclusions [ring/ring-devel org.clojure/tools.reader ring]]
+                           [ring/ring-core "1.3.2" :exclusions [commons-fileupload]]
                            [prismatic/schema "0.4.0"]
-                           ;; ring-core and ring-swagger have a conflict w.r.t clj-time "0.6.0" vs. "0.9.0".
-                           [metosin/ring-swagger "0.19.1" :optional true :exclusions [org.clojure/clojure]]
-                           [metosin/ring-swagger-ui "2.1.8-M1" :optional true]
-                           [clj-http "1.0.1" :optional true]]
+                           [clj-http "1.1.0" :optional true]]
             :plugins [[speclj "3.1.0"]
                       [lein-shell "0.4.0"]]
             :jvm-opts ["-Xmx1g"]

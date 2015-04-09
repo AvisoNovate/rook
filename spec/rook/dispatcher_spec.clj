@@ -263,9 +263,7 @@
               (let [creator #(->
                               (rook/namespace-handler
                                 {:default-middleware sv/wrap-with-schema-validation
-                                 :arg-resolvers      {'strange-injection :injection}
-                                 ;; just to make sure Swagger support doesn't break things
-                                 :swagger            true}
+                                 :arg-resolvers      {'strange-injection :injection}}
                                 ["fred" 'fred]
                                 ["barney" 'barney]
                                 ["betty" 'betty]

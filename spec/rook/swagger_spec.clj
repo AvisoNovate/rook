@@ -13,7 +13,7 @@
             [qbits.jet.server :as jet]
             [clojure.tools.logging :as l]))
 
-(defn- swagger-data [options & ns-specs]
+#_ (defn- swagger-data [options & ns-specs]
   (let [[_ routing-table] (d/construct-namespace-handler options ns-specs)]
     (rs/construct-swagger routing-table)))
 
@@ -83,7 +83,7 @@
                                               [{:type  :path
                                                 :model {:hotel-id String}}]}}]}})
 
-(describe "io.aviso.rook.swagger"
+#_ (describe "io.aviso.rook.swagger"
 
   (it "can construct swagger data"
       (let [data (swagger-data nil

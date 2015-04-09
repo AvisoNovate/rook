@@ -1,13 +1,12 @@
 (ns io.aviso.rook
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
-  (:require
-    [io.aviso.rook [dispatcher :as dispatcher]]
-    [io.aviso.toolchest.macros :refer [consume]]
-    [io.aviso.toolchest.collections :refer [pretty-print]]
-    [ring.middleware params format keyword-params]
-    [medley.core :as medley]
-    [potemkin :as p]
-    [io.aviso.tracker :as t]))
+  (:require [io.aviso.rook [dispatcher :as dispatcher]]
+            [io.aviso.toolchest.macros :refer [consume]]
+            [io.aviso.toolchest.collections :refer [pretty-print]]
+            [ring.middleware params format keyword-params]
+            [medley.core :as medley]
+            [potemkin :as p]
+            [io.aviso.tracker :as t]))
 
 (p/import-vars
 
@@ -28,12 +27,9 @@
 
 (defn inject
   "Merges a single keyword key and value into the map of injectable argument values store in the request.
-  This is associated with the :injection argument metadata. The key must be a symbol; the actual argument
-  will be converted to a keyword for lookup."
+  This is associated with the :injection argument metadata."
   {:added "0.1.10"}
   [request key value]
-  {:pre [(keyword? key)
-         (some? value)]}
   (inject* request {key value}))
 
 (defn wrap-with-injection
@@ -61,14 +57,6 @@
       (ring.middleware.format/wrap-restful-format :formats [:json-kw :edn])
       ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
-
-(defmacro ^:no-doc try-swagger [& body]
-  `(try
-     (require 'io.aviso.rook.swagger)
-     ~@body
-     (catch ClassNotFoundException e#
-       (throw (ex-info ":swagger was specified as an option but is not available - check dependencies to ensure ring-swagger is included."
-                       {})))))
 
 (defn namespace-handler
   "Examines the given namespaces and produces either a Ring handler or
@@ -130,11 +118,6 @@
     them to the endpoint function).
     The default leaves the basic handler unchanged.
 
-  :swagger
-  : _Default: false_
-  : If true, then the *expermental* swagger support is enabled.
-  : See the [[io.aviso.rook.swagger]] namespace for more details.
-
   Example call:
 
        (namespace-handler
@@ -158,15 +141,7 @@
     (consume &ns-specs
              [options map? :?
               ns-specs :&]
-             (let [swagger-enabled (:swagger options)
-                   ns-specs' (if swagger-enabled
-                               (cons ["swagger" 'io.aviso.rook.swagger {'swagger :injection} dispatcher/default-namespace-middleware]
-                                     ns-specs)
-                               ns-specs)
-                   [handler routing-table] (dispatcher/construct-namespace-handler options ns-specs')]
-               (if swagger-enabled
-                 (try-swagger
-                   ((resolve 'io.aviso.rook.swagger/wrap-with-swagger-ui) handler routing-table))
-                 handler)))))
+             (let [[handler _] (dispatcher/construct-namespace-handler options ns-specs)]
+               handler))))
 
 
