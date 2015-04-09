@@ -1,4 +1,6 @@
-## 0.1.26 - UNRELEASED
+## 0.1.27 - UNRELEASED
+
+## 0.1.26 - 30 Mar 2015
 
 Rook is now focused on dispatch of incoming requests to endpoints; a hard look at the async features have found them to
 be problematic, and not returning on the desired investment and they have been removed.
