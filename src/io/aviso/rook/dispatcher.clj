@@ -439,7 +439,7 @@
 (defn- expand-namespace-entry
   [[context ns-sym arg-resolvers middleware ns-metadata]]
   (t/track
-    #(format "Identifying endpoints in namespace `%s.'" ns-sym)
+    #(format "Identifying endpoints in namespace `%s'." ns-sym)
     (let [ns-metadata' (dissoc ns-metadata :doc)
           arg-resolvers' (merge-arg-resolver-maps arg-resolvers (:arg-resolvers ns-metadata'))]
       (->> ns-sym
