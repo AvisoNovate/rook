@@ -19,6 +19,10 @@
   []
   (Date.))
 
+(defn validate-against-schema
+  [request schema]
+  (coerce-and-validate request :params (schema->coercer schema)))
+
 (describe "io.aviso.rook.schema-validation"
 
   (describe "validate-against-schema"

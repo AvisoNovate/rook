@@ -6,11 +6,11 @@
     [schema.core :as s]
     [schema.coerce :as coerce]
     [schema.utils :as su]
+    [io.aviso.rook.internals :as internals]
     [io.aviso.rook.utils :as utils])
-  (:import (javax.servlet.http HttpServletResponse)
-           (java.text SimpleDateFormat DateFormat)
-           (java.util TimeZone Date UUID)))
-
+  (:import [javax.servlet.http HttpServletResponse]
+           [java.text SimpleDateFormat DateFormat]
+           [java.util TimeZone Date UUID]))
 
 ;; Borrowed from clojure.instant:
 (def ^:private ^ThreadLocal thread-local-utc-date-format
@@ -55,7 +55,16 @@
                                   endpoint-name
                                   (pr-str failures))))
 
-(defn validate-against-schema
+(defn- rebuild-request
+  [request key validated]
+  (let [request' (assoc request key validated)]
+    (if (= key :params)
+      request'
+      (assoc request' :params (merge (:form-params request')
+                                     (:query-params request')
+                                     (:body-params request'))))))
+
+(defn ^:no-doc coerce-and-validate
   "Performs the validation. The data is coerced using the string-cooercion-matcher (which makes sense
   as many of the values are provided as string query parameters, but need to be other types).
 
@@ -64,24 +73,56 @@
 
   Returns a tuple:
 
-  - on success, the tuple is `[nil request]`; that is, an updated request with the :params
-  re-written
+  - on success, the tuple is `[nil request]`; that is, an updated request with specific key
+    (and :params) updated
   - on failure, the tuple is `[failures]`, where failures are as output from Schema validation"
-  [request schema]
-  (let [coercer (coerce/coercer schema string-coercion-matcher)
-        params' (-> request :params (or {}) coercer)]
-    (if (su/error? params')
-      [(su/error-val params')]
-      [nil (assoc request :params params')])))
+  [request key coercer]
+  ;; The coercer will coerce and validate:
+  (let [validated (-> request key (or {}) coercer)]
+    (if (su/error? validated)
+      [(su/error-val validated)]
+      [nil (rebuild-request request key validated)])))
 
-(defn wrap-with-schema-validation
-  "Wraps a handler with validation, which is triggered by the :schema key in the
-  metadata. "
-  [handler {:keys [schema function]}]
-  (when schema
-    (fn [request]
-      (let [[failures new-request] (validate-against-schema request schema)]
-        (if failures
-          (wrap-invalid-response function failures)
-          (handler new-request))))))
+(defn ^:no-doc schema->coercer
+  [schema]
+  (coerce/coercer schema string-coercion-matcher))
+
+(defn- do-wrap
+  [handler metadata metadata-key request-key]
+  (if-let [schema (get metadata metadata-key)]
+    (let [coercer (schema->coercer schema)
+          function (:function metadata)]
+      (fn [request]
+        (let [[failures new-request] (coerce-and-validate request request-key coercer)]
+          (if failures
+            (wrap-invalid-response function failures)
+            (handler new-request)))))))
+
+(def wrap-with-schema-validation
+  "Wraps a handler with schema validation.
+  Schema validation allows any of the following request keys to be coerced and validated
+  using a Prismatic Schema:  :query-params, :form-params, :body-params, :params.
+
+  For each of the request keys, there's a corresponding metadata key:  :query-schema,
+  :form-schema, :body-schema, and :schema.
+
+  These schema values are also incorporated into Swagger descriptions of the endpoint.
+
+  Remember that the :params key is a merge of the other keys.  Use of the :schema
+  metadata is discouraged (largely, because it doesn't provide enough data to create
+  an accurate Swagger description).
+
+  When a schema is present in the metadata, the corresponding request key is coerced
+  and validated.  On a validation failure, a [[failure-response]] is returned to the client.
+
+  Otherwise, the request key is updated with the coerced and validated data, and
+  the :params key is rebuilt as the shallow merge of the other three keys.
+
+  In a request, the order of processing is :query-params, :form-params, :body-params, and lastly
+  :params."
+  (internals/compose-middleware
+    (do-wrap :schema :params)
+    (do-wrap :body-schema :body-params)
+    (do-wrap :form-schema :form-params)
+    (do-wrap :query-schema :query-params)))
 
