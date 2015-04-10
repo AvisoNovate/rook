@@ -1,5 +1,10 @@
 ## 0.1.27 - UNRELEASED
 
+It is not possible, and encourages, to apply schema validation to the :query-params, :form-params, and/or :body-params
+individually. Previously only :params could be validated and coerced.
+
+Swagger 2.0 support has been completely rewritten. *In progress.* 
+
 ## 0.1.26 - 30 Mar 2015
 
 Rook is now focused on dispatch of incoming requests to endpoints; a hard look at the async features have found them to
@@ -8,7 +13,7 @@ be problematic, and not returning on the desired investment and they have been r
 io.aviso.rook.server has a new function, wrap-with-exception-catching, which catches exceptions, reports them
 (using io.aviso/tracker), and returns a 500 failure response.
 
-The construct-handler function has been enhanced with new options to enable the exception catching, and to provide
+The construct-handler function has been enhanced with new options to enable exception catching, and to provide
 the standard Rook middleware. 
 
 In addition, there has been a general refresh of dependencies to latest.
