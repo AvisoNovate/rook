@@ -43,6 +43,11 @@
 (def expected-swagger-data
   {})
 
+
+(pprint (swagger-object nil nil
+                        ["hotels" 'hotels
+                         [[:hotel-id "rooms"] 'rooms]]))
+
 (describe "io.aviso.rook.swagger"
 
   (it "can construct swagger data"

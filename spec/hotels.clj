@@ -1,29 +1,30 @@
 (ns hotels
   "The Hotels Resource."
-  (:import [javax.servlet.http HttpServletResponse])
-  (:require [schema.core :as s]))
-
+  (:require [schema.core :as s]
+            [io.aviso.rook.schema :as rs])
+  (:import [javax.servlet.http HttpServletResponse]))
 
 ;; These are just placeholders for testing the Swagger integration:
 
-(s/defschema Hotel
+(rs/defschema Hotel
+  "Standard hotel data."
   {:id         s/Uuid
    :created_at s/Inst
    :updated_at s/Inst
    :name       s/Str})
 
 
-(s/defschema IndexParams
-  {(s/optional-key :sort)      (s/enum :created_at :updated_at :name)
-   (s/optional-key :descening) s/Bool})
+(rs/defschema IndexQuery
+  {(s/optional-key :sort)       (s/enum :created_at :updated_at :name)
+   (s/optional-key :descending) s/Bool})
 
 (def index-responses
   {HttpServletResponse/SC_OK [Hotel]})
 
 (defn index
   "Returns a list of all hotels, with control over sort order."
-  {:schema    IndexParams
-   :responses index-responses}
+  {:query-schema IndexQuery
+   :responses    index-responses}
   [params]
   nil)
 
@@ -37,7 +38,8 @@
   [id]
   nil)
 
-(s/defschema ChangeParams
+(rs/defschema ChangeBody
+  "Allows the name of a hotel to be changed (when doing so does not conflict with an existing hotel)."
   {:name s/Str})
 
 (def change-responses
@@ -47,6 +49,6 @@
 
 (defn change
   "Updates a Hotel, to rename it. May result in a 409 Conflict if some other hotel has the same name."
-  {:schema    ChangeParams
-   :responses change-responses}
+  {:body-schema ChangeBody
+   :responses   change-responses}
   [id params])
