@@ -453,7 +453,7 @@
   "Expands the output of [[build-namespace-table]] and [[expand-namespace-metadata]], converting each namespace entry into
   a seq of routing entries:
 
-      [method path handler endpoint-meta route-params]
+      [method path handler endpoint-meta]
 
   method
   : keyword for the HTTP method (:get, :put, etc., or :all)
