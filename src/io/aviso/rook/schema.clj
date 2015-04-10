@@ -1,6 +1,7 @@
 (ns io.aviso.rook.schema
   "Some small enhancements to Prismatic Schema that are valuable to, or needed by, the Swagger support."
-  {:added "0.1.27"})
+  {:added "0.1.27"}
+  (:require [schema.core :as s]))
 
 (defmacro schema
   "Creates a named schema, which includes metadata as per [[defschema]]. This is useful for one-off
@@ -24,5 +25,17 @@
    `(defschema ~name "" ~form))
   ([name docstring form]
    `(def ~name ~docstring (schema ~name ~docstring ~form))))
+
+(defn with-description
+  "Adds a :description key to the metadata of the schema.
+
+  Since nil can't have metadata, a nil schema is quietly converted to schema.core/Any."
+  [description schema]
+  (vary-meta (or schema s/Any) assoc :description description))
+
+(defn description
+  "A convienience for generating a description with no schema."
+  [s]
+  (with-description s nil))
 
 
