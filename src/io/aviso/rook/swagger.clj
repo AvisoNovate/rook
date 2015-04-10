@@ -51,38 +51,45 @@
                                    :required :true}))]
     (reduce reducer swagger-object path-ids)))
 
+(defn reduce-schema-key
+  "Simplifies a key from a schema reducing it to a keyword, and whether the key is required or optional."
+  [schema-key]
+  (cond (s/optional-key? schema-key)
+        [(.k schema-key) false]
+
+        (s/required-key? schema-key)
+        [(.k schema-key) true]
+
+        (keyword? schema-key)
+        [schema-key true]
+
+        :else
+        (throw (RuntimeException. (format "No idea what to do with query schema key %s." schema-key)))))
+
 (defn default-query-params-injector
   "Identifies each query parameter via the :query-schema metadata and injects it."
   [swagger-options swagger-object routing-entry params-key]
   (if-let [schema (-> routing-entry :meta :query-schema)]
     ;; Assumes that the schema is a map.
-    (let [reducer (fn [so [key-id key-schema]]
-                    (cond-let
-                      ;; Just ignore these, they are a convinience for the caller ("be generous in what you accept").
-                      (= s/Any key-id)
-                      so
+    (try
+      (let [reducer (fn [so [key-id key-schema]]
+                      (cond-let
+                        ;; Just ignore these, they are a convinience for the caller ("be generous in what you accept").
+                        (= s/Any key-id)
+                        so
 
-                      [[k required] (cond (s/optional-key? key-id)
-                                          [(.k key-id) false]
+                        [[k required] (reduce-schema-key key-id)]
 
-                                          (s/required-key? key-id)
-                                          [(.k key-id) true]
-
-                                          (keyword? key-id)
-                                          [key-id true]
-
-                                          :else
-                                          (throw (ex-info (format "No idea what to do with query schema key %s." key-id)
-                                                          {:routing-entry routing-entry
-                                                           :key-id        key-id
-                                                           :key-schema    key-schema})))]
-
-                      :else
-                      (update-in so params-key
-                                 conj {:name     k
-                                       :in       :query
-                                       :required required})))]
-      (reduce reducer swagger-object schema))
+                        :else
+                        (update-in so params-key
+                                   conj {:name     k
+                                         :in       :query
+                                         :required required})))]
+        (reduce reducer swagger-object schema))
+      (catch Exception e
+        (throw (ex-info "Unable to convert routing entry into Swagger data."
+                        routing-entry
+                        e))))
     ; no :query-schema
     swagger-object))
 
@@ -90,9 +97,11 @@
   [swagger-options schema]
   ;; To be done!
   (medley/remove-vals nil?
-                      {:required   []
-                       :description (-> schema meta :doc)
-                       :properties {}}))
+                      {:required    []
+                       ;; :description is often provided by with-description, which overrides the normal docstring.
+                       :description (or (-> schema meta :description)
+                                        (-> schema meta :doc))
+                       :properties  {}}))
 
 (defn to-schema-reference
   "Converts a schema to a schema reference; the schema must be named.  Returns a tuple
@@ -137,12 +146,24 @@
     ; no schema:
     swagger-object))
 
+(defn default-responses-injector
+  "Uses the :responses metadata to identify possible responses."
+  [swagger-options swagger-object routing-entry paths-key]
+  (let [responses (-> routing-entry :meta :responses)
+        reducer (fn [so [status-code schema]]
+                  (let [schema-meta (meta schema)
+                        description (or (:description schema-meta)
+                                        (:doc schema-meta)
+                                        "Documentation not provided.")]
+                    (assoc-in so (concat paths-key [:responses (str status-code)]) {:description description})))]
+    (reduce reducer swagger-object responses)))
+
 (defn default-path-item-object-injector
   "Injects a PathItemObject based on a routing entry.
 
   The paths-key is a coordinate into the swagger-object where the PathItemObject should be created.
 
-  Returns the modified swagger-object. "
+  Returns the modified swagger-object."
   [swagger-options swagger-object routing-entry paths-key]
   (let [{endpoint-meta :meta} routing-entry
         swagger-meta (:swagger endpoint-meta)
@@ -152,6 +173,7 @@
         path-params-injector (:path-params-injector swagger-options default-path-params-injector)
         query-params-injector (:query-params-injector swagger-options default-query-params-injector)
         body-params-injector (:body-params-injector swagger-options default-body-params-injector)
+        responses-injector (:responses-injector swagger-options default-responses-injector)
         params-key (concat paths-key ["parameters"])]
     (as-> swagger-object %
           (assoc-in % paths-key
@@ -162,7 +184,7 @@
           (path-params-injector swagger-options % routing-entry params-key)
           (query-params-injector swagger-options % routing-entry params-key)
           (body-params-injector swagger-options % routing-entry params-key)
-          (update-in % params-key #(sort-by :name %)))))
+          (responses-injector swagger-options % routing-entry paths-key))))
 
 (defn default-route-injector
   "The default route converter.  The swagger-options may contain an override of this function.
@@ -204,17 +226,26 @@
    :path   path
    :meta   endpoint-meta})
 
+(defn default-configurer
+  "The configurer is passed the final swagger object and can make final changes to it. This implementation
+  does nothing, returning the swagger object unchanged."
+  [swagger-options swagger-object routing-entries]
+  swagger-object)
+
 (defn construct-swagger-object
   "Constructs the root Swagger object from the Rook options, swagger options, and the routing table
   (part of the result from [[construct-namespace-handler]])."
   [swagger-options routing-table]
-  (let [{:keys [skeleton route-converter]
+  (let [{:keys [skeleton route-converter configurer]
          :or   {skeleton        default-swagger-skeleton
-                route-converter default-route-injector}} swagger-options]
-    (->> routing-table
-         vals
-         (apply concat)
-         (map routing-entry->map)
-         ;; Add the :no-swagger meta data to edit it out.
-         (remove #(-> % :meta :no-swagger))
-         (reduce (partial route-converter swagger-options) skeleton))))
+                route-converter default-route-injector
+                configurer      default-configurer
+                }} swagger-options
+        routing-entries (->> routing-table
+                             vals
+                             (apply concat)
+                             (map routing-entry->map)
+                             ;; Endpoints with the :no-swagger meta data are ignored.
+                             (remove #(-> % :meta :no-swagger)))]
+    (as-> (reduce (partial route-converter swagger-options) skeleton routing-entries) %
+          (configurer swagger-options % routing-entries))))
