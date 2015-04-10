@@ -5,6 +5,8 @@
         clojure.template
         clojure.pprint)
   (:require [io.aviso.rook.dispatcher :as d]
+            [clj-yaml.core :as yaml]
+            [cheshire.core :as json]
             [io.aviso.rook.swagger :as rs]
             [io.aviso.rook :as rook]
             [clj-http.client :as client]
@@ -44,10 +46,13 @@
   {})
 
 
-(pprint (swagger-object nil nil
-                        ["hotels" 'hotels
-                         [[:hotel-id "rooms"] 'rooms]]))
+(-> (swagger-object nil nil
+                    ["hotels" 'hotels
+                     [[:hotel-id "rooms"] 'rooms]])
+    (json/generate-string {:pretty true})
+    println)
 
+#_
 (describe "io.aviso.rook.swagger"
 
   (it "can construct swagger data"
@@ -56,7 +61,7 @@
                                   [[:hotel-id "rooms"] 'rooms]])]
         #_ (should= expected-swagger-data data)))
 
-  #_ (context "end-to-end (synchronous)"
+  (context "end-to-end (synchronous)"
 
     (with-all handler (-> (rook/namespace-handler {:swagger true}
                                                   ["hotels" 'hotels
@@ -85,4 +90,4 @@
              ;; This is wrong and a fix is coming:
              (should= ["/hotels" "/hotels/{hotel-id}/rooms"])))))
 
-(run-specs)
+#_ (run-specs)
