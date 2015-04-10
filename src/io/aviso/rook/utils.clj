@@ -1,11 +1,11 @@
 (ns io.aviso.rook.utils
   "Kitchen-sink of useful standalone utilities."
-  (:import
-    (java.util UUID))
-  (:require
-    [ring.util.response :as r]
-    [ring.util.time :as t]
-    [clojure.pprint :as pprint]))
+  (:require [ring.util.response :as r]
+            [io.aviso.rook.schema :as rs]
+            [ring.util.time :as t]
+            [clojure.pprint :as pprint]
+            [schema.core :as s])
+  (:import (java.util UUID)))
 
 (defn new-uuid
   "Generates a new UUID string, via UUID/randomUUID."
@@ -17,9 +17,9 @@
   to 200.  If only the body is provided, but it is numeric, then it is treated as a status code with
   an empty body."
   ([body]
-    (if (number? body)
-      (response body nil)
-      (r/response body)))
+   (if (number? body)
+     (response body nil)
+     (r/response body)))
   ([status body] (->
                    (r/response body)
                    (r/status status))))
@@ -46,8 +46,13 @@
   [request]
   (summarize-method-and-uri (:request-method request) (:uri request)))
 
+(rs/defschema ^{:added "0.1.27"} FailureResponse
+  "A standard response consisting of an error string and a user-presentable error message."
+  {:error   s/Str
+   :message s/Str})
+
 (defn failure-response
-  "Builds a standard failure response, consisting of two keys, :error and :message, each a string.
+  "Builds a standard [[FailureResponse]], consisting of two keys, :error and :message, each a string.
 
   This method can be overridden (via alter-var-root!) to impose a different format for such responses."
   {:added "0.1.23"}
