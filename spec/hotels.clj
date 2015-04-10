@@ -36,3 +36,17 @@
   {:responses show-responses}
   [id]
   nil)
+
+(s/defschema ChangeParams
+  {:name s/Str})
+
+(def change-responses
+  {HttpServletResponse/SC_NOT_FOUND nil
+   HttpServletResponse/SC_CONFLICT  nil
+   HttpServletResponse/SC_OK        nil})
+
+(defn change
+  "Updates a Hotel, to rename it. May result in a 409 Conflict if some other hotel has the same name."
+  {:schema    ChangeParams
+   :responses change-responses}
+  [id params])

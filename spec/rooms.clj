@@ -13,3 +13,7 @@
       (utils/response HttpServletResponse/SC_CREATED {:id       room-id
                                                       :hotel-id hotel-id})
       (r/header "Location" (str resource-uri room-id)))))
+
+(defn show
+  "Displays a room in the hotel."
+  [hotel-id id])
