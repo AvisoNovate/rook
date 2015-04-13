@@ -2,7 +2,8 @@
   "Some small enhancements to Prismatic Schema that are valuable to, or needed by, the Swagger support."
   {:added "0.1.27"}
   (:require [schema.core :as s]
-            [schema.macros :as macros]))
+            [schema.macros :as macros])
+  (:import [schema.core Maybe EnumSchema]))
 
 (defmacro schema
   "Creates a named schema, which includes metadata as per [[defschema]]. This is useful for one-off
@@ -27,6 +28,12 @@
   ([name docstring form]
    `(def ~name ~docstring (schema ~name ~docstring ~form))))
 
+(defprotocol SchemaUnwrapper
+  "A protocol for 'unwrapping' a Schema, to extract a nested Schema."
+
+  (unwrap-schema [this]
+    "Returns the nested schema where appropriate, or throws an exception when a nested schema is not available."))
+
 (defrecord IsInstance [^Class expected-class]
   s/Schema
 
@@ -37,7 +44,21 @@
         (macros/validation-error this x (list 'instance? expected-class x)))))
 
   (explain [_]
-    (list 'instance? expected-class)))
+    (list 'instance? expected-class))
+
+  SchemaUnwrapper
+
+  (unwrap-schema [_] expected-class))
+
+(extend-protocol SchemaUnwrapper
+
+  Maybe
+  (unwrap-schema [this]
+    (.schema this))
+
+  EnumSchema
+  (unwrap-schema [this]
+    (.vs this)))
 
 (defn with-description
   "Adds a :description key to the metadata of the schema.
