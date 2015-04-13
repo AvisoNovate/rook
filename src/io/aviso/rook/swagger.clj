@@ -17,11 +17,7 @@
   {
    :swagger     "2.0"
    :info        {:title   "<UNSPECIFIED>"
-                 :version "<UNSPECIFIED>"}
-   :paths       {}
-   :definitions {}
-   :responses   {}
-   })
+                 :version "<UNSPECIFIED>"}})
 
 (defn keyword->path?
   [v]
@@ -170,10 +166,10 @@
         description (or (:description swagger-meta)
                         (:doc endpoint-meta))
         summary (:summary swagger-meta)
-        path-params-injector (:path-params-injector swagger-options default-path-params-injector)
-        query-params-injector (:query-params-injector swagger-options default-query-params-injector)
-        body-params-injector (:body-params-injector swagger-options default-body-params-injector)
-        responses-injector (:responses-injector swagger-options default-responses-injector)
+        path-params-injector (:path-params-injector swagger-options)
+        query-params-injector (:query-params-injector swagger-options)
+        body-params-injector (:body-params-injector swagger-options)
+        responses-injector (:responses-injector swagger-options)
         params-key (concat paths-key ["parameters"])]
     (as-> swagger-object %
           (assoc-in % paths-key
@@ -213,7 +209,7 @@
   (let [path-str (-> routing-entry :path path->str)
         ;; Ignoring :all for the moment.
         method-str (-> routing-entry :method name)
-        pio-constructor (:path-item-object-injector swagger-options default-path-item-object-injector)]
+        pio-constructor (:path-item-object-injector swagger-options)]
     ;; Invoke the constructor for the path info. It may need to make changes to the :definitions, so we have
     ;; to let it modify the entire Swagger object ... but we help it out by providing the path
     ;; to where the PathInfoObject (which describes what Rook calls a "route").
@@ -232,20 +228,26 @@
   [swagger-options swagger-object routing-entries]
   swagger-object)
 
+(def default-swagger-options
+  {:skeleton                  default-swagger-skeleton
+   :route-injector            default-route-injector
+   :configurer                default-configurer
+   :path-item-object-injector default-path-item-object-injector
+   :path-params-injector      default-path-params-injector
+   :query-params-injector     default-query-params-injector
+   :body-params-injector      default-body-params-injector
+   :responses-injector        default-responses-injector})
+
 (defn construct-swagger-object
   "Constructs the root Swagger object from the Rook options, swagger options, and the routing table
   (part of the result from [[construct-namespace-handler]])."
   [swagger-options routing-table]
-  (let [{:keys [skeleton route-converter configurer]
-         :or   {skeleton        default-swagger-skeleton
-                route-converter default-route-injector
-                configurer      default-configurer
-                }} swagger-options
+  (let [{:keys [skeleton route-injector configurer]} swagger-options
         routing-entries (->> routing-table
                              vals
                              (apply concat)
                              (map routing-entry->map)
                              ;; Endpoints with the :no-swagger meta data are ignored.
                              (remove #(-> % :meta :no-swagger)))]
-    (as-> (reduce (partial route-converter swagger-options) skeleton routing-entries) %
+    (as-> (reduce (partial route-injector swagger-options) skeleton routing-entries) %
           (configurer swagger-options % routing-entries))))

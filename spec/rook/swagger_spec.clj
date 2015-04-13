@@ -46,7 +46,7 @@
   {})
 
 
-(-> (swagger-object nil nil
+(-> (swagger-object nil rs/default-swagger-options
                     ["hotels" 'hotels
                      [[:hotel-id "rooms"] 'rooms]])
     (json/generate-string {:pretty true})
