@@ -59,25 +59,13 @@
                              conj {:name     path-id
                                    :type     :string        ; may add something later to refine this
                                    :in       :path
-                                   :required :true}))]
+                                   :required true}))]
     (reduce reducer swagger-object path-ids)))
 
 (defn reduce-schema-key
   "Simplifies a key from a schema reducing it to a keyword, and whether the key is required or optional."
   [schema-key]
-  (cond (s/optional-key? schema-key)
-        [(.k schema-key) false]
-
-        ;; This is the normal alternative to s/optional-key
-        (keyword? schema-key)
-        [schema-key true]
-
-        ;; This can happen in vector schemas, but is still legit in map schemas:
-        (s/required-key? schema-key)
-        [(.k schema-key) true]
-
-        :else
-        (throw (RuntimeException. (format "No idea what to do with query schema key %s." schema-key)))))
+  [(s/explicit-schema-key schema-key) (s/required-key? schema-key)])
 
 (defn- simple->swagger-schema
   "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, etc."
