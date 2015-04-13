@@ -103,7 +103,6 @@
   "Converts a schema to a schema reference; the schema must be named.  Returns a tuple
   of the possibly updated swagger object and a string reference to the schema within the swagger object
   (as a path string)."
-  ;; TODO: return the {:schema {"$ref" ...}} map instead?
   [swagger-options swagger-object schema]
   (cond-let
     [schema-name (s/schema-name schema)
@@ -115,7 +114,7 @@
 
     ;; Avoid forward slash in the swagger name, as that's problematic.
     [swagger-name (str schema-ns \: schema-name)
-     swagger-reference (str "#/definitions/" swagger-name)
+     swagger-reference {"$ref" (str "#/definitions/" swagger-name)}
      swagger-schema (get-in swagger-object [:definitions swagger-name])]
 
     (some? swagger-schema)
@@ -138,7 +137,7 @@
                  conj {:name     :request-body
                        :in       :body
                        :required true
-                       :schema   {"$ref" schema-reference}}))
+                       :schema   schema-reference}))
     ; no schema:
     swagger-object))
 
