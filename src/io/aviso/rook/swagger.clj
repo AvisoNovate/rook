@@ -10,11 +10,10 @@
             [medley.core :as medley]
             [io.aviso.toolchest.macros :refer [cond-let]]
             [io.aviso.toolchest.collections :refer [pretty-print]]
-            [io.aviso.tracker :as t]
-            [clojure.tools.logging :as l]
-            [io.aviso.rook.utils :as utils])
+            [io.aviso.tracker :as t])
   (:import [schema.core EnumSchema Maybe]
-           [io.aviso.rook.schema IsInstance]))
+           [io.aviso.rook.schema IsInstance]
+           [clojure.lang APersistentVector]))
 
 (defn- remove-nil-vals
   [m]
@@ -140,10 +139,12 @@
 
 (defn to-schema-reference
   "Converts a schema to a schema reference; the schema must be named.  Returns a tuple
-  of the possibly updated swagger object and a string reference to the schema within the swagger object
-  (as a path string)."
+  of the possibly updated swagger object and a Swagger schema definition (or a \"$ref\" map)."
   [swagger-options swagger-object schema]
   (cond-let
+    (or (nil? schema) (= s/Any schema))
+    [swagger-object nil]
+
     (instance? APersistentVector schema)
     (let [[object' item-reference] (to-schema-reference swagger-options swagger-object (first schema))]
       [object' {:type  :array
@@ -199,8 +200,12 @@
                     (let [schema-meta (meta schema)
                           description (or (:description schema-meta)
                                           (:doc schema-meta)
-                                          "Documentation not provided.")]
-                      (assoc-in so (concat paths-key [:responses (str status-code)]) {:description description}))))]
+                                          ;; description is required in the Response Object, so we need some default here.
+                                          "Documentation not provided.")
+                          [so' schema-reference] (to-schema-reference swagger-options so schema)
+                          response (assoc schema-reference
+                                     :description description)]
+                      (assoc-in so' (concat paths-key [:responses status-code]) response))))]
     (reduce reducer swagger-object responses)))
 
 (defn default-path-item-object-injector
