@@ -122,7 +122,7 @@
 
                       :else
                       (t/track
-                        (format "Describing query parameter `%s'." (name k))
+                        #(format "Describing query parameter `%s'." (name k))
                         (let [schema-description (simple->swagger-schema swagger-options key-schema)
                               full-description (assoc schema-description
                                                  :name k
@@ -139,7 +139,7 @@
   (let [reducer (fn [o [schema-key schema-value]]
                   (let [[k required?] (reduce-schema-key schema-key)]
                     (t/track
-                      #(format "Describing body key `%s'." (name k))
+                      #(format "Describing key `%s'." (name k))
                       (let [swagger-schema (simple->swagger-schema swagger-options schema-value)]
                         (cond-> (assoc-in o [:properties k] swagger-schema)
                                 required? (update-in [:required] conj k))))))]
@@ -156,12 +156,19 @@
   (as a path string)."
   [swagger-options swagger-object schema]
   (cond-let
+    (instance? APersistentVector schema)
+    (let [[object' item-reference] (to-schema-reference swagger-options swagger-object (first schema))]
+      [object' {:type  :array
+                :items item-reference}])
+
     [schema-name (s/schema-name schema)
      schema-ns (-> schema meta :ns)]
 
+    ;; Missing this stuff?  Make it anonymous.
     (or (nil? schema-name) (nil? schema-ns))
-    (throw (ex-info "Unable to create a Swagger schema from an anonymous Prismatic schema."
-                    schema))
+    ;; The challenge here is nested schemas that may have names. Currently that will blow up.
+    [swagger-object {:schema (map->swagger-schema swagger-options schema)}]
+
 
     ;; Avoid forward slash in the swagger name, as that's problematic.
     [swagger-name (str schema-ns \: schema-name)
@@ -200,7 +207,7 @@
   (let [responses (-> routing-entry :meta :responses)
         reducer (fn [so [status-code schema]]
                   (t/track
-                    (format "Describing %d response." status-code)
+                    #(format "Describing %d response." status-code)
                     (let [schema-meta (meta schema)
                           description (or (:description schema-meta)
                                           (:doc schema-meta)
@@ -260,7 +267,7 @@
   Returns the modified swagger-object."
   [swagger-options swagger-object routing-entry]
   (t/track
-    (format "Describing endpoint %s `/%s'."
+    #(format "Describing endpoint %s `/%s'."
             (-> routing-entry :method name .toUpperCase)
             (->> routing-entry :path (str/join "/")))
     (let [path-str (-> routing-entry :path path->str)
