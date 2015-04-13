@@ -256,8 +256,8 @@
   [swagger-options swagger-object routing-entry]
   (t/track
     #(format "Describing endpoint %s `/%s'."
-            (-> routing-entry :method name .toUpperCase)
-            (->> routing-entry :path (str/join "/")))
+             (-> routing-entry :method name .toUpperCase)
+             (->> routing-entry :path (str/join "/")))
     (let [path-str (-> routing-entry :path path->str)
           ;; Ignoring :all for the moment.
           method-str (-> routing-entry :method name)
