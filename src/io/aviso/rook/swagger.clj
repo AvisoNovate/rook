@@ -15,9 +15,9 @@
   "A base skeleton for a Swagger Object (as per the Swagger 2.0 specification), that is further populated from Rook namespace
   and schema data."
   {
-   :swagger     "2.0"
-   :info        {:title   "<UNSPECIFIED>"
-                 :version "<UNSPECIFIED>"}})
+   :swagger "2.0"
+   :info    {:title   "<UNSPECIFIED>"
+             :version "<UNSPECIFIED>"}})
 
 (defn keyword->path?
   [v]
