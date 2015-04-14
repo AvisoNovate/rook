@@ -92,7 +92,7 @@
     ;; TODO: arrays
 
     :else
-    (throw (ex-info (format "Unable to convert schema %s to Swagger." schema)
+    (throw (ex-info "Unable to convert schema to Swagger."
                     {:schema schema}))))
 
 (defn default-query-params-injector
