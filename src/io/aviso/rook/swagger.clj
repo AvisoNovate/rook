@@ -69,25 +69,25 @@
 
 (defn- simple->swagger-schema
   "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, etc."
-  [swagger-options schema]
+  [swagger-options swagger-object schema]
   (cond-let
     [data-type-mappings (:data-type-mappings swagger-options)
      data (get data-type-mappings schema)]
 
     (some? data)
-    data
+    [swagger-object data]
 
     (instance? EnumSchema schema)
-    {:type :string                                          ; an assumption
-     :enum (unwrap-schema schema)}
+    [swagger-object {:type :string                          ; an assumption
+                     :enum (unwrap-schema schema)}]
 
     (instance? Maybe schema)
-    (assoc (simple->swagger-schema swagger-options (unwrap-schema schema))
-      :allowEmptyValue true)
+    (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema))]
+      [swagger-object' (assoc swagger-schema :allowEmptyValue true)])
 
     ;; The i.a.r.schema/with-description macro often turns bare classes into an IsInstance
     (instance? IsInstance schema)
-    (recur swagger-options (unwrap-schema schema))
+    (recur swagger-options swagger-object (unwrap-schema schema))
 
     ;; TODO: arrays
 
@@ -111,32 +111,31 @@
                       :else
                       (t/track
                         #(format "Describing query parameter `%s'." (name k))
-                        (let [schema-description (simple->swagger-schema swagger-options key-schema)
+                        (let [[swagger-object' schema-description] (simple->swagger-schema swagger-options so key-schema)
                               full-description (assoc schema-description
                                                  :name k
                                                  :in :query
                                                  :required required)]
-                          (update-in so params-key
+                          (update-in swagger-object' params-key
                                      conj full-description)))))]
       (reduce reducer swagger-object schema))
     ; no :query-schema
     swagger-object))
 
 (defn map->swagger-schema
-  [swagger-options schema]
-  (let [reducer (fn [o [schema-key schema-value]]
-                  (let [[k required?] (reduce-schema-key schema-key)]
-                    (t/track
-                      #(format "Describing key `%s'." (name k))
-                      (let [swagger-schema (simple->swagger-schema swagger-options schema-value)]
-                        (cond-> (assoc-in o [:properties k] swagger-schema)
-                                required? (update-in [:required] conj k))))))]
-    (->>
-      schema
-      remove-any-keys
-      (reduce reducer {:description (or (-> schema meta :description)
-                                        (-> schema meta :doc))})
-      remove-nil-vals)))
+  [swagger-options swagger-object schema]
+  (let [reducer (fn [[swagger-object' o :as acc] [schema-key schema-value]]
+                  (if (= s/Any schema-value)
+                    acc
+                    (let [[k required?] (reduce-schema-key schema-key)]
+                      (t/track
+                        #(format "Describing key `%s'." (name k))
+                        (let [[swagger-object'2 swagger-schema] (simple->swagger-schema swagger-options swagger-object' schema-value)]
+                          [swagger-object'2 (cond-> (assoc-in o [:properties k] swagger-schema)
+                                                    required? (update-in [:required] conj k))])))))
+        base (remove-nil-vals {:description (-> (or (-> schema meta :description)
+                                                    (-> schema meta :doc)))})]
+    (reduce reducer [swagger-object base] schema)))
 
 (defn ->swagger-schema
   "Converts a Prismatic schema to a Swagger schema (or possibly, a \"$ref\" map pointing to a schema). A $ref
@@ -162,8 +161,8 @@
     ;; Missing this stuff?  Make it anonymous.
     (or (nil? schema-name) (nil? schema-ns))
     ;; The challenge here is nested schemas that may have names. Currently that will blow up.
-    [swagger-object {:schema (map->swagger-schema swagger-options schema)}]
-
+    (let [[so' new-schema] (map->swagger-schema swagger-options swagger-object schema)]
+      [so' {:schema new-schema}])
 
     ;; Avoid forward slash in the swagger name, as that's problematic.
     [swagger-name (str schema-ns \: schema-name)
@@ -173,11 +172,11 @@
     (some? swagger-schema)
     [swagger-object swagger-reference]
 
-    [new-schema (map->swagger-schema swagger-options schema)
-     swagger-object' (assoc-in swagger-object [:definitions swagger-name] new-schema)]
+    [[swagger-object' new-schema] (map->swagger-schema swagger-options swagger-object schema)
+     swagger-object'2 (assoc-in swagger-object' [:definitions swagger-name] new-schema)]
 
     :else
-    [swagger-object' swagger-reference]))
+    [swagger-object'2 swagger-reference]))
 
 (defn default-body-params-injector
   "Uses the :body-schema metadata to identify the body params."
