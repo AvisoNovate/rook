@@ -204,8 +204,8 @@
                                           ;; description is required in the Response Object, so we need some default here.
                                           "Documentation not provided.")
                           [so' schema-reference] (to-schema-reference swagger-options so schema)
-                          response (assoc schema-reference
-                                     :description description)]
+                          response (remove-nil-vals {:description description
+                                                     :schema      schema-reference})]
                       (assoc-in so' (concat paths-key [:responses status-code]) response))))]
     (reduce reducer swagger-object responses)))
 
