@@ -139,8 +139,13 @@
       remove-nil-vals)))
 
 (defn ->swagger-schema
-  "Converts a schema to a schema reference; the schema must be named.  Returns a tuple
-  of the possibly updated swagger object and a Swagger schema definition (or a \"$ref\" map)."
+  "Converts a Prismatic schema to a Swagger schema (or possibly, a \"$ref\" map pointing to a schema). A $ref
+  will occur when the schema has the :name and :ns metadata, otherwise it will be inlined.
+
+  nil or s/Any returns nil.
+
+
+  Typically, the result of this is wrapped inside map with key :schema."
   [swagger-options swagger-object schema]
   (cond-let
     (or (nil? schema) (= s/Any schema))
