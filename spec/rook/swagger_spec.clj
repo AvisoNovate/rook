@@ -12,7 +12,9 @@
             [clj-http.client :as client]
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [qbits.jet.server :as jet]
-            [clojure.tools.logging :as l]))
+            [clojure.tools.logging :as l]
+            [io.aviso.rook.server :as server])
+  (:import [org.eclipse.jetty.server Server]))
 
 (defn- swagger-object
   [rook-options swagger-options & ns-specs]
@@ -51,6 +53,17 @@
                      [[:hotel-id "rooms"] 'rooms]])
     (json/generate-string {:pretty true})
     println)
+
+(defn start-server
+  []
+  (let [creator #(rook/namespace-handler {:swagger-options rs/default-swagger-options}
+                                         ["hotels" 'hotels
+                                          [[:hotel-id "rooms"] 'rooms]])
+        handler (server/construct-handler {:log true :track true :standard true :exceptions true} creator)
+        ^Server server (jet/run-jetty {:ring-handler handler
+                                       :join?        false
+                                       :port         8192})]
+    #(.stop server)))
 
 #_
 (describe "io.aviso.rook.swagger"
