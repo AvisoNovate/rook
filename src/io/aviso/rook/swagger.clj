@@ -2,8 +2,9 @@
 
   "ALPHA / EXPERIMENTAL
 
-  Adapter for ring-swagger. Converts an intermediate description of the namespaces
-  into a description compatible with the ring-swagger library."
+  Generates a Swagger 2.0 API description from Rook namespace metadata.
+
+  This is currently under heavy development and is likely to be somewhat unstable for a couple of releases."
   (:require [schema.core :as s]
             [io.aviso.rook.schema :refer [unwrap-schema]]
             [clojure.string :as str]

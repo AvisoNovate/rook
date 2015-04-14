@@ -1,6 +1,8 @@
 (ns io.aviso.rook
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
-  (:require [io.aviso.rook [dispatcher :as dispatcher]]
+  (:require [io.aviso.rook
+             [dispatcher :as dispatcher]
+             [swagger :as swagger]]
             [io.aviso.toolchest.macros :refer [consume]]
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [ring.middleware params format keyword-params]
@@ -118,10 +120,16 @@
     them to the endpoint function).
     The default leaves the basic handler unchanged.
 
+  :swagger-options
+  : Options to be passed to [[construct-swagger-object]], that control how the Swagger description is composed and
+    customized.
+    Swagger support is only enabled when :swagger-options is non-nil.
+
   Example call:
 
        (namespace-handler
          {:context            [\"api\"]
+          :swagger-options    swagger/default-swagger-options
           :default-middleware custom-middleware
           :arg-resolvers      {'if-unmodified-since :header
                                'if-modified-since   :header}}
@@ -137,11 +145,19 @@
                 [& ns-specs])}
   [& &ns-specs]
   (t/track
-    #(format "Building namespace handler for %s." (pretty-print &ns-specs))
+    "Constructing Rook namespace handler."
     (consume &ns-specs
-             [options map? :?
+             [{:keys [swagger-options] :as options} map? :?
               ns-specs :&]
-             (let [[handler _] (dispatcher/construct-namespace-handler options ns-specs)]
+             (let [swagger-enabled (some? swagger-options)
+                   swagger-object-promise (promise)
+                   swagger-spec ['io.aviso.rook.resources.swagger {'swagger-object (fn [_] @swagger-object-promise)}]
+                   ns-specs' (if swagger-enabled
+                               (cons swagger-spec ns-specs)
+                               ns-specs)
+                   [handler routing-table] (dispatcher/construct-namespace-handler options ns-specs')]
+               (if swagger-enabled
+                 (deliver swagger-object-promise (swagger/construct-swagger-object swagger-options routing-table)))
                handler))))
 
 
