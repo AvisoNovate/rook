@@ -138,7 +138,7 @@
                                         (-> schema meta :doc))})
       remove-nil-vals)))
 
-(defn to-schema-reference
+(defn ->swagger-schema
   "Converts a schema to a schema reference; the schema must be named.  Returns a tuple
   of the possibly updated swagger object and a Swagger schema definition (or a \"$ref\" map)."
   [swagger-options swagger-object schema]
@@ -147,7 +147,7 @@
     [swagger-object nil]
 
     (instance? APersistentVector schema)
-    (let [[object' item-reference] (to-schema-reference swagger-options swagger-object (first schema))]
+    (let [[object' item-reference] (->swagger-schema swagger-options swagger-object (first schema))]
       [object' {:type  :array
                 :items item-reference}])
 
@@ -182,7 +182,7 @@
     (if-let [schema (-> routing-entry :meta :body-schema)]
 
       ;; Assumption: it's a map and named
-      (let [[swagger-object' schema-reference] (to-schema-reference swagger-options swagger-object schema)]
+      (let [[swagger-object' schema-reference] (->swagger-schema swagger-options swagger-object schema)]
         (update-in swagger-object' paths-key
                    conj {:name     :request-body
                          :in       :body
@@ -203,7 +203,7 @@
                                           (:doc schema-meta)
                                           ;; description is required in the Response Object, so we need some default here.
                                           "Documentation not provided.")
-                          [so' schema-reference] (to-schema-reference swagger-options so schema)
+                          [so' schema-reference] (->swagger-schema swagger-options so schema)
                           response (remove-nil-vals {:description description
                                                      :schema      schema-reference})]
                       (assoc-in so' (concat paths-key [:responses status-code]) response))))]
