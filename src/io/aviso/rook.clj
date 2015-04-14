@@ -151,7 +151,11 @@
               ns-specs :&]
              (let [swagger-enabled (some? swagger-options)
                    swagger-object-promise (promise)
-                   swagger-spec ['io.aviso.rook.resources.swagger {'swagger-object (fn [_] @swagger-object-promise)}]
+                   ;; The challenge here is to isolate this as much as possible from the rest of the
+                   ;; API and whatever kinds of middleware is in play.
+                   swagger-spec ['io.aviso.rook.resources.swagger
+                                 {'swagger-object (fn [_] @swagger-object-promise)}
+                                 dispatcher/default-namespace-middleware]
                    ns-specs' (if swagger-enabled
                                (cons swagger-spec ns-specs)
                                ns-specs)
