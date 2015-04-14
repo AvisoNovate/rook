@@ -48,7 +48,11 @@
   {})
 
 
-(-> (swagger-object nil rs/default-swagger-options
+(def swagger-options (-> rs/default-swagger-options
+                         (assoc-in [:template :info :title] "Hotels and Rooms API")
+                         (assoc-in [:template :info :version] "Pre-Alpha")))
+
+(-> (swagger-object nil swagger-options
                     ["hotels" 'hotels
                      [[:hotel-id "rooms"] 'rooms]])
     (json/generate-string {:pretty true})
@@ -56,7 +60,7 @@
 
 (defn start-server
   []
-  (let [creator #(rook/namespace-handler {:swagger-options rs/default-swagger-options}
+  (let [creator #(rook/namespace-handler {:swagger-options swagger-options}
                                          ["hotels" 'hotels
                                           [[:hotel-id "rooms"] 'rooms]])
         handler (server/construct-handler {:log true :track true :standard true :exceptions true} creator)

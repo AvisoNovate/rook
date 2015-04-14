@@ -25,7 +25,7 @@
   [m]
   (medley/remove-vals #(= s/Any %) m))
 
-(def default-swagger-skeleton
+(def default-swagger-template
   "A base skeleton for a Swagger Object (as per the Swagger 2.0 specification), that is further populated from Rook namespace
   and schema data."
   {
@@ -301,7 +301,7 @@
    s/Uuid  {:type :string :format :uuid}})
 
 (def default-swagger-options
-  {:skeleton                  default-swagger-skeleton
+  {:template                  default-swagger-template
    :route-injector            default-route-injector
    :configurer                default-configurer
    :data-type-mappings        default-data-type-mappings
@@ -317,12 +317,12 @@
   [swagger-options routing-table]
   (t/track
     "Constructing Swagger API Description."
-    (let [{:keys [skeleton route-injector configurer]} swagger-options
+    (let [{:keys [template route-injector configurer]} swagger-options
           routing-entries (->> routing-table
                                vals
                                (apply concat)
                                (map routing-entry->map)
                                ;; Endpoints with the :no-swagger meta data are ignored.
                                (remove #(-> % :meta :no-swagger)))]
-      (as-> (reduce (partial route-injector swagger-options) skeleton routing-entries) %
+      (as-> (reduce (partial route-injector swagger-options) template routing-entries) %
             (configurer swagger-options % routing-entries)))))
