@@ -8,7 +8,24 @@
 
 ;; In a real app, we'd probably have a POST /hotels/:id/create-rooms instead.
 ;; But this exists mostly to
+
+
+(rs/defschema RoomSize (s/enum :single :double :suite :special))
+
+(rs/defschema CreateRequest {
+                             :number s/Int
+                             :floor  s/Int
+                             :size   RoomSize
+                             })
+
+(def create-responses
+  {HttpServletResponse/SC_CREATED   {:id       s/Int
+                                     :hotel-id s/Int}
+   HttpServletResponse/SC_NOT_FOUND (rs/with-description "The specified hotel does not exist." nil)})
+
 (defn create
+  {:body-schema CreateRequest
+   :responses   create-responses}
   [hotel-id resource-uri]
   (let [room-id 227]
     (->
@@ -20,7 +37,7 @@
   {:number         s/Int
    :floor          s/Int
    :last_booked_at s/Inst
-   :size           (s/enum :single :double :suite :special)})
+   :size           RoomSize})
 
 (def show-responses
   {HttpServletResponse/SC_OK        Room
