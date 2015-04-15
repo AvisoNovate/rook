@@ -13,7 +13,8 @@
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [io.aviso.tracker :as t])
   (:import [schema.core EnumSchema Maybe]
-           [io.aviso.rook.schema IsInstance]))
+           [io.aviso.rook.schema IsInstance]
+           [clojure.lang IPersistentMap IPersistentVector]))
 
 (defn- remove-nil-vals
   [m]
@@ -76,7 +77,8 @@
   Object
   (convert-schema [schema _ _]
     (throw (ex-info "Unable to convert schema to Swagger."
-                    {:schema schema})))
+                    {:schema-class (type schema)
+                     :schema       schema})))
 
   EnumSchema
   (convert-schema [schema _ swagger-object]
@@ -90,7 +92,21 @@
 
   IsInstance
   (convert-schema [schema swagger-options swagger-object]
-    (simple->swagger-schema  swagger-options swagger-object (unwrap-schema schema))))
+    (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema)))
+
+  IPersistentVector
+  (convert-schema [schema swagger-options swagger-object]
+    (if-not (= 1 (count schema))
+      (throw (ex-info (format "Expected exactly one element in vector schema, not %d."
+                              (count schema))
+                      {:schema schema})))
+    (let [[swagger-object' item-reference] (simple->swagger-schema swagger-options swagger-object (first schema))]
+      [swagger-object' {:type  :array
+                        :items item-reference}]))
+
+  IPersistentMap
+  (convert-schema [schema swagger-options swagger-object]
+    (->swagger-schema swagger-options swagger-object schema)))
 
 (defn- simple->swagger-schema
   "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, etc."
@@ -103,10 +119,6 @@
     (some? data)
     [swagger-object data]
 
-    (vector? schema)
-    (let [[swagger-object' item-reference] (simple->swagger-schema swagger-options swagger-object (first schema))]
-      [swagger-object' {:type  :array
-                        :items item-reference}])
     :else
     (convert-schema schema swagger-options swagger-object)))
 
