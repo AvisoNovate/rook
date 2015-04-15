@@ -191,7 +191,6 @@
     (let [[so' new-schema] (map->swagger-schema swagger-options swagger-object schema)]
       [so' new-schema])
 
-    ;; Avoid forward slash in the swagger name, as that's problematic.
     ;; Avoid forward slash in the swagger name, as that's problematic, especially for
     ;; the swagger-ui (which must be taking a few liberties or shortcuts).
     [swagger-name (str schema-ns \: schema-name)
@@ -217,7 +216,7 @@
       ;; Assumption: it's a map and named
       (let [[swagger-object' schema-reference] (->swagger-schema swagger-options swagger-object schema)]
         (update-in swagger-object' paths-key
-                   conj {:name     :request-body
+                   conj {:name     (:body-name swagger-options)
                          :in       :body
                          :required true
                          :schema   schema-reference}))
@@ -334,6 +333,8 @@
 
 (def default-swagger-options
   {:template                  default-swagger-template
+   ;; Name of special parameter used for the body of the request
+   :body-name                 :body
    :route-injector            default-route-injector
    :configurer                default-configurer
    :data-type-mappings        default-data-type-mappings
