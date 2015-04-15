@@ -395,8 +395,6 @@
     "Constructing Swagger API Description."
     (let [{:keys [template route-injector configurer routing-entry-filter]} swagger-options
           routing-entries (->> routing-table
-                               vals
-                               (apply concat)
                                (map routing-entry->map)
                                ;; Endpoints with the :no-swagger meta data are ignored.
                                (remove #(-> % :meta :no-swagger))

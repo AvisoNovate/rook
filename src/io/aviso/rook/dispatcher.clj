@@ -425,7 +425,7 @@
               endpoint-fn @fn-var
 
               ;; This ensures that even when middleware returns nil, the handler is non-nil.
-              full-middleware (internals/compose-middleware  middleware)
+              full-middleware (internals/compose-middleware middleware)
 
               request-handler (-> (fn [request]
                                     (apply endpoint-fn (arglist-resolver request)))
@@ -437,6 +437,24 @@
           [method endpoint-context request-handler merged-metadata])))))
 
 (defn- expand-namespace-entry
+  "Expands on entry from the output of [[build-namespace-table]] and [[expand-namespace-metadata]],
+  converting each namespace entry into
+  a seq of routing entries:
+
+      [method path handler endpoint-meta]
+
+  method
+  : keyword for the HTTP method (:get, :put, etc., or :all)
+
+  path
+  : seq of path terms (each is a string or a keyword)
+
+  handler
+  : a Ring request handler derived from an endpoint function of the namespace,
+    that has been intercepted to include middleware, argument resolution, etc.
+
+  endpoint-meta
+  : Merged meta-data for the handler, including key :function (namespace qualified name of the function)"
   [[context ns-sym arg-resolvers middleware ns-metadata]]
   (t/track
     #(format "Identifying endpoints in namespace `%s'." ns-sym)
@@ -468,14 +486,9 @@
   endpoint-meta
   : Merged meta-data for the handler, including key :function (namespace qualified name of the function)
 
-  Returns a map whose keys are ns-specs (the inputs from the ns-table) and whose
-  values are a seq of routing entries (for that immediate namespace)."
+  Returns a sequence of routing entries, in no specific order."
   [ns-table]
-  (reduce
-    (fn [result ns-spec]
-      (assoc result ns-spec (expand-namespace-entry ns-spec)))
-    {}
-    ns-table))
+  (map expand-namespace-entry ns-table))
 
 (def ^:private conj' (fnil conj []))
 
@@ -593,11 +606,8 @@
                              (merge-arg-resolver-maps default-arg-resolvers (get options :arg-resolvers))
                              (get options :default-middleware default-namespace-middleware))
                            expand-namespace-metadata
-                           construct-routing-table)
-        handler (->>
-                  routing-table
-                  vals
-                  (apply concat)
-                  construct-dispatch-map
-                  create-map-traversal-handler)]
+                           (mapcat expand-namespace-entry))
+        handler (-> routing-table
+                    construct-dispatch-map
+                    create-map-traversal-handler)]
     [handler routing-table]))
