@@ -32,12 +32,19 @@
                                                       :hotel-id hotel-id})
       (r/header "Location" (str resource-uri room-id)))))
 
+(rs/defschema RoomBooking
+  "Identifies a range of dates a room was booked."
+  {:start_at s/Inst
+   :end_at   s/Inst
+   :rating   (rs/with-description "Client's rating for their stay."
+                                  (s/maybe s/Int))})
+
 (rs/defschema ShowRoomResponse "A room within a hotel."
   {:number          s/Int
    :floor           s/Int
    :last_booked_at  (s/maybe s/Inst)
    :size            RoomSize
-   :booking_history [s/Inst]})
+   :booking_history [RoomBooking]})
 
 (def show-responses
   {HttpServletResponse/SC_OK        ShowRoomResponse
