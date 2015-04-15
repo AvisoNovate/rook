@@ -29,10 +29,10 @@
    `(def ~name ~docstring (schema ~name ~docstring ~form))))
 
 (defprotocol SchemaUnwrapper
-  "A protocol for 'unwrapping' a Schema, to extract a nested Schema."
+  "A protocol for 'unwrapping' a Schema, to extract a nested Schema (or, in certain cases a seq of schemas)."
 
   (unwrap-schema [this]
-    "Returns the nested schema where appropriate, or throws an exception when a nested schema is not available."))
+    "Returns the nested schema (or schemas) where appropriate, or throws an exception when a nested schema is not available."))
 
 (defrecord IsInstance [^Class expected-class]
   s/Schema
