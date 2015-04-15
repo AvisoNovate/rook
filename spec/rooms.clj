@@ -12,7 +12,7 @@
 
 (rs/defschema RoomSize (s/enum :single :double :suite :special))
 
-(rs/defschema CreateRequest {
+(rs/defschema CreateRoomRequest {
                              :number s/Int
                              :floor  s/Int
                              :size   RoomSize
@@ -20,11 +20,11 @@
 
 (def create-responses
   {HttpServletResponse/SC_CREATED   {:id       s/Int
-                                     :hotel-id s/Int}
+                                     :hotel_id s/Int}
    HttpServletResponse/SC_NOT_FOUND (rs/with-description "The specified hotel does not exist." nil)})
 
 (defn create
-  {:body-schema CreateRequest
+  {:body-schema CreateRoomRequest
    :responses   create-responses}
   [hotel-id resource-uri]
   (let [room-id 227]
@@ -33,14 +33,15 @@
                                                       :hotel-id hotel-id})
       (r/header "Location" (str resource-uri room-id)))))
 
-(rs/defschema Room "A room within a hotel."
-  {:number         s/Int
-   :floor          s/Int
-   :last_booked_at s/Inst
-   :size           RoomSize})
+(rs/defschema ShowRoomResponse "A room within a hotel."
+  {:number          s/Int
+   :floor           s/Int
+   :last_booked_at  (s/maybe s/Inst)
+   :size            RoomSize
+   :booking_history [s/Inst]})
 
 (def show-responses
-  {HttpServletResponse/SC_OK        Room
+  {HttpServletResponse/SC_OK        ShowRoomResponse
    HttpServletResponse/SC_NOT_FOUND nil})
 
 (defn show

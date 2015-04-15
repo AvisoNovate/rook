@@ -6,8 +6,8 @@
 
 ;; These are just placeholders for testing the Swagger integration:
 
-(rs/defschema Hotel
-  "Standard hotel data."
+(rs/defschema ShowHotelResponse
+  "Describes a hotel."
   {:id         s/Uuid
    :created_at s/Inst
    :updated_at s/Inst
@@ -19,7 +19,7 @@
    (s/optional-key :descending) s/Bool})
 
 (def index-responses
-  {HttpServletResponse/SC_OK (rs/schema HotelList "List of matching hotels in specified order." [Hotel])})
+  {HttpServletResponse/SC_OK (rs/schema HotelList "List of matching hotels in specified order." [ShowHotelResponse])})
 
 (defn index
   "Returns a list of all hotels, with control over sort order."
@@ -29,7 +29,7 @@
   nil)
 
 (def show-responses
-  {HttpServletResponse/SC_OK        (rs/with-description "The hotel matching the id, if found." Hotel)
+  {HttpServletResponse/SC_OK        (rs/with-description "The hotel matching the id, if found." ShowHotelResponse)
    HttpServletResponse/SC_NOT_FOUND (rs/description "No hotel with the provided id could be found.")})
 
 (defn show
@@ -38,7 +38,7 @@
   [id]
   nil)
 
-(rs/defschema ChangeBody
+(rs/defschema ChangeHotelRequest
   "Allows the name of a hotel to be changed (when doing so does not conflict with an existing hotel)."
   {:name (rs/with-description "The new name for the hotel, which must be unique."
                               s/Str)})
@@ -50,6 +50,6 @@
 
 (defn change
   "Updates a Hotel, to rename it. May result in a 409 Conflict if some other hotel has the same name."
-  {:body-schema ChangeBody
+  {:body-schema ChangeHotelRequest
    :responses   change-responses}
   [id params])
