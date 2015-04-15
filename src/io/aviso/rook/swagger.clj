@@ -100,13 +100,17 @@
       (throw (ex-info (format "Expected exactly one element in vector schema, not %d."
                               (count schema))
                       {:schema schema})))
-    (let [[swagger-object' item-reference] (simple->swagger-schema swagger-options swagger-object (first schema))]
-      [swagger-object' {:type  :array
-                        :items item-reference}]))
+    (t/track
+      "Converting vector schema."
+      (let [[swagger-object' item-reference] (simple->swagger-schema swagger-options swagger-object (first schema))]
+        [swagger-object' {:type  :array
+                          :items item-reference}])))
 
   IPersistentMap
   (convert-schema [schema swagger-options swagger-object]
-    (->swagger-schema swagger-options swagger-object schema)))
+    (t/track
+      "Converting map schema."
+      (->swagger-schema swagger-options swagger-object schema))))
 
 (defn- simple->swagger-schema
   "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, etc."
