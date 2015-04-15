@@ -19,12 +19,6 @@
   [m]
   (medley/remove-vals nil? m))
 
-(defn- remove-any-keys
-  "Removes keys that are equaly to s/Any."
-  [m]
-  (medley/remove-vals #(= s/Any %) m))
-
-
 
 (def default-swagger-template
   "A base skeleton for a Swagger Object (as per the Swagger 2.0 specification), that is further populated from Rook namespace
