@@ -58,10 +58,23 @@
                                    :required true}))]
     (reduce reducer swagger-object path-ids)))
 
-(defn reduce-schema-key
-  "Simplifies a key from a schema reducing it to a keyword, and whether the key is required or optional."
+(defn analyze-schema-key
+  "Simplifies a key from a schema reducing it to a keyword (or, to support s/Str or s/Keyword as a key,
+  the special key ::wildcard), and whether the key is required or optional."
   [schema-key]
-  [(s/explicit-schema-key schema-key) (s/required-key? schema-key)])
+  (try
+    ;; We're treating these special keys as optional, which seems to align with Prismatic, e.g.,
+    ;; (s/check {s/Str s/Any} {}) => nil
+    (if (or (= s/Keyword schema-key)
+            (= s/Str schema-key)
+            ;; assumes that it is like UUID, convertable to/from string
+            (instance? Class schema-key))
+      [::wildcard false]
+      [(s/explicit-schema-key schema-key) (s/required-key? schema-key)])
+    (catch Throwable t
+      (throw (ex-info "Unable to expand schema key."
+                      {:schema-key schema-key}
+                      t)))))
 
 (declare ->swagger-schema simple->swagger-schema)
 
@@ -151,7 +164,7 @@
                       (= s/Any key-id)
                       so
 
-                      [[k required] (reduce-schema-key key-id)]
+                      [[k required] (analyze-schema-key key-id)]
 
                       :else
                       (t/track
@@ -169,18 +182,27 @@
 
 (defn map->swagger-schema
   [swagger-options swagger-object schema]
-  (let [reducer (fn [[swagger-object' o :as acc] [schema-key schema-value]]
-                  (if (= s/Any schema-value)
+  (let [reducer (fn [[acc-so acc-schema :as acc] [schema-key schema-value]]
+                  ;; An s/Any as a key exists to "be generous in what you accept" and can be ignored.
+                  (if (= s/Any schema-key)
                     acc
-                    (let [[k required?] (reduce-schema-key schema-key)]
+                    (let [[k required?] (analyze-schema-key schema-key)
+                          key-name (if (= ::wildcard k)
+                                     "<any>"
+                                     (name k))]
                       (t/track
-                        #(format "Describing key `%s'." (name k))
-                        (let [[swagger-object'2 swagger-schema] (simple->swagger-schema swagger-options swagger-object' schema-value)]
-                          [swagger-object'2 (cond-> (assoc-in o [:properties k] swagger-schema)
-                                                    required? (update-in [:required] conj k))])))))
-        base (remove-nil-vals {:description (-> (or (-> schema meta :description)
-                                                    (-> schema meta :doc)))})]
+                        #(format "Describing key `%s'." key-name)
+                        (let [[acc-so' swagger-schema] (simple->swagger-schema swagger-options acc-so schema-value)
+                              path (if (= ::wildcard k)
+                                     [:otherProperties]
+                                     [:properties k])]
+                          [acc-so' (cond-> (assoc-in acc-schema path swagger-schema)
+                                           required? (update-in [:required] conj k))])))))
+        base (remove-nil-vals {:description (or (-> schema meta :description)
+                                                (-> schema meta :doc))})]
     (reduce reducer [swagger-object base] schema)))
+
+;; Can we merge simple->swagger-schema and ->swagger-schema?
 
 (defn ->swagger-schema
   "Converts a Prismatic schema to a Swagger schema (or possibly, a \"$ref\" map pointing to a schema). A $ref
