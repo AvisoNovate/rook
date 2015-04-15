@@ -12,11 +12,10 @@
 
 (rs/defschema RoomSize (s/enum :single :double :suite :special))
 
-(rs/defschema CreateRoomRequest {
-                             :number s/Int
-                             :floor  s/Int
-                             :size   RoomSize
-                             })
+(rs/defschema CreateRoomRequest
+  {:number s/Int
+   :floor  s/Int
+   :size   RoomSize})
 
 (def create-responses
   {HttpServletResponse/SC_CREATED   {:id       s/Int
