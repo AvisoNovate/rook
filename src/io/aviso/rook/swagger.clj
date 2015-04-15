@@ -192,6 +192,8 @@
       [so' new-schema])
 
     ;; Avoid forward slash in the swagger name, as that's problematic.
+    ;; Avoid forward slash in the swagger name, as that's problematic, especially for
+    ;; the swagger-ui (which must be taking a few liberties or shortcuts).
     [swagger-name (str schema-ns \: schema-name)
      swagger-reference {"$ref" (str "#/definitions/" swagger-name)}
      swagger-schema (get-in swagger-object [:definitions swagger-name])]
