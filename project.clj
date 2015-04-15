@@ -7,7 +7,7 @@
                         {:dependencies [[ring-mock "0.1.5"]
                                         [cc.qbits/jet "0.5.4"]
                                         [speclj "3.2.0"]
-                                        [log4j "1.2.17"]]}}
+                                        [ch.qos.logback/logback-classic "1.1.3"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
@@ -21,7 +21,6 @@
                            [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                            [org.clojure/tools.logging "0.3.1"]
                            [io.aviso/tracker "0.1.6"]
-                           #_ [ring/ring-core "1.3.2" :exclusions [org.clojure/tools.reader]]
                            [medley "0.5.5" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.5.0" :exclusions [ring/ring-devel org.clojure/tools.reader ring]]
                            [ring/ring-core "1.3.2" :exclusions [commons-fileupload]]
