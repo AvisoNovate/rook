@@ -13,8 +13,7 @@
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [io.aviso.tracker :as t])
   (:import [schema.core EnumSchema Maybe]
-           [io.aviso.rook.schema IsInstance]
-           [clojure.lang APersistentVector]))
+           [io.aviso.rook.schema IsInstance]))
 
 (defn- remove-nil-vals
   [m]
@@ -24,6 +23,8 @@
   "Removes keys that are equaly to s/Any."
   [m]
   (medley/remove-vals #(= s/Any %) m))
+
+
 
 (def default-swagger-template
   "A base skeleton for a Swagger Object (as per the Swagger 2.0 specification), that is further populated from Rook namespace
@@ -67,6 +68,36 @@
   [schema-key]
   [(s/explicit-schema-key schema-key) (s/required-key? schema-key)])
 
+(declare ->swagger-schema simple->swagger-schema)
+
+(defprotocol SchemaConversion
+  "Converts a particular Prismatic Schema type to a Swagger schema."
+
+  (convert-schema [schema swagger-options swagger-object]
+    "Given a particular implementation of Prismatic Schema, do a conversion to a Swagger/JSON schema.
+    Return a tuple of the (possibly updated swagger-object) and the converted schema."))
+
+(extend-protocol SchemaConversion
+
+  Object
+  (convert-schema [schema _ _]
+    (throw (ex-info "Unable to convert schema to Swagger."
+                    {:schema schema})))
+
+  EnumSchema
+  (convert-schema [schema _ swagger-object]
+    [swagger-object {:type :string                          ; an assumption
+                     :enum (unwrap-schema schema)}])
+
+  Maybe
+  (convert-schema [schema swagger-options swagger-object]
+    (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema))]
+      [swagger-object' (assoc swagger-schema :allowEmptyValue true)]))
+
+  IsInstance
+  (convert-schema [schema swagger-options swagger-object]
+    (simple->swagger-schema  swagger-options swagger-object (unwrap-schema schema))))
+
 (defn- simple->swagger-schema
   "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, etc."
   [swagger-options swagger-object schema]
@@ -78,23 +109,12 @@
     (some? data)
     [swagger-object data]
 
-    (instance? EnumSchema schema)
-    [swagger-object {:type :string                          ; an assumption
-                     :enum (unwrap-schema schema)}]
-
-    (instance? Maybe schema)
-    (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema))]
-      [swagger-object' (assoc swagger-schema :allowEmptyValue true)])
-
-    ;; The i.a.r.schema/with-description macro often turns bare classes into an IsInstance
-    (instance? IsInstance schema)
-    (recur swagger-options swagger-object (unwrap-schema schema))
-
-    ;; TODO: arrays
-
+    (vector? schema)
+    (let [[swagger-object' item-reference] (simple->swagger-schema swagger-options swagger-object (first schema))]
+      [swagger-object' {:type  :array
+                        :items item-reference}])
     :else
-    (throw (ex-info "Unable to convert schema to Swagger."
-                    {:schema schema}))))
+    (convert-schema schema swagger-options swagger-object)))
 
 (defn default-query-params-injector
   "Identifies each query parameter via the :query-schema metadata and injects it."
@@ -151,7 +171,7 @@
     (or (nil? schema) (= s/Any schema))
     [swagger-object nil]
 
-    (instance? APersistentVector schema)
+    (vector? schema)
     (let [[object' item-reference] (->swagger-schema swagger-options swagger-object (first schema))]
       [object' {:type  :array
                 :items item-reference}])
