@@ -218,16 +218,18 @@
     [swagger-object nil]
 
     (vector? schema)
-    (let [[object' item-reference] (->swagger-schema swagger-options swagger-object (first schema))]
-      [object' {:type  :array
-                :items item-reference}])
+    (let [[so' item-reference] (->swagger-schema swagger-options swagger-object (first schema))]
+      [so' {:type  :array
+            :items item-reference}])
 
     [schema-name (s/schema-name schema)
      schema-ns (-> schema meta :ns)]
 
     ;; Missing this stuff?  Make it anonymous.
-    (or (nil? schema-name) (nil? schema-ns))
-    ;; The challenge here is nested schemas that may have names. Currently that will blow up.
+    (or (nil? schema-name)
+        (nil? schema-ns))
+    ;; Nested schemas may be named, however, and will need to write into the swagger-object :definitions
+    ;; map.
     (let [[so' new-schema] (map->swagger-schema swagger-options swagger-object schema)]
       [so' new-schema])
 
@@ -240,11 +242,11 @@
     (some? swagger-schema)
     [swagger-object swagger-reference]
 
-    [[swagger-object' new-schema] (map->swagger-schema swagger-options swagger-object schema)
-     swagger-object'2 (assoc-in swagger-object' [:definitions swagger-name] new-schema)]
+    [[so-1 new-schema] (map->swagger-schema swagger-options swagger-object schema)
+     so-2 (assoc-in so-1 [:definitions swagger-name] new-schema)]
 
     :else
-    [swagger-object'2 swagger-reference]))
+    [so-2 swagger-reference]))
 
 (defn default-body-params-injector
   "Uses the :body-schema metadata to identify the body params."
