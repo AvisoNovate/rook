@@ -318,8 +318,7 @@
   swagger-object)
 
 (def default-data-type-mappings
-  {
-   s/Int   {:type :integer}
+  {s/Int   {:type :integer}
    Integer {:type :integer :format :int32}
    Long    {:type :integer :format :int64}
    s/Num   {:type :number}
