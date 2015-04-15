@@ -304,6 +304,9 @@
           (assoc-in % paths-key
                     (remove-nil-vals {:description  description
                                       :summary      summary
+                                      ;; This is required inside a Operation object:
+                                      :responses    {}
+                                      ;; This aligns very nicely with Rook:
                                       :operation-id (:function endpoint-meta)}))
           (path-params-injector swagger-options % routing-entry params-key)
           (query-params-injector swagger-options % routing-entry params-key)
