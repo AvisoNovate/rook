@@ -37,13 +37,16 @@
   {:start_at s/Inst
    :end_at   s/Inst
    :rating   (rs/with-description "Client's rating for their stay."
-                                  (s/maybe s/Int))})
+                                  (s/maybe (s/both
+                                             s/Int
+                                             (s/pred pos? 'non-negative))))})
 
 (rs/defschema ShowRoomResponse "A room within a hotel."
   {:number          s/Int
    :floor           s/Int
    :last_booked_at  (s/maybe s/Inst)
    :size            RoomSize
+   :meta            {s/Keyword s/Str}
    :booking_history [RoomBooking]})
 
 (def show-responses
