@@ -12,7 +12,7 @@
             [io.aviso.toolchest.macros :refer [cond-let]]
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [io.aviso.tracker :as t])
-  (:import [schema.core EnumSchema Maybe]
+  (:import [schema.core EnumSchema Maybe Both Predicate]
            [io.aviso.rook.schema IsInstance]
            [clojure.lang IPersistentMap IPersistentVector]))
 
@@ -89,6 +89,20 @@
   (convert-schema [schema swagger-options swagger-object]
     (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema))]
       [swagger-object' (assoc swagger-schema :allowEmptyValue true)]))
+
+  Both
+  (convert-schema [schema swagger-options swagger-object]
+    ;; Hopefully not doing anything too tricky here, we'll merge together the results of each nested Schema.
+    (let [reducer (fn [[so-1 swagger-schema] nested-schema]
+                    (let [[so-2 new-schema] (simple->swagger-schema swagger-options so-1 nested-schema)]
+                      [so-2 (merge swagger-schema new-schema)]))]
+      (reduce reducer [swagger-object] (unwrap-schema schema))))
+
+  Predicate
+  (convert-schema [_ _ swagger-object]
+    ;; In the future, this may potentially set some of the Swagger schema options, such as
+    ;; maximum or maxLength. For now it is a place holder to prevent an exception.
+    [swagger-object])
 
   IsInstance
   (convert-schema [schema swagger-options swagger-object]
