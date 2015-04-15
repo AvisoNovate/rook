@@ -3,7 +3,7 @@
   {:added "0.1.27"}
   (:require [schema.core :as s]
             [schema.macros :as macros])
-  (:import [schema.core Maybe EnumSchema]))
+  (:import [schema.core Maybe EnumSchema Both]))
 
 (defmacro schema
   "Creates a named schema, which includes metadata as per [[defschema]]. This is useful for one-off
@@ -58,7 +58,11 @@
 
   EnumSchema
   (unwrap-schema [this]
-    (.vs this)))
+    (.vs this))
+
+  Both
+  (unwrap-schema [this]
+    (.schemas this)))
 
 (defn with-description
   "Adds a :description key to the metadata of the schema.
