@@ -335,6 +335,7 @@
   {:template                  default-swagger-template
    ;; Name of special parameter used for the body of the request
    :body-name                 :body
+   :routing-entry-filter      (constantly false)
    :route-injector            default-route-injector
    :configurer                default-configurer
    :data-type-mappings        default-data-type-mappings
@@ -350,12 +351,13 @@
   [swagger-options routing-table]
   (t/track
     "Constructing Swagger API Description."
-    (let [{:keys [template route-injector configurer]} swagger-options
+    (let [{:keys [template route-injector configurer routing-entry-filter]} swagger-options
           routing-entries (->> routing-table
                                vals
                                (apply concat)
                                (map routing-entry->map)
                                ;; Endpoints with the :no-swagger meta data are ignored.
-                               (remove #(-> % :meta :no-swagger)))]
+                               (remove #(-> % :meta :no-swagger))
+                               (remove routing-entry-filter))]
       (as-> (reduce (partial route-injector swagger-options) template routing-entries) %
             (configurer swagger-options % routing-entries)))))
