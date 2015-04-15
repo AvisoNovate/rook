@@ -12,6 +12,7 @@
             [clj-http.client :as client]
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [qbits.jet.server :as jet]
+            [io.aviso.tracker :as t]
             [clojure.tools.logging :as l]
             [io.aviso.rook.server :as server])
   (:import [org.eclipse.jetty.server Server]))
@@ -52,11 +53,12 @@
                          (assoc-in [:template :info :title] "Hotels and Rooms API")
                          (assoc-in [:template :info :version] "Pre-Alpha")))
 
-(-> (swagger-object nil swagger-options
-                    ["hotels" 'hotels
-                     [[:hotel-id "rooms"] 'rooms]])
-    (json/generate-string {:pretty true})
-    println)
+(binding [t/*log-trace-level* :info]
+  (-> (swagger-object nil swagger-options
+                      ["hotels" 'hotels
+                       [[:hotel-id "rooms"] 'rooms]])
+      (json/generate-string {:pretty true})
+      println))
 
 (defn start-server
   []
