@@ -71,6 +71,7 @@
   "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, etc."
   [swagger-options swagger-object schema]
   (cond-let
+
     [data-type-mappings (:data-type-mappings swagger-options)
      data (get data-type-mappings schema)]
 
@@ -162,7 +163,7 @@
     (or (nil? schema-name) (nil? schema-ns))
     ;; The challenge here is nested schemas that may have names. Currently that will blow up.
     (let [[so' new-schema] (map->swagger-schema swagger-options swagger-object schema)]
-      [so' {:schema new-schema}])
+      [so' new-schema])
 
     ;; Avoid forward slash in the swagger name, as that's problematic.
     [swagger-name (str schema-ns \: schema-name)
