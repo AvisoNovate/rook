@@ -307,7 +307,7 @@
                                       ;; This is required inside a Operation object:
                                       :responses      {}
                                       ;; This aligns very nicely with Rook:
-                                      :operation-id (:function endpoint-meta)}))
+                                      :x-operation-id (:function endpoint-meta)}))
           (path-params-injector swagger-options % routing-entry params-key)
           (query-params-injector swagger-options % routing-entry params-key)
           (body-params-injector swagger-options % routing-entry params-key)
