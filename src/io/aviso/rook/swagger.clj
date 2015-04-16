@@ -50,12 +50,12 @@
   "Identifies each path parameter and adds a value for it to the swagger-object at the path defined by params-key."
   [swagger-options swagger-object routing-entry params-key]
   (let [path-ids (->> routing-entry :path (filter keyword?))
-        reducer (fn [so path-id]
-                  (update-in so params-key
-                             conj {:name     path-id
-                                   :type     :string        ; may add something later to refine this
-                                   :in       :path
-                                   :required true}))]
+        reducer  (fn [so path-id]
+                   (update-in so params-key
+                              conj {:name     path-id
+                                    :type     :string       ; may add something later to refine this
+                                    :in       :path
+                                    :required true}))]
     (reduce reducer swagger-object path-ids)))
 
 (defn analyze-schema-key
@@ -198,8 +198,8 @@
                                      [:properties k])]
                           [acc-so' (cond-> (assoc-in acc-schema path swagger-schema)
                                            required? (update-in [:required] conj k))])))))
-        base (remove-nil-vals {:description (or (-> schema meta :description)
-                                                (-> schema meta :doc))})]
+        base    (remove-nil-vals {:description (or (-> schema meta :description)
+                                                   (-> schema meta :doc))})]
     (reduce reducer [swagger-object base] schema)))
 
 ;; Can we merge simple->swagger-schema and ->swagger-schema?
@@ -269,18 +269,18 @@
   "Uses the :responses metadata to identify possible responses."
   [swagger-options swagger-object routing-entry paths-key]
   (let [responses (-> routing-entry :meta :responses)
-        reducer (fn [so [status-code schema]]
-                  (t/track
-                    #(format "Describing %d response." status-code)
-                    (let [schema-meta (meta schema)
-                          description (or (:description schema-meta)
-                                          (:doc schema-meta)
-                                          ;; description is required in the Response Object, so we need some default here.
-                                          "Documentation not provided.")
-                          [so' schema-reference] (->swagger-schema swagger-options so schema)
-                          response (remove-nil-vals {:description description
-                                                     :schema      schema-reference})]
-                      (assoc-in so' (concat paths-key [:responses status-code]) response))))]
+        reducer   (fn [so [status-code schema]]
+                    (t/track
+                      #(format "Describing %d response." status-code)
+                      (let [schema-meta (meta schema)
+                            description (or (:description schema-meta)
+                                            (:doc schema-meta)
+                                            ;; description is required in the Response Object, so we need some default here.
+                                            "Documentation not provided.")
+                            [so' schema-reference] (->swagger-schema swagger-options so schema)
+                            response    (remove-nil-vals {:description description
+                                                          :schema      schema-reference})]
+                        (assoc-in so' (concat paths-key [:responses status-code]) response))))]
     (reduce reducer swagger-object responses)))
 
 (defn default-path-item-object-injector
@@ -291,21 +291,21 @@
   Returns the modified swagger-object."
   [swagger-options swagger-object routing-entry paths-key]
   (let [{endpoint-meta :meta} routing-entry
-        swagger-meta (:swagger endpoint-meta)
-        description (or (:description swagger-meta)
-                        (:doc endpoint-meta))
-        summary (:summary swagger-meta)
-        path-params-injector (:path-params-injector swagger-options)
+        swagger-meta          (:swagger endpoint-meta)
+        description           (or (:description swagger-meta)
+                                  (:doc endpoint-meta))
+        summary               (:summary swagger-meta)
+        path-params-injector  (:path-params-injector swagger-options)
         query-params-injector (:query-params-injector swagger-options)
-        body-params-injector (:body-params-injector swagger-options)
-        responses-injector (:responses-injector swagger-options)
-        params-key (concat paths-key ["parameters"])]
+        body-params-injector  (:body-params-injector swagger-options)
+        responses-injector    (:responses-injector swagger-options)
+        params-key            (concat paths-key ["parameters"])]
     (as-> swagger-object %
           (assoc-in % paths-key
-                    (remove-nil-vals {:description  description
-                                      :summary      summary
+                    (remove-nil-vals {:description    description
+                                      :summary        summary
                                       ;; This is required inside a Operation object:
-                                      :responses    {}
+                                      :responses      {}
                                       ;; This aligns very nicely with Rook:
                                       :operation-id (:function endpoint-meta)}))
           (path-params-injector swagger-options % routing-entry params-key)
@@ -341,9 +341,9 @@
     #(format "Describing endpoint %s `/%s'."
              (-> routing-entry :method name .toUpperCase)
              (->> routing-entry :path (str/join "/")))
-    (let [path-str (-> routing-entry :path path->str)
+    (let [path-str        (-> routing-entry :path path->str)
           ;; Ignoring :all for the moment.
-          method-str (-> routing-entry :method name)
+          method-str      (-> routing-entry :method name)
           pio-constructor (:path-item-object-injector swagger-options)]
       ;; Invoke the constructor for the path info. It may need to make changes to the :definitions, so we have
       ;; to let it modify the entire Swagger object ... but we help it out by providing the path
