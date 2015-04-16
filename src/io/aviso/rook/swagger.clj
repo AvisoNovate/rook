@@ -13,7 +13,7 @@
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [io.aviso.tracker :as t]
             [io.aviso.rook.dispatcher :as dispatcher])
-  (:import [schema.core EnumSchema Maybe Both Predicate]
+  (:import [schema.core EnumSchema Maybe Both Predicate AnythingSchema]
            [io.aviso.rook.schema IsInstance]
            [clojure.lang IPersistentMap IPersistentVector]))
 
@@ -103,6 +103,10 @@
   (convert-schema [schema swagger-options swagger-object]
     (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema))]
       [swagger-object' (assoc swagger-schema :allowEmptyValue true)]))
+
+  AnythingSchema
+  (convert-schema [schema swagger-options swagger-object]
+    [swagger-object {:type :object}])
 
   Both
   (convert-schema [schema swagger-options swagger-object]
@@ -372,17 +376,18 @@
   swagger-object)
 
 (def default-data-type-mappings
-  {s/Int   {:type :integer}
-   Integer {:type :integer :format :int32}
-   Long    {:type :integer :format :int64}
-   s/Num   {:type :number}
-   Float   {:type :number :format :float}
-   Double  {:type :number :format :double}
-   s/Str   {:type :string}
-   Byte    {:type :string :format :byte}
-   s/Bool  {:type :boolean}
-   s/Inst  {:type :string :format :date-time}
-   s/Uuid  {:type :string :format :uuid}})
+  {s/Int     {:type :integer}
+   s/Keyword {:type :string}
+   Integer   {:type :integer :format :int32}
+   Long      {:type :integer :format :int64}
+   s/Num     {:type :number}
+   Float     {:type :number :format :float}
+   Double    {:type :number :format :double}
+   s/Str     {:type :string}
+   Byte      {:type :string :format :byte}
+   s/Bool    {:type :boolean}
+   s/Inst    {:type :string :format :date-time}
+   s/Uuid    {:type :string :format :uuid}})
 
 (def default-swagger-options
   {:template                       default-swagger-template
