@@ -11,7 +11,8 @@
             [medley.core :as medley]
             [io.aviso.toolchest.macros :refer [cond-let]]
             [io.aviso.toolchest.collections :refer [pretty-print]]
-            [io.aviso.tracker :as t])
+            [io.aviso.tracker :as t]
+            [io.aviso.rook.dispatcher :as dispatcher])
   (:import [schema.core EnumSchema Maybe Both Predicate]
            [io.aviso.rook.schema IsInstance]
            [clojure.lang IPersistentMap IPersistentVector]))
@@ -357,6 +358,13 @@
    :path   path
    :meta   endpoint-meta})
 
+(defn- expand-method-all
+  [{:keys [method] :as routing-entry}]
+  (if-not (= :all method)
+    [routing-entry]
+    (for [m dispatcher/supported-methods]
+      (assoc routing-entry :method m))))
+
 (defn default-configurer
   "The configurer is passed the final swagger object and can make final changes to it. This implementation
   does nothing, returning the swagger object unchanged."
@@ -377,18 +385,18 @@
    s/Uuid  {:type :string :format :uuid}})
 
 (def default-swagger-options
-  {:template                  default-swagger-template
+  {:template                       default-swagger-template
    ;; Name of special parameter used for the body of the request
-   :body-name                 :body
-   :routing-entry-filter      (constantly false)
-   :route-injector            default-route-injector
-   :configurer                default-configurer
-   :data-type-mappings        default-data-type-mappings
-   :path-item-object-injector default-path-item-object-injector
-   :path-params-injector      default-path-params-injector
-   :query-params-injector     default-query-params-injector
-   :body-params-injector      default-body-params-injector
-   :responses-injector        default-responses-injector})
+   :body-name                      :body
+   :routing-entry-remove-predicate (constantly false)
+   :route-injector                 default-route-injector
+   :configurer                     default-configurer
+   :data-type-mappings             default-data-type-mappings
+   :path-item-object-injector      default-path-item-object-injector
+   :path-params-injector           default-path-params-injector
+   :query-params-injector          default-query-params-injector
+   :body-params-injector           default-body-params-injector
+   :responses-injector             default-responses-injector})
 
 (defn construct-swagger-object
   "Constructs the root Swagger object from the Rook options, swagger options, and the routing table
@@ -396,11 +404,14 @@
   [swagger-options routing-table]
   (t/track
     "Constructing Swagger API Description."
-    (let [{:keys [template route-injector configurer routing-entry-filter]} swagger-options
+    (let [{:keys [template route-injector configurer routing-entry-remove-predicate]} swagger-options
           routing-entries (->> routing-table
                                (map routing-entry->map)
                                ;; Endpoints with the :no-swagger meta data are ignored.
                                (remove #(-> % :meta :no-swagger))
-                               (remove routing-entry-filter))]
+                               ;; Each :all is expanded to every supported method ...
+                               (mapcat expand-method-all)
+                               ;; So this becomes pretty important.
+                               (remove routing-entry-remove-predicate))]
       (as-> (reduce (partial route-injector swagger-options) template routing-entries) %
             (configurer swagger-options % routing-entries)))))
