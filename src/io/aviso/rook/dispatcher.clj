@@ -16,7 +16,7 @@
             [medley.core :as medley])
   (:import [java.net URLDecoder]))
 
-(def ^:private supported-methods
+(def supported-methods
   "The supported methods, used to \"split\" a route with method :all."
   #{:get :put :post :patch :delete :head :options})
 
