@@ -80,9 +80,9 @@
   - on success, the tuple is `[nil request]`; that is, an updated request with specific key
     (and :params) updated
   - on failure, the tuple is `[failures]`, where failures are as output from Schema validation"
-  [request key coercer]
+  [request key coercer pre-coerce]
   ;; The coercer will coerce and validate:
-  (let [validated (-> request key (or {}) keyify-params coercer)]
+  (let [validated (-> request key (or {}) pre-coerce coercer)]
     (if (su/error? validated)
       [(su/error-val validated)]
       [nil (rebuild-request request key validated)])))
@@ -92,12 +92,12 @@
   (coerce/coercer schema string-coercion-matcher))
 
 (defn- do-wrap
-  [handler metadata metadata-key request-key]
+  [handler metadata metadata-key request-key pre-coerce]
   (if-let [schema (get metadata metadata-key)]
     (let [coercer  (schema->coercer schema)
           function (:function metadata)]
       (fn [request]
-        (let [[failures new-request] (coerce-and-validate request request-key coercer)]
+        (let [[failures new-request] (coerce-and-validate request request-key coercer pre-coerce)]
           (if failures
             (wrap-invalid-response function failures)
             (handler new-request)))))))
@@ -129,8 +129,8 @@
   The various convention argument resolvers (params, _params, params*, _params) all operate
   on the :params key of the request."
   (internals/compose-middleware
-    (do-wrap :schema :params)
-    (do-wrap :body-schema :body-params)
-    (do-wrap :form-schema :form-params)
-    (do-wrap :query-schema :query-params)))
+    (do-wrap :schema :params identity)
+    (do-wrap :body-schema :body-params identity)
+    (do-wrap :form-schema :form-params keyify-params)
+    (do-wrap :query-schema :query-params keyify-params)))
 

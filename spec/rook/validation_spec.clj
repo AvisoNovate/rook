@@ -21,7 +21,7 @@
 
 (defn validate-against-schema
   [request schema]
-  (coerce-and-validate request :params (schema->coercer schema)))
+  (coerce-and-validate request :params (schema->coercer schema) identity))
 
 (describe "io.aviso.rook.schema-validation"
 
