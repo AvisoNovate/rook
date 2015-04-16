@@ -4,10 +4,10 @@
             :license {:name "Apache Sofware License 2.0"
                       :url  "http://www.apache.org/licenses/LICENSE-2.0.html"}
             :profiles {:dev
-                        {:dependencies [[ring-mock "0.1.5"]
-                                        [cc.qbits/jet "0.5.4"]
-                                        [speclj "3.2.0"]
-                                        [ch.qos.logback/logback-classic "1.1.3"]]}}
+                       {:dependencies [[ring-mock "0.1.5"]
+                                       [cc.qbits/jet "0.5.4"]
+                                       [speclj "3.2.0"]
+                                       [ch.qos.logback/logback-classic "1.1.3"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
