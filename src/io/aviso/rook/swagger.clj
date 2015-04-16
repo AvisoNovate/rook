@@ -307,12 +307,11 @@
         params-key            (concat paths-key ["parameters"])]
     (as-> swagger-object %
           (assoc-in % paths-key
-                    (remove-nil-vals {:description    description
-                                      :summary        summary
+                    (remove-nil-vals {:description     description
+                                      :summary         summary
                                       ;; This is required inside a Operation object:
-                                      :responses      {}
-                                      ;; This aligns very nicely with Rook:
-                                      :x-operation-id (:function endpoint-meta)}))
+                                      :responses       {}
+                                      :x-rook-endpoint (:function endpoint-meta)}))
           (path-params-injector swagger-options % routing-entry params-key)
           (query-params-injector swagger-options % routing-entry params-key)
           (body-params-injector swagger-options % routing-entry params-key)
