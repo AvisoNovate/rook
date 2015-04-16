@@ -15,7 +15,8 @@
             [io.aviso.tracker :as t]
             [clojure.tools.logging :as l]
             [io.aviso.rook.server :as server])
-  (:import [org.eclipse.jetty.server Server]))
+  (:import [org.eclipse.jetty.server Server]
+           [javax.servlet.http HttpServletResponse]))
 
 (defn- swagger-object
   [rook-options swagger-options & ns-specs]
@@ -26,9 +27,7 @@
   [path]
   (client/get (str "http://localhost:8192" path)
               {:throw-exceptions false
-               :content-type     :edn
-               :accept           :edn
-               :as               :clojure}))
+               :accept           :json}))
 
 (defmacro should-have-status
   [expected-status response]
@@ -40,20 +39,12 @@
                       expected-status#
                       (pretty-print response#))))))
 
-(defn tap
-  [message data]
-  (l/debugf "%s: %s" message (pretty-print data))
-  data)
-
-(def expected-swagger-data
-  {})
-
 
 (def swagger-options (-> rs/default-swagger-options
                          (assoc-in [:template :info :title] "Hotels and Rooms API")
                          (assoc-in [:template :info :version] "Pre-Alpha")))
 
-(binding [t/*log-trace-level* :info]
+#_ (binding [t/*log-trace-level* :info]
   (-> (swagger-object nil swagger-options
                       ["hotels" 'hotels
                        [[:hotel-id "rooms"] 'rooms]])
@@ -71,18 +62,17 @@
                                        :port         8192})]
     #(.stop server)))
 
-#_
 (describe "io.aviso.rook.swagger"
 
   (it "can construct swagger data"
-      (let [data (swagger-object nil nil
-                                 ["hotels" 'hotels
-                                  [[:hotel-id "rooms"] 'rooms]])]
-        #_ (should= expected-swagger-data data)))
+      (should-not-be-nil (swagger-object nil swagger-options
+                                         ["hotels" 'hotels
+                                          [[:hotel-id "rooms"]
+                                           'rooms]])))
 
   (context "end-to-end (synchronous)"
 
-    (with-all handler (-> (rook/namespace-handler {:swagger true}
+    (with-all handler (-> (rook/namespace-handler {:swagger-options swagger-options}
                                                   ["hotels" 'hotels
                                                    [[:hotel-id "rooms"] 'rooms]])
                           rook/wrap-with-standard-middleware))
@@ -99,14 +89,8 @@
 
     (it "can expose the resource listing"
 
-        (->> (get* "/swagger")
-             (should-have-status HttpServletResponse/SC_OK)
-             #_ (tap "response")
-             :body
-             :apis
-             (map :path)
-             sort
-             ;; This is wrong and a fix is coming:
-             (should= ["/hotels" "/hotels/{hotel-id}/rooms"])))))
+        ;; The result is so large and complex, there isn't much we can do to check it here.
+        (->> (get* "/swagger.json")
+             (should-have-status HttpServletResponse/SC_OK)))))
 
-#_ (run-specs)
+(run-specs)
