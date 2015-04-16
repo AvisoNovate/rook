@@ -6,11 +6,15 @@
     [schema.core :as s]
     [schema.coerce :as coerce]
     [schema.utils :as su]
+    [ring.middleware.keyword-params :as kp]
     [io.aviso.rook.internals :as internals]
     [io.aviso.rook.utils :as utils])
   (:import [javax.servlet.http HttpServletResponse]
            [java.text SimpleDateFormat DateFormat]
            [java.util TimeZone Date UUID]))
+
+;; Sneaky access to a private function.
+(def ^:private keyify-params (deref #'kp/keyify-params))
 
 ;; Borrowed from clojure.instant:
 (def ^:private ^ThreadLocal thread-local-utc-date-format
@@ -78,7 +82,7 @@
   - on failure, the tuple is `[failures]`, where failures are as output from Schema validation"
   [request key coercer]
   ;; The coercer will coerce and validate:
-  (let [validated (-> request key (or {}) coercer)]
+  (let [validated (-> request key (or {}) keyify-params coercer)]
     (if (su/error? validated)
       [(su/error-val validated)]
       [nil (rebuild-request request key validated)])))
@@ -90,7 +94,7 @@
 (defn- do-wrap
   [handler metadata metadata-key request-key]
   (if-let [schema (get metadata metadata-key)]
-    (let [coercer (schema->coercer schema)
+    (let [coercer  (schema->coercer schema)
           function (:function metadata)]
       (fn [request]
         (let [[failures new-request] (coerce-and-validate request request-key coercer)]
@@ -112,14 +116,18 @@
   metadata is discouraged (largely, because it doesn't provide enough data to create
   an accurate Swagger description).
 
-  When a schema is present in the metadata, the corresponding request key is coerced
+  When a schema is present in the metadata, the corresponding request key is first
+  keywordized, then coerced
   and validated.  On a validation failure, a [[failure-response]] is returned to the client.
 
-  Otherwise, the request key is updated with the coerced and validated data, and
+  Otherwise, the request key is updated with the  validated data, and
   the :params key is rebuilt as the shallow merge of the other three keys.
 
   In a request, the order of processing is :query-params, :form-params, :body-params, and lastly
-  :params."
+  :params.
+
+  The various convention argument resolvers (params, _params, params*, _params) all operate
+  on the :params key of the request."
   (internals/compose-middleware
     (do-wrap :schema :params)
     (do-wrap :body-schema :body-params)

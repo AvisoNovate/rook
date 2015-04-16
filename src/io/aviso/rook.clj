@@ -5,7 +5,7 @@
              [swagger :as swagger]]
             [io.aviso.toolchest.macros :refer [consume]]
             [io.aviso.toolchest.collections :refer [pretty-print]]
-            [ring.middleware params format keyword-params]
+            [ring.middleware params format]
             [medley.core :as medley]
             [potemkin :as p]
             [io.aviso.tracker :as t]))
@@ -57,7 +57,6 @@
   [handler]
   (-> handler
       (ring.middleware.format/wrap-restful-format :formats [:json-kw :edn])
-      ring.middleware.keyword-params/wrap-keyword-params
       ring.middleware.params/wrap-params))
 
 (defn namespace-handler
