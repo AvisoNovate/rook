@@ -3,17 +3,12 @@
 It is now possible, and encouraged, to apply schema validation to the :query-params, :form-params, and/or :body-params
 individually. Previously only :params could be validated and coerced.
 
-Rook no longer includes ring.middleware.keyword-params/wrap-keyword-params as a standard middleware; keyword-izing
-of keys now only occurs when schema validation is enabled (via io.aviso.rook.schema-validation/wrap-with-schema-validation).
-
 When the necessary metadata (:query-schema, :form-schema, :body-schema, :schema) is present, then
 
 * Convert string keys into keywords, recursively
 * Using Prismatic Schema to coerce and validate
 * Store back into the request
 * Merge into the request's :params key
-
-So, keyword-izing of the parameters in the request only occurs when there's a schema for that key.
 
 Swagger 2.0 support has been completely rewritten. *In progress.* 
 
