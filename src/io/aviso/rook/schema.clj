@@ -2,7 +2,8 @@
   "Some small enhancements to Prismatic Schema that are valuable to, or needed by, the Swagger support."
   {:added "0.1.27"}
   (:require [schema.core :as s]
-            [schema.macros :as macros])
+            [schema.macros :as macros]
+            [io.aviso.toolchest.metadata :refer [assoc-meta]])
   (:import [schema.core Maybe EnumSchema Both]))
 
 (defmacro schema
@@ -14,7 +15,7 @@
    `(-> ~form
         (vary-meta merge ~(-> &form second meta))
         ;; The second form is the name (the first is the 'schema symbol itself) and we want its metadata
-        (vary-meta assoc :name '~name :ns *ns* :doc ~docstring))))
+        (assoc-meta :name '~name :ns *ns* :doc ~docstring))))
 
 (defmacro defschema
   "Convenience macro to make it clear to reader that body is meant to be used as a schema, and to provide
@@ -77,7 +78,7 @@
     (recur description (IsInstance. schema))
 
     :else
-    (vary-meta schema assoc :description description)))
+    (assoc-meta schema :description description)))
 
 (defn description
   "A convienience for generating a description with no schema."
