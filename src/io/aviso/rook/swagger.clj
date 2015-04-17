@@ -426,6 +426,7 @@
 
 (def default-swagger-options
   {:template                       default-swagger-template
+   :path                           []
    ;; Name of special parameter used for the body of the request
    :body-name                      :body
    :routing-entry-remove-predicate (constantly false)
