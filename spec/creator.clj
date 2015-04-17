@@ -1,7 +1,6 @@
 (ns creator
-  {:sync true}
-  (:import (javax.servlet.http HttpServletResponse))
-  (:require [ring.util.response :as r]))
+  (:require [ring.util.response :as r])
+  (:import [javax.servlet.http HttpServletResponse]))
 
 (defn create
   [resource-uri]

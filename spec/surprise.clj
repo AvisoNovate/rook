@@ -1,5 +1,4 @@
 (ns surprise
-  {:sync true}
   (:require [ring.util.response :as resp]))
 
 (defn index

@@ -1,6 +1,5 @@
 (ns sessions
   "Used to test session storage in the a pure async server."
-  {:sync true}
   (:require
    [io.aviso.rook.utils :as utils]
    [clojure.tools.logging :as l]))

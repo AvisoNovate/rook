@@ -1,7 +1,5 @@
 (ns echo-params2
-  {:sync true}
-  (:require
-    [ring.util.response :as r]))
+  (:require [ring.util.response :as r]))
 
 (defn modify
   "This actually fails, because there's no :as on the map."

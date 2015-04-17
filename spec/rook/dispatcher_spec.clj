@@ -264,13 +264,9 @@
                               (rook/namespace-handler
                                 {:default-middleware sv/wrap-with-schema-validation
                                  :arg-resolvers      {'strange-injection :injection}}
-                                ["fred" 'fred]
-                                ["barney" 'barney]
                                 ["betty" 'betty]
-                                ["slow" 'slow]
                                 ["sessions" 'sessions]
                                 ["creator" 'creator]
-                                ["creator-loopback" 'creator-loopback]
                                 ["static" 'static]
                                 [["static2" :foo "asdf"] 'static2 d/default-namespace-middleware]
                                 ["catch-all" 'catch-all d/default-namespace-middleware]

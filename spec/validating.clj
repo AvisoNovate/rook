@@ -1,7 +1,6 @@
 (ns validating
-  (:require
-    [schema.core :as s]
-    [io.aviso.rook.utils :as utils]))
+  (:require [schema.core :as s]
+            [io.aviso.rook.utils :as utils]))
 
 (defn create
   {:schema {:name                     s/Str

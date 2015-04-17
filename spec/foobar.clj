@@ -1,5 +1,4 @@
 (ns foobar
-  {:sync true}
   (:require [ring.util.response :as resp]))
 
 (defn foo

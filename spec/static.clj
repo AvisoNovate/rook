@@ -1,5 +1,4 @@
 (ns static
-  {:sync true}
   (:require [ring.util.response :as resp]))
 
 (defn index [^:header accept ^:request-key server-name]

@@ -1,7 +1,5 @@
 (ns echo-params
-  {:sync true}
-  (:require
-    [ring.util.response :as r]))
+  (:require [ring.util.response :as r]))
 
 (defn index
   [^:request-key params]

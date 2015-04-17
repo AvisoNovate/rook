@@ -13,6 +13,9 @@ When the necessary metadata (:query-schema, :form-schema, :body-schema, :schema)
 
 Swagger 2.0 support has been completely rewritten. *In progress.* 
 
+The io.aviso.rook.client namespace has been removed with no replacement.
+As a client library, it was not well suited to a server-oriented library.
+
 ## 0.1.26 - 30 Mar 2015
 
 Rook is now focused on dispatch of incoming requests to endpoints; a hard look at the async features have found them to

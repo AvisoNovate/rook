@@ -1,5 +1,4 @@
 (ns static2
-  {:sync true}
   (:require [ring.util.response :as resp]))
 
 (defn foo
