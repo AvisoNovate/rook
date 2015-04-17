@@ -1,4 +1,4 @@
-## 0.1.27 - UNRELEASED
+## 0.1.27 - 17 Apr 2015
 
 It is now possible, and encouraged, to apply schema validation to the :query-params, :form-params, and/or :body-params
 individually. Previously only :params could be validated and coerced.
