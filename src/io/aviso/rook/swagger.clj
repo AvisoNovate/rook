@@ -22,6 +22,15 @@
   (medley/remove-vals nil? m))
 
 
+(defn- merge-in-description
+  [swagger-schema schema]
+  (let [schema-meta (meta schema)
+        description (or (:description schema-meta)
+                        (:doc schema-meta))]
+    (if description
+      (assoc swagger-schema :description description)
+      swagger-schema)))
+
 (def default-swagger-template
   "A base skeleton for a Swagger Object (as per the Swagger 2.0 specification), that is further populated from Rook namespace
   and schema data."
@@ -101,17 +110,21 @@
 
   EnumSchema
   (convert-schema [schema _ swagger-object]
-    [swagger-object {:type :string                          ; an assumption
-                     :enum (unwrap-schema schema)}])
+    [swagger-object (merge-in-description
+                      {:type :string                        ; an assumption
+                       :enum (unwrap-schema schema)}
+                      schema)])
 
   Maybe
   (convert-schema [schema swagger-options swagger-object]
     (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema))]
-      [swagger-object' (assoc swagger-schema :allowEmptyValue true)]))
+      [swagger-object' (-> swagger-schema
+                           (assoc :allowEmptyValue true)
+                           (merge-in-description schema))]))
 
   AnythingSchema
   (convert-schema [schema swagger-options swagger-object]
-    [swagger-object {:type :object}])
+    [swagger-object (merge-in-description {:type :object} schema)])
 
   Both
   (convert-schema [schema swagger-options swagger-object]
@@ -139,9 +152,11 @@
                       {:schema schema})))
     (t/track
       "Converting vector schema."
-      (let [[swagger-object' item-reference] (simple->swagger-schema swagger-options swagger-object (first schema))]
-        [swagger-object' {:type  :array
-                          :items item-reference}])))
+      (let [item-schema (first schema)
+            [swagger-object' item-reference] (simple->swagger-schema swagger-options swagger-object item-schema)]
+        [swagger-object' (merge-in-description {:type  :array
+                                                :items item-reference}
+                                               schema)])))
 
   IPersistentMap
   (convert-schema [schema swagger-options swagger-object]
@@ -158,7 +173,7 @@
      data (get data-type-mappings schema)]
 
     (some? data)
-    [swagger-object data]
+    [swagger-object (merge-in-description data schema)]
 
     :else
     (convert-schema schema swagger-options swagger-object)))
@@ -179,11 +194,12 @@
                       :else
                       (t/track
                         #(format "Describing query parameter `%s'." (name k))
-                        (let [[swagger-object' schema-description] (simple->swagger-schema swagger-options so key-schema)
-                              full-description (assoc schema-description
-                                                 :name k
-                                                 :in :query
-                                                 :required required)]
+                        (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options so key-schema)
+                              full-description (-> swagger-schema
+                                                   (assoc :name k
+                                                          :in :query
+                                                          :required required)
+                                                   (merge-in-description key-schema))]
                           (update-in swagger-object' params-key
                                      conj full-description)))))]
       (reduce reducer swagger-object schema))
