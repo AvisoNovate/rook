@@ -68,8 +68,9 @@
   handler)
 
 (defn- make-header-arg-resolver [sym]
-  (fn [request]
-    (-> request :headers (get (name sym)))))
+  (let [header-name (name sym)]
+    (fn [request]
+      (-> request :headers (get header-name)))))
 
 (defn- make-param-arg-resolver [sym]
   (let [kw (keyword sym)]
