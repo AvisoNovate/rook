@@ -29,6 +29,9 @@
    :swagger     "2.0"
    :paths       (sorted-map)
    :definitions (sorted-map)
+   :schemes     ["http" "https"]
+   :consumes    ["application/json" "application/edn"]
+   :produces    ["application/json" "application/edn"]
    :info        {:title   "<UNSPECIFIED>"
                  :version "<UNSPECIFIED>"}})
 
