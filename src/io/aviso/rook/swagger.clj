@@ -338,6 +338,8 @@
                                       :summary     summary
                                       ;; This is required inside a Operation object:
                                       :responses   (sorted-map)
+                                      ;; There are a couple of scnearious where the function name is not
+                                      ;; unique, alas. But that doesn't seem to cause problems.
                                       :operationId (:function endpoint-meta)}))
           (path-params-injector swagger-options % routing-entry params-key)
           (query-params-injector swagger-options % routing-entry params-key)
