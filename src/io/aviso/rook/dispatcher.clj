@@ -95,6 +95,19 @@
     (fn [request]
       (internals/get-injection request kw))))
 
+(defn- to-clojureized-keyword
+  "Converts a keyword with embedded underscores into one with embedded dashes."
+  [kw]
+  (-> kw
+      name
+      (.replace \_ \-)
+      keyword))
+
+(defn- clojurized-params-arg-resolver [request]
+  (->> request
+       :params
+       (medley/map-keys to-clojureized-keyword)))
+
 (def default-arg-resolvers
   "The default argument resolvers provided by the system.
 
@@ -113,8 +126,8 @@
      'request      identity
      'params       params-resolver
      '_params      params-resolver
-     'params*      internals/clojurized-params-arg-resolver
-     '_params*     internals/clojurized-params-arg-resolver
+     'params*      clojurized-params-arg-resolver
+     '_params*     clojurized-params-arg-resolver
      'resource-uri (make-resource-uri-arg-resolver 'resource-uri)}))
 
 (defn- merge-arg-resolver-maps

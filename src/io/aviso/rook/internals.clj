@@ -1,23 +1,6 @@
 (ns io.aviso.rook.internals
   "Unsupported internal functions used in the implementation."
-  {:no-doc true}
-  (:require
-    [medley.core :as medley]
-    [clojure.tools.logging :as l]
-    [ring.util.response :as r]))
-
-(defn to-clojureized-keyword
-  "Converts a keyword with embedded underscores into one with embedded dashes."
-  [kw]
-  (-> kw
-      name
-      (.replace \_ \-)
-      keyword))
-
-(defn clojurized-params-arg-resolver [request]
-  (->> request
-       :params
-       (medley/map-keys to-clojureized-keyword)))
+  {:no-doc true})
 
 (defn get-injection
   "Retrieves an injected value stored in the request. Throws an exception if the value is falsey."

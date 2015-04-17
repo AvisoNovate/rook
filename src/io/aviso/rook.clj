@@ -11,7 +11,6 @@
             [io.aviso.tracker :as t]))
 
 (p/import-vars
-
   [io.aviso.rook.internals get-injection compose-middleware])
 
 (defn find-injection
