@@ -153,6 +153,8 @@ The keys for argument resolvers may be keywords or symbols.
 For keywords keys, this defines an argument tag; the value for the keyword
 is the argument resolver function _factory_.
 
+NOTE: See the page on link:argument-resolvers.html[argument resolvers] for more details.
+
 An argument resolver function factory is passed the argument's symbol (such as if-modified-since or db-connection, in the above example).
 It returns an argument resolver function: that function is passed the Ring request and returns the
 resolved value for the argument.

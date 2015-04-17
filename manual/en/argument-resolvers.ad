@@ -1,0 +1,107 @@
+title: Argument Resolvers
+
+In the description of link:arguments.html[function arguments] are rules for
+how arguments to endpoint functions are resolved, but that's only half the story.
+
+It is quite frequent that you will define your own argument resolvers.
+
+Ultimately, the value passed for each parameter of an endpoint function is computed from the
+Ring request object.
+This computation is performed by an argument resolver function.
+The function is passed the Ring request map and returns the value for the argument.
+
+In some cases, the resolved value is a key on the Ring request, or nested inside it.
+In some cases, the Ring request is actually ignored and a fixed value is returned.
+
+== Defining argument resolvers
+
+Rook gives you a wide variety of places to define argument resolvers; most of the
+options exist to support specific edge cases.
+
+Generally, you will define your argument resolvers at the same time you
+link:namespaces.html[define your namespaces].
+
+[source,clojure]
+----
+(ns ex.service
+  (:require [io.aviso.rook :as rook]))
+
+(defn create-handler
+  [hotel-db]
+  (rook/namespace-handler {:context ["api"]}
+    ["hotels" 'ex.hotels {'hotel-db (fn [request] hotel-db)}
+      [[:hotel-id "rooms"] 'ex.rooms]])))
+----
+
+The map after the 'ex.hotels symbol defines argument resolvers for
+endpoint functions in the the ex.hotels namespace, and any nested namespaces (such as 'ex.rooms).
+
+Remember that by default, the map of argument resolvers is _merged_ onto the default set.
+
+== Symbols
+
+When the key is a _symbol_, the value is the argument resolver function itself.
+This defines a convention name.
+
+This is quite common, and generally the above would be written as `(constantly hotel-db)`.
+
+== Keyword
+
+When the key is a _keyword_, the value is a function factory.
+
+In this case, the function factory is triggered by the presence of the keyword in the argument symbol's metadata.
+
+This is used when the argument's symbol is used to create the argument resolver function ... or
+perhaps that metadata's value (rather than its mere presence) is needed.
+
+For example, the ^:header metadata can be used to extract a request header:
+
+[source,clojure]
+----
+(defn change
+  [id params ^:header if-unmodified-since]
+  ...)
+----
+
+This meta data on the if-unmodified-since symbol will trigger the following factory:
+
+[source,clojure]
+----
+(defn- make-header-arg-resolver [sym]
+  (let [header-name (name sym)]
+    (fn [request]
+      (-> request :headers (get header-name)))))
+----
+
+So the header name is determined from the symbol, and an argument resolver function is returned that plucks
+the correct header from the request.
+
+== Symbol to Keyword
+
+A third option is to map a convention name (a symbol) to a keyword.
+
+Effectively, this says to treat the symbol as if it had the corresponding metadata.
+
+For example, setting up this argument resolver:
+
+[source,clojure]
+----
+(defn create-handler
+  [hotel-db]
+  (rook/namespace-handler {:context ["api"]}
+    ["hotels" 'ex.hotels {'hotel-db            (constantly hotel-db)
+                           if-unmodified-since :header}
+      [[:hotel-id "rooms"] 'ex.rooms]])))
+----
+
+Would allow this simplification to the endpoint function:
+
+
+[source,clojure]
+----
+(defn change
+  [id params if-unmodified-since]
+  ...)
+----
+
+

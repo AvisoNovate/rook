@@ -18,7 +18,7 @@ Endpoint middleware are functions that are passed a Ring handler _and_ a metadat
 The middleware may return a new handler, or nil.  
 A nil response means the middleware declines to wrap the handler it
 was passed.
-This is a convenience and is equivalent to returning the same handler.
+This is a convenience and is equivalent to returning the same handler passed to the middleware.
 
 Every endpoint function is wrapped as a Ring handler, then
 passed through the middleware associated with the namespace, forming

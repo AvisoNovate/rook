@@ -1,10 +1,139 @@
 title: Swagger
 ---
 
-Rook's roadmap includes support for 
-link:https://helloreverb.com/developers/swagger[Swagger] as a way to document an RESTful API. 
-Integration with 
-link:https://github.com/metosin/ring-swagger[ring-swagger] is in progress. 
+link:http://swagger.io/[Swagger] is a de-facto standard way to document an RESTful API.
 
-Documentation of Swagger support is forthcoming.
 Swagger support is currently in a very alpha state.
+
+Rook generates a Swagger 2.0 definition.
+
+== Basics
+
+A Swagger definition is a verbose JSON document that describes all the endpoints in your application.
+It provides detail about each query parameter, each path variable, what comes up in the request body,
+and what is provided in each response.
+
+There's a link:https://github.com/swagger-api/swagger-spec/blob/master/versions/2.0.md#swagger-object[detailed description]
+of exactly what goes into the document.
+
+There are applications that can consume the Swagger description and produce detailed documentation from it.
+There are even applications that can generate client or server code
+from the Swagger description.
+
+It's a lot of information.
+Maintaining it by hand would be laborious and error-prone.
+
+Fortunately, the bulk of the data needed to generate the description is already present in Rook, and by adding
+a bit more metadata, Rook can generate quite useful documentation.
+
+== Basics
+
+Use of Swagger is _opt in_; you must explicitly enable Swagger support.
+
+[source,clojure]
+----
+(ns ex.service
+  (:require [io.aviso.rook :as rook]
+            [io.aviso.rook.swagger :as swagger]))
+
+(defn create-handler
+  [hotel-db]
+  (let [arg-resolvers {'hotel-db (constantly hotel-db)}]
+      (rook/namespace-handler {:swagger-options swagger/default-swagger-options}
+        ['ex.hotels arg-resolvers]
+        ['ex.rooms arg-resolvers])))
+----
+
+The :swagger-options provides all the information and callbacks needed to construct the Swagger description, including:
+
+* An empty template of the Swagger document.
+
+* Predicates used to identify which endpoints should be documented.
+
+* Functions used to build out the structure of the document (aka _injectors_).
+
+* Callbacks that let you customize the output from the injectors (aka _decorators_).
+
+* Other data used during the conversion process.
+
+Generally, you will always make changes to the default-swagger-options to customize it in a number of ways, and add
+your own decorators to customize the output.
+
+Currently the code is the best reference for the swagger options.
+
+== Documenting Endpoints
+
+Each endpoint is documented, along with parameters and responses.
+
+The default description for each endpoint is the docstring (e.g., :doc metadata) for the endpoint function.
+
+Alternately, you may provide a :description metadata that is used for Swagger documentation.
+
+The Swagger operationId is set to the Endpoints fully qualified name.
+
+== Query Parameters and Body
+
+Rook can document your path variables directly.
+
+However, it needs more information in order to document query parameters and the body.
+
+These are provided by endpoint metadata; you should specify :query-schema and :body-schema.
+You can specify these even if you are not using link:validation.html[schema validation] (by why would you *not* use it?).
+
+
+== Documenting Responses
+
+You should document your responses, using the :responses metadata.
+
+Rook will add a response for each entry in the metadata.
+
+== Inline Schemas vs. References
+
+Rook will convert (as best it can) Prismatic Schemas into Swagger Schemas.
+
+When a schema is just a vector or map, or defined using schema.core/defschema, it will be represented in the Swagger document
+as an inline schema.
+
+Rook includes it's own version of defschema, in the io.aviso.rook.schema namespace; this version adds a bit of additional metadata.
+
+Schemas defined this way are stored in the Swagger's definitions map and references when needed; this means that the definition
+is only emitted once, which can greatly reduce the size of the Swagger document and improve its readability.
+
+The Schema's key is built from it's containing namespace and symbol name.
+
+== Adding descriptions.
+
+The with-description and description functions are used to added a :description metadata to schemas; this
+eventually becomes the :description key in the equivalent object in the Swagger document.
+
+[source,clojure]
+----
+(rs/defschema ShowHotelResponse
+  "Describes a hotel."
+  {:id         s/Uuid
+   :created_at s/Inst
+   :updated_at s/Inst
+   :name       s/Str})
+
+(def show-responses
+  {HttpServletResponse/SC_OK        (rs/with-description "The hotel matching the id, if found." ShowHotelResponse)
+   HttpServletResponse/SC_NOT_FOUND (rs/description "No hotel with the provided id could be found.")})
+
+(defn show
+  "Returns a single hotel, if found."
+  {:responses show-responses}
+  [id]
+  nil)
+----
+
+TYhe with-description function is used to decorate a schema.
+The description function is used when there is no schema.
+
+== Customization
+
+Please refer to the io.aviso.rook.swagger namespace; in a nutshell, the default swagger options includes injectors
+(which should only be overridden with extreme care) and decorators (which are intended to be overridden).
+
+== Limitations
+
+They are legion, both in Rook and Swagger itself.  It is still quite useful.

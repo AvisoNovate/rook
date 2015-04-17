@@ -6,6 +6,7 @@
                "example"
                "getting-started"
                "arguments"
+               "argument-resolvers"
                "namespaces"
                "versioning"
                "middleware"
