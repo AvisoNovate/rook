@@ -12,7 +12,7 @@
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
                            [io.aviso/pretty "0.1.17"]
-                           [io.aviso/toolchest "0.1.1"]
+                           [io.aviso/toolchest "0.1.2"]
                            [cheshire "5.4.0"]
                            [potemkin "0.3.13"]
                            ;; Likewise, the conflict between clj-http (optional) and ring-middleware-format over
@@ -26,7 +26,7 @@
                            [ring/ring-core "1.3.2" :exclusions [commons-fileupload]]
                            [prismatic/schema "0.4.0"]
                            [clj-http "1.1.0" :optional true]]
-            :plugins [[speclj "3.1.0"]
+            :plugins [[speclj "3.2.0"]
                       [lein-shell "0.4.0"]]
             :jvm-opts ["-Xmx1g"]
             :shell {:commands {"scp" {:dir "doc"}}}
