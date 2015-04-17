@@ -10,7 +10,8 @@
   (or
     (get-in request [:io.aviso.rook/injections injection-key])
     (throw (ex-info (format "Unable to retrieve injected value for key `%s'." injection-key)
-                    {:request request}))))
+                    {:injection-key injection-key
+                     :request       request}))))
 
 (defn- convert-middleware-form
   [handler-sym metadata-sym form]
