@@ -236,7 +236,6 @@
 
   nil or s/Any returns nil.
 
-
   Typically, the result of this is wrapped inside map with key :schema."
   [swagger-options swagger-object schema]
   (cond-let
@@ -295,6 +294,7 @@
   "Uses the :responses metadata to identify possible responses."
   [swagger-options swagger-object routing-entry paths-key]
   (let [responses (-> routing-entry :meta :responses)
+        decorator (:response-decorator swagger-options)
         reducer   (fn [so [status-code schema]]
                     (t/track
                       #(format "Describing %d response." status-code)
@@ -304,39 +304,47 @@
                                             ;; description is required in the Response Object, so we need some default here.
                                             "Documentation not provided.")
                             [so' schema-reference] (->swagger-schema swagger-options so schema)
-                            response    (remove-nil-vals {:description description
-                                                          :schema      schema-reference})]
+                            response    (->> {:description description
+                                              :schema      schema-reference}
+                                             remove-nil-vals
+                                             (decorator swagger-options so routing-entry status-code schema))]
                         (assoc-in so' (concat paths-key [:responses status-code]) response))))]
     (reduce reducer swagger-object responses)))
 
-(defn default-path-item-object-injector
-  "Injects a PathItemObject based on a routing entry.
+(defn default-operation-decorator
+  "Decorates a PathItemObject (which describes a single Rook endpoint) just before it is added to the Swagger object.
+  This implementation returns it unchanged."
+  [swagger-options swagger-object routing-entry path-item-object]
+  path-item-object)
+
+(defn default-operation-injector
+  "Injects an Object object based on a single routing entry.
 
   The paths-key is a coordinate into the swagger-object where the PathItemObject should be created.
 
   Returns the modified swagger-object."
   [swagger-options swagger-object routing-entry paths-key]
   (let [{endpoint-meta :meta} routing-entry
-        swagger-meta          (:swagger endpoint-meta)
-        description           (or (:description swagger-meta)
-                                  (:doc endpoint-meta))
-        summary               (:summary swagger-meta)
-        path-params-injector  (:path-params-injector swagger-options)
-        query-params-injector (:query-params-injector swagger-options)
-        body-params-injector  (:body-params-injector swagger-options)
-        responses-injector    (:responses-injector swagger-options)
-        params-key            (concat paths-key ["parameters"])]
+        swagger-meta (:swagger endpoint-meta)
+        description  (or (:description swagger-meta)
+                         (:doc endpoint-meta))
+        summary      (:summary swagger-meta)
+        {:keys [path-params-injector query-params-injector body-params-injector responses-injector
+                operation-decorator]} swagger-options
+        params-key   (concat paths-key ["parameters"])]
     (as-> swagger-object %
           (assoc-in % paths-key
-                    (remove-nil-vals {:description     description
-                                      :summary         summary
+                    (remove-nil-vals {:description description
+                                      :summary     summary
                                       ;; This is required inside a Operation object:
-                                      :responses       (sorted-map)
-                                      :x-rook-endpoint (:function endpoint-meta)}))
+                                      :responses   (sorted-map)
+                                      :operationId (:function endpoint-meta)}))
           (path-params-injector swagger-options % routing-entry params-key)
           (query-params-injector swagger-options % routing-entry params-key)
           (body-params-injector swagger-options % routing-entry params-key)
-          (responses-injector swagger-options % routing-entry paths-key))))
+          (responses-injector swagger-options % routing-entry paths-key)
+          (update-in % paths-key (fn [operation]
+                                   (operation-decorator swagger-options % routing-entry operation))))))
 
 (defn default-route-injector
   "The default route converter.  The swagger-options may contain an override of this function.
@@ -366,15 +374,15 @@
     #(format "Describing endpoint %s `/%s'."
              (-> routing-entry :method name .toUpperCase)
              (->> routing-entry :path (str/join "/")))
-    (let [path-str        (-> routing-entry :path path->str)
+    (let [path-str           (-> routing-entry :path path->str)
           ;; Ignoring :all for the moment.
-          method-str      (-> routing-entry :method name)
-          pio-constructor (:path-item-object-injector swagger-options)]
+          method-str         (-> routing-entry :method name)
+          operation-injector (:operation-injector swagger-options)]
       ;; Invoke the constructor for the path info. It may need to make changes to the :definitions, so we have
       ;; to let it modify the entire Swagger object ... but we help it out by providing the path
       ;; to where the PathInfoObject (which describes what Rook calls a "route").
-      (pio-constructor swagger-options swagger-object routing-entry
-                       [:paths path-str method-str]))))
+      (operation-injector swagger-options swagger-object routing-entry
+                          [:paths path-str method-str]))))
 
 (defn- routing-entry->map
   [[method path _ endpoint-meta]]
@@ -390,10 +398,15 @@
       (assoc routing-entry :method m))))
 
 (defn default-configurer
-  "The configurer is passed the final swagger object and can make final changes to it. This implementation
-  does nothing, returning the swagger object unchanged."
+  "The configurer is passed the swagger options, the final Swagger object, and the seq of routing entries,
+   and can make final changes to it. This implementation does nothing, returning the Swagger object unchanged."
   [swagger-options swagger-object routing-entries]
   swagger-object)
+
+(defn default-response-decorator
+  "A callback to decorate a specific response object just before it is stored into the swagger-object."
+  [swagger-options swagger-object routing-entry status-code response-schema response-object]
+  response-object)
 
 (def default-data-type-mappings
   {s/Int     {:type :integer}
@@ -417,11 +430,13 @@
    :route-injector                 default-route-injector
    :configurer                     default-configurer
    :data-type-mappings             default-data-type-mappings
-   :path-item-object-injector      default-path-item-object-injector
+   :operation-injector             default-operation-injector
+   :operation-decorator            default-operation-decorator
    :path-params-injector           default-path-params-injector
    :query-params-injector          default-query-params-injector
    :body-params-injector           default-body-params-injector
-   :responses-injector             default-responses-injector})
+   :responses-injector             default-responses-injector
+   :response-decorator             default-response-decorator})
 
 (defn construct-swagger-object
   "Constructs the root Swagger object from the Rook options, swagger options, and the routing table
