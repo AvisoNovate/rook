@@ -26,9 +26,11 @@
   "A base skeleton for a Swagger Object (as per the Swagger 2.0 specification), that is further populated from Rook namespace
   and schema data."
   {
-   :swagger "2.0"
-   :info    {:title   "<UNSPECIFIED>"
-             :version "<UNSPECIFIED>"}})
+   :swagger     "2.0"
+   :paths       (sorted-map)
+   :definitions (sorted-map)
+   :info        {:title   "<UNSPECIFIED>"
+                 :version "<UNSPECIFIED>"}})
 
 (defn keyword->path?
   [v]
@@ -310,7 +312,7 @@
                     (remove-nil-vals {:description     description
                                       :summary         summary
                                       ;; This is required inside a Operation object:
-                                      :responses       {}
+                                      :responses       (sorted-map)
                                       :x-rook-endpoint (:function endpoint-meta)}))
           (path-params-injector swagger-options % routing-entry params-key)
           (query-params-injector swagger-options % routing-entry params-key)
