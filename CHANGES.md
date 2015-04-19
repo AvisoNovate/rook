@@ -9,7 +9,7 @@ When the necessary metadata (:query-schema, :form-schema, :body-schema, :schema)
 * String keys are converted to keywords, recursively (applies to :form-params and :query-params)
 * Prismatic Schema is used to coerce and validate
 * The result is stored back into the request under the same key
-* The :params key is rebuild from the merge of the :query-params, :form-params, and :body-params keys
+* The :params key is rebuilt from the merge of the :query-params, :form-params, and :body-params keys
 
 Swagger 2.0 support has been completely rewritten. *In progress.* 
 
