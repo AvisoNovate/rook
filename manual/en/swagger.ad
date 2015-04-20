@@ -26,7 +26,7 @@ Maintaining it by hand would be laborious and error-prone.
 Fortunately, the bulk of the data needed to generate the description is already present in Rook, and by adding
 a bit more metadata, Rook can generate quite useful documentation.
 
-== Basics
+== Enabling and Configuring Swagger
 
 Use of Swagger is _opt in_; you must explicitly enable Swagger support.
 
@@ -36,10 +36,14 @@ Use of Swagger is _opt in_; you must explicitly enable Swagger support.
   (:require [io.aviso.rook :as rook]
             [io.aviso.rook.swagger :as swagger]))
 
+(def ^:private swagger-options
+  (-> default-swagger-options
+      (update-in [:template :info] assoc :title "Hotels" :version "0.0.1")))
+
 (defn create-handler
   [hotel-db]
   (let [arg-resolvers {'hotel-db (constantly hotel-db)}]
-      (rook/namespace-handler {:swagger-options swagger/default-swagger-options}
+      (rook/namespace-handler {:swagger-options swagger-options}
         ['ex.hotels arg-resolvers]
         ['ex.rooms arg-resolvers])))
 ----
@@ -59,7 +63,7 @@ The :swagger-options provides all the information and callbacks needed to constr
 Generally, you will always make changes to the default-swagger-options to customize it in a number of ways, and add
 your own decorators to customize the output.
 
-Currently the code is the best reference for the swagger options.
+At this time, the code is the best reference for the swagger options.
 
 == Documenting Endpoints
 
@@ -69,7 +73,7 @@ The default description for each endpoint is the docstring (e.g., :doc metadata)
 
 Alternately, you may provide a :description metadata that is used for Swagger documentation.
 
-The Swagger operationId is set to the Endpoints fully qualified name.
+The Swagger "operationId" property is set to the endpoint's fully qualified name.
 
 == Query Parameters and Body
 
@@ -78,8 +82,7 @@ Rook can document your path variables directly.
 However, it needs more information in order to document query parameters and the body.
 
 These are provided by endpoint metadata; you should specify :query-schema and :body-schema.
-You can specify these even if you are not using link:validation.html[schema validation] (by why would you *not* use it?).
-
+You can specify these even if you are not using link:validation.html[schema validation] (by why would you *not* use validation?).
 
 == Documenting Responses
 
@@ -96,7 +99,7 @@ as an inline schema.
 
 Rook includes it's own version of defschema, in the io.aviso.rook.schema namespace; this version adds a bit of additional metadata.
 
-Schemas defined this way are stored in the Swagger's definitions map and references when needed; this means that the definition
+Schemas defined this way are stored in the Swagger's definitions map and then referenced from the endpoint description; this means that the definition
 is only emitted once, which can greatly reduce the size of the Swagger document and improve its readability.
 
 The Schema's key is built from it's containing namespace and symbol name.
@@ -123,6 +126,8 @@ eventually becomes the :description key in the equivalent object in the Swagger 
   "Returns a single hotel, if found."
   {:responses show-responses}
   [id]
+  ;; Here's where we would perform a database query and build a ShowHotelResponse as the body
+  ;; of the Ring response map.
   nil)
 ----
 
