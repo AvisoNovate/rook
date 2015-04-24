@@ -9,10 +9,9 @@ Rook is a set of middleware and handlers to enable metadata-based routing for ht
 The intention is to expose a Clojure _namespace_ as a web service _resource_; there's a default mapping of HTTP verbs
 and paths to function names; these can be extended or overridden by metadata on the functions in the namespace.
 
-The end result is that a proper web service resource can be created in very little code.
+The end result is that a compliant web service resource can be created in very little code.
 
-Rook works well with https://github.com/clojure/core.async[Clojure's core.async] to allow you to build richly interdependent resources
-without blocking all your threads.
+Rook also supports Swagger 2.0: a detailed JSON description of your web service is generated directly from the functions and metadata.
 
 Rook is available under the terms of the Apache Software License 2.0.
 
