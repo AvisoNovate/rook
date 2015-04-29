@@ -1,3 +1,9 @@
+## 0.1.28 - UNRELEASED
+
+Added the :lazy option to io.aviso.rook.server/construct-handler.
+
+Added support for schema.core/enum keys when generating Swagger API documentation.
+
 ## 0.1.27 - 17 Apr 2015
 
 It is now possible, and encouraged, to apply schema validation to the :query-params, :form-params, and/or :body-params

@@ -44,12 +44,13 @@
                          (assoc-in [:template :info :title] "Hotels and Rooms API")
                          (assoc-in [:template :info :version] "Pre-Alpha")))
 
-#_ (binding [t/*log-trace-level* :info]
-  (-> (swagger-object nil swagger-options
-                      ["hotels" 'hotels
-                       [[:hotel-id "rooms"] 'rooms]])
-      (json/generate-string {:pretty true})
-      println))
+(comment
+  (binding [t/*log-trace-level* :info]
+           (-> (swagger-object nil swagger-options
+                               ["hotels" 'hotels
+                                [[:hotel-id "rooms"] 'rooms]])
+               (json/generate-string {:pretty true})
+               println)))
 
 (defn start-server
   []
