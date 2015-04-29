@@ -37,6 +37,14 @@
   (fn [request]
     ((creator) request)))
 
+(defn lazy-handler
+  "Wraps a handler creator function such that the root handler is created lazily on first access."
+  {:added "0.1.28"}
+  [creator]
+  (let [handler (delay (creator))]
+    (fn [request]
+      (@handler request))))
+
 (defn wrap-log-request
   "Logs incoming requests (as info), identifying method and URI."
   [handler]
@@ -111,9 +119,6 @@
         (-> request
             (assoc :body (io/input-stream body-array))
             handler)))))
-
-(def ^:private not-found-response
-  (utils/response HttpServletResponse/SC_NOT_FOUND))
 
 (defn- log-response
   "Logs the response at debug level (if enabled) with nice formatting; returns a new response (since reading
@@ -195,6 +200,10 @@
   :reload
   : enables the above-described reloading of the handler.
 
+  :lazy
+  : if true (and :reload is false) then the handler is not created until first needed, rather
+    then immediately on invoking this function.
+
   :debug
   : enables logging (at debug level) of each incoming request via [[wrap-debug-request]]
     and [[wrap-debug-response]]
@@ -213,10 +222,16 @@
 
   The extra middleware is added around the root handler (or the
   reloading handler that creates the root handler)."
-  [{:keys [reload log debug track standard exceptions]} creator & creator-args]
+  [{:keys [reload log debug track standard exceptions lazy]} creator & creator-args]
   (let [creator' (wrap-creator creator creator-args)
-        handler (if reload
+        handler (cond
+                  reload
                   (reloading-handler creator')
+
+                  lazy
+                  (lazy-handler creator')
+
+                  :else
                   ;; Or just do it once, right now.
                   (creator'))]
     (cond-> handler
