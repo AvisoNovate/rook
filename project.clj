@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.1.27"
+(defproject io.aviso/rook "0.1.28"
             :description "Sane, smart, fast, Clojure web services"
             :url "http://howardlewisship.com/io.aviso/documentation/rook"
             :license {:name "Apache Sofware License 2.0"
