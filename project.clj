@@ -20,7 +20,7 @@
                            [org.clojure/tools.reader "0.8.16"]
                            [org.clojure/tools.logging "0.3.1"]
                            [io.aviso/tracker "0.1.6"]
-                           [medley "0.5.5" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
+                           [medley "0.6.0" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
                            [ring-middleware-format "0.5.0" :exclusions [ring/ring-devel org.clojure/tools.reader ring]]
                            [ring/ring-core "1.3.2" :exclusions [commons-fileupload]]
                            [prismatic/schema "0.4.0"]]
