@@ -1,4 +1,4 @@
-## 0.1.28 - UNRELEASED
+## 0.1.28 - 29 Apr 2015
 
 Added the :lazy option to io.aviso.rook.server/construct-handler.
 
