@@ -47,6 +47,7 @@
    :last_booked_at  (s/maybe s/Inst)
    :size            RoomSize
    :meta            {s/Keyword s/Str}
+   :links           {(s/enum :facebook :twitter) s/Str}
    :booking_history [RoomBooking]})
 
 (def show-responses

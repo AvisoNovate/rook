@@ -4,7 +4,7 @@
   (:require [schema.core :as s]
             [schema.macros :as macros]
             [io.aviso.toolchest.metadata :refer [assoc-meta]])
-  (:import [schema.core Maybe EnumSchema Both]))
+  (:import [schema.core Maybe EnumSchema Both OptionalKey]))
 
 (defmacro schema
   "Creates a named schema, which includes metadata as per [[defschema]]. This is useful for one-off
@@ -52,6 +52,10 @@
   (unwrap-schema [_] expected-class))
 
 (extend-protocol SchemaUnwrapper
+
+  OptionalKey
+  (unwrap-schema [this]
+    (s/explicit-schema-key this))
 
   Maybe
   (unwrap-schema [this]

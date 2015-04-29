@@ -80,11 +80,23 @@
   (try
     ;; We're treating these special keys as optional, which seems to align with Prismatic, e.g.,
     ;; (s/check {s/Str s/Any} {}) => nil
-    (if (or (= s/Keyword schema-key)
-            (= s/Str schema-key)
-            ;; assumes that it is like UUID, convertable to/from string
-            (instance? Class schema-key))
+    (cond-let
+      (or (= s/Keyword schema-key)
+          (= s/Str schema-key)
+          ;; assumes that it is like UUID, convertable to/from string
+          (instance? Class schema-key))
       [::wildcard false]
+
+      [unwrapped (if (s/optional-key? schema-key)
+                   (unwrap-schema schema-key)
+                   schema-key)]
+
+      ;; Handling a key that is an enum type is tricky. We return the
+      ;; seq of potential keys and indicate that they are optional;
+      ;; this will inject a number of keys into the Swagger Schema.
+      (instance? EnumSchema unwrapped)
+      [(unwrap-schema unwrapped) (s/required-key? schema-key)]
+      :else
       [(s/explicit-schema-key schema-key) (s/required-key? schema-key)])
     (catch Throwable t
       (throw (ex-info "Unable to expand schema key."
@@ -208,25 +220,39 @@
 
 (defn map->swagger-schema
   [swagger-options swagger-object schema]
-  (let [reducer (fn [[acc-so acc-schema :as acc] [schema-key schema-value]]
-                  ;; An s/Any as a key exists to "be generous in what you accept" and can be ignored.
-                  (if (= s/Any schema-key)
-                    acc
-                    (let [[k required?] (analyze-schema-key schema-key)
-                          key-name (if (= ::wildcard k)
-                                     "<any>"
-                                     (name k))]
-                      (t/track
-                        #(format "Describing key `%s'." key-name)
-                        (let [[acc-so' swagger-schema] (simple->swagger-schema swagger-options acc-so schema-value)
-                              path (if (= ::wildcard k)
-                                     [:otherProperties]
-                                     [:properties k])]
-                          [acc-so' (cond-> (assoc-in acc-schema path swagger-schema)
-                                           required? (update-in [:required] conj k))])))))
-        base    (remove-nil-vals {:description (or (-> schema meta :description)
-                                                   (-> schema meta :doc))})]
-    (reduce reducer [swagger-object base] schema)))
+  (letfn [(reducer [[acc-so acc-schema :as acc] [schema-key schema-value]]
+                   ;; An s/Any as a key exists to "be generous in what you accept" and can be ignored.
+                   (if (= s/Any schema-key)
+                     acc
+                     (cond-let
+                       [[k required?] (analyze-schema-key schema-key)]
+
+                       ;; If not a keyword, the other option is some sequence of keywords from an enum.
+                       ;; We have to work pretty hard to get those options in ... partly because Swagger Schema
+                       ;; is a bit obtuse, and partly because we probably need a kind of intermediate representation.
+                       (not (keyword? k))
+                       (let [k' (if required?
+                                  k
+                                  (map s/optional-key k))
+                             schema' (zipmap k' (repeat schema-value))]
+                         (reduce reducer acc schema'))
+
+                       [key-name (if (= ::wildcard k)
+                                   "<any>"
+                                   (name k))]
+
+                       :else
+                       (t/track
+                         #(format "Describing key `%s'." key-name)
+                         (let [[acc-so' swagger-schema] (simple->swagger-schema swagger-options acc-so schema-value)
+                               path (if (= ::wildcard k)
+                                      [:otherProperties]
+                                      [:properties k])]
+                           [acc-so' (cond-> (assoc-in acc-schema path swagger-schema)
+                                            required? (update-in [:required] conj k))])))))]
+    (let [base (remove-nil-vals {:description (or (-> schema meta :description)
+                                                  (-> schema meta :doc))})]
+      (reduce reducer [swagger-object base] schema))))
 
 ;; Can we merge simple->swagger-schema and ->swagger-schema?
 
