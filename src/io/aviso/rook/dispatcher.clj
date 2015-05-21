@@ -245,38 +245,37 @@
   : set of symbols (converted from keywords in the endpoint's route)
 
   arg
-  : Argument, a symbol or a map (for destructuring)."
+  : Argument, a symbol."
   [arg-resolvers route-params arg]
-  (let [arg-symbol (symbol-for-argument arg)
-        arg-meta (meta arg-symbol)]
-    (t/track #(format "Identifying argument resolver for `%s'." arg-symbol)
+  (let [arg-meta (meta arg)]
+    (t/track #(format "Identifying argument resolver for `%s'." arg)
              (cond
                ;; route param resolution takes precedence
                (contains? route-params arg)
-               (make-route-param-resolver arg-symbol)
+               (make-route-param-resolver arg)
 
                ;; explicit ::rook/resolver metadata takes precedence for non-route params
                (contains? arg-meta :io.aviso.rook/resolver)
-               (find-resolver arg-resolvers arg-symbol (:io.aviso.rook/resolver arg-meta))
+               (find-resolver arg-resolvers arg (:io.aviso.rook/resolver arg-meta))
 
                :else
                (if-let [resolver-tag (find-argument-resolver-tag
-                                       arg-resolvers arg-symbol arg-meta)]
+                                       arg-resolvers arg arg-meta)]
                  ;; explicit tags attached to the arg symbol itself come next
-                 (find-resolver arg-resolvers arg-symbol resolver-tag)
+                 (find-resolver arg-resolvers arg resolver-tag)
 
                  ;; non-route-param name-based resolution is implicit and
                  ;; should not override explicit tags, so this check comes
                  ;; last; NB. the value at arg-symbol might be a keyword
                  ;; identifying a resolver factory, so we still need to call
                  ;; find-resolver
-                 (if (contains? arg-resolvers arg-symbol)
-                   (find-resolver arg-resolvers arg-symbol (get arg-resolvers arg-symbol))
+                 (if (contains? arg-resolvers arg)
+                   (find-resolver arg-resolvers arg (get arg-resolvers arg))
 
                    ;; only static resolution is supported
                    (throw (ex-info
-                            (format "Unable to identify argument resolver for symbol `%s'." arg-symbol)
-                            {:symbol        arg-symbol
+                            (format "Unable to identify argument resolver for symbol `%s'." arg)
+                            {:symbol        arg
                              :symbol-meta   arg-meta
                              :route-params  route-params
                              :arg-resolvers arg-resolvers}))))))))
@@ -408,7 +407,7 @@
               endpoint-arg-resolvers (merge-arg-resolver-maps arg-resolvers
                                                               (:arg-resolvers merged-metadata))
 
-              arglist (-> fn-meta :arglists first)
+              arglist (->> fn-meta :arglists first (map symbol-for-argument))
 
               route-params (->> endpoint-context
                                 (filter keyword?)
@@ -420,6 +419,10 @@
                                                              arglist)
 
               merged-metadata' (assoc merged-metadata
+                                 ;; Some extra data, especially useful for the Swagger support.
+                                 ;; seq of symbols:
+                                 :arguments arglist
+                                 ;; map from symbol to resolver function:
                                  :argument-resolvers (zipmap arglist arglist-resolvers))
 
               arglist-resolver (if (empty? arglist-resolvers)

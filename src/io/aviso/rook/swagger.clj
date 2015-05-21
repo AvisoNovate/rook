@@ -75,8 +75,7 @@
   (let [path-ids (->> routing-entry :path (filter keyword?))
         id->docs (->> routing-entry
                       :meta
-                      :arglists
-                      first
+                      :arguments
                       (map (fn [sym] [(keyword (name sym))
                                       ;; Possibly we could pick up a default from swagger-options?
                                       (-> sym meta :description)]))
@@ -103,7 +102,7 @@
                                             (get (:default-header-descriptions swagger-options) header-name))]
                           (update-in so params-key conj (parameter-object header-name :header false description)))
                         so)))]
-    (reduce reducer swagger-object (-> routing-entry :meta :arglists first))))
+    (reduce reducer swagger-object (-> routing-entry :meta :arguments))))
 
 
 (defn analyze-schema-key

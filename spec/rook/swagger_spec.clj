@@ -94,7 +94,8 @@
                                     :type        :string
                                     :in          :path
                                     :required    true}]}
-                 (sw/default-path-params-injector nil {} {:meta {:arglists [[(with-meta 'id {:description "id docs"})]]}
+                 ;; :argument is supplied by i.a.r.dispatcher; it handle deconstruction maps (reducing them to the :as symbol),
+                 (sw/default-path-params-injector nil {} {:meta {:arguments [(with-meta 'id {:description "id docs"})]}
                                                           :path ["foo" :id "bar"]} [:operation-path]))))
 
   (context "responses"
