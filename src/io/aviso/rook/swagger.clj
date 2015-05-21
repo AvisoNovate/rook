@@ -367,6 +367,7 @@
         description  (or (:description swagger-meta)
                          (:doc endpoint-meta))
         summary      (:summary swagger-meta)
+        tags         (:tags swagger-meta)
         {:keys [path-params-injector query-params-injector body-params-injector responses-injector
                 operation-decorator]} swagger-options
         params-key   (concat paths-key ["parameters"])]
@@ -374,6 +375,7 @@
           (assoc-in % paths-key
                     (remove-nil-vals {:description description
                                       :summary     summary
+                                      :tags        tags
                                       ;; This is required inside a Operation object:
                                       :responses   (sorted-map)
                                       ;; There are a couple of scnearious where the function name is not
