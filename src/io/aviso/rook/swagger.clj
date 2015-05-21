@@ -100,8 +100,8 @@
                       (if header-name
                         (let [description (or
                                             (-> arg-sym meta :description)
-                                            (get (:default-header-descriptions swagger-options) header-name))
-                              (update-in so params-key conj (parameter-object header-name :header false description))])
+                                            (get (:default-header-descriptions swagger-options) header-name))]
+                          (update-in so params-key conj (parameter-object header-name :header false description)))
                         so)))]
     (reduce reducer swagger-object (-> routing-entry :meta :arglists first))))
 
