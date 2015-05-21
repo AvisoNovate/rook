@@ -231,9 +231,9 @@
                        ;; We have to work pretty hard to get those options in ... partly because Swagger Schema
                        ;; is a bit obtuse, and partly because we probably need a kind of intermediate representation.
                        (not (keyword? k))
-                       (let [k' (if required?
-                                  k
-                                  (map s/optional-key k))
+                       (let [k'      (if required?
+                                       k
+                                       (map s/optional-key k))
                              schema' (zipmap k' (repeat schema-value))]
                          (reduce reducer acc schema'))
 
