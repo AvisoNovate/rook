@@ -98,7 +98,10 @@
                     (let [resolver    (get resolvers arg-sym)
                           header-name (-> resolver meta :header-name)]
                       (if header-name
-                        (update-in so params-key conj (parameter-object header-name :header false (-> arg-sym meta :description)))
+                        (let [description (or
+                                            (-> arg-sym meta :description)
+                                            (get (:default-header-descriptions swagger-options) header-name))
+                              (update-in so params-key conj (parameter-object header-name :header false description))])
                         so)))]
     (reduce reducer swagger-object (-> routing-entry :meta :arglists first))))
 
@@ -498,6 +501,10 @@
    :path                           []
    ;; Name of special parameter used for the body of the request
    :body-name                      :body
+   :default-header-descriptions    {"if-match"            "Used for optimistic locking checks in resource updates."
+                                    "if-none-match"       "Used for optimistic locking checks in resource updates."
+                                    "if-modified-since"   "Used for cache checking when reading a resource."
+                                    "if-unmodified-since" "Used for cache checking when reading a resource."}
    :routing-entry-remove-predicate (constantly false)
    :route-injector                 default-route-injector
    :configurer                     default-configurer
