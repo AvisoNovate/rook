@@ -3,7 +3,7 @@
 Improvements to the Swagger generation
 
 * Descriptions of properties of schemas are now captured
-
+* :documentation meta data on path variables is now captured
 
 ## 0.1.28 - 29 Apr 2015
 

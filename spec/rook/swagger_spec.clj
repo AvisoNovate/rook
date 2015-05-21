@@ -33,7 +33,7 @@
 
 (defmacro should-have-status
   [expected-status response]
-  `(let [response# ~response
+  `(let [response#        ~response
          expected-status# ~expected-status]
      (if (= expected-status# (:status response#))
        response#
@@ -56,10 +56,10 @@
 
 (defn start-server
   []
-  (let [creator #(rook/namespace-handler {:swagger-options swagger-options}
-                                         ["hotels" 'hotels
-                                          [[:hotel-id "rooms"] 'rooms]])
-        handler (server/construct-handler {:log true :track true :standard true :exceptions true} creator)
+  (let [creator        #(rook/namespace-handler {:swagger-options swagger-options}
+                                                ["hotels" 'hotels
+                                                 [[:hotel-id "rooms"] 'rooms]])
+        handler        (server/construct-handler {:log true :track true :standard true :exceptions true} creator)
         ^Server server (jet/run-jetty {:ring-handler handler
                                        :join?        false
                                        :port         8192})]
@@ -72,6 +72,16 @@
                                          ["hotels" 'hotels
                                           [[:hotel-id "rooms"]
                                            'rooms]])))
+
+  (context "requests"
+    (it "can capture path parameter descriptions"
+        (should= {:operation-path [{:description "id docs"
+                                    :name        :id
+                                    :type        :string
+                                    :in          :path
+                                    :required    true}]}
+                 (sw/default-path-params-injector nil {} {:meta {:arglists [[(with-meta 'id {:documentation "id docs"})]]}
+                                                          :path ["foo" :id "bar"]} [:operation-path]))))
 
   (context "responses"
 

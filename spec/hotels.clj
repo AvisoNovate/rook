@@ -40,7 +40,7 @@
 (defn show
   "Returns a single hotel, if found."
   {:responses show-responses}
-  [id]
+  [^{:documentation "Unique id of hotel."} id]
   nil)
 
 (rs/defschema ChangeHotelRequest

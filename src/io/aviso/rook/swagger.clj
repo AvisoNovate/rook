@@ -65,12 +65,23 @@
   "Identifies each path parameter and adds a value for it to the swagger-object at the path defined by params-key."
   [swagger-options swagger-object routing-entry params-key]
   (let [path-ids (->> routing-entry :path (filter keyword?))
+        id->docs (->> routing-entry
+                      :meta
+                      :arglists
+                      first
+                      (map (fn [sym] [(keyword (name sym))
+                                      ;; Possibly we could pick up a default from swagger-options?
+                                      (-> sym meta :documentation)]))
+                      (into {}))
         reducer  (fn [so path-id]
-                   (update-in so params-key
-                              conj {:name     path-id
-                                    :type     :string       ; may add something later to refine this
-                                    :in       :path
-                                    :required true}))]
+                   (let [description (get id->docs path-id)
+                         entry       (cond-> {:name     path-id
+                                              :type     :string ; may add something later to refine this
+                                              :in       :path
+                                              :required true}
+                                             description (assoc :description description))]
+                     (update-in so params-key
+                                conj entry)))]
     (reduce reducer swagger-object path-ids)))
 
 (defn analyze-schema-key
