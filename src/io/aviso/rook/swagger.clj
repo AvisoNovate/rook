@@ -59,9 +59,9 @@
     (str/join "/")
     (str "/")))
 
-;; Revisit order of parameters in these for ease of ->> threading; should swagger-object always be the last?
-
-(defn- parameter-object
+(defn parameter-object
+  "Creates a parameter object, as part of an operation."
+  {:added "0.1.29"}
   [parameter-name location required? description]
   (cond-> {:name (name parameter-name)
            :type :string                                    ; may add something later to refine this
