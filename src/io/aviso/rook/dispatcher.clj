@@ -481,29 +481,6 @@
                      (construct-namespace-table-entry context ns-sym arg-resolvers' middleware ns-metadata' k v))))
            doall))))
 
-(defn- construct-routing-table
-  "Expands the output of [[build-namespace-table]] and [[expand-namespace-metadata]], converting each namespace entry into
-  a seq of routing entries:
-
-      [method path handler endpoint-meta]
-
-  method
-  : keyword for the HTTP method (:get, :put, etc., or :all)
-
-  path
-  : seq of path terms (each is a string or a keyword)
-
-  handler
-  : a Ring request handler derived from an endpoint function of the namespace,
-    that has been intercepted to include middleware, argument resolution, etc.
-
-  endpoint-meta
-  : Merged meta-data for the handler, including key :function (namespace qualified name of the function)
-
-  Returns a sequence of routing entries, in no specific order."
-  [ns-table]
-  (map expand-namespace-entry ns-table))
-
 (def ^:private conj' (fnil conj []))
 
 (defn- add-handler-to-dispatch-map [dispatch-map path method handler endpoint-meta route-params]
