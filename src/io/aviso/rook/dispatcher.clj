@@ -69,8 +69,11 @@
 
 (defn- make-header-arg-resolver [sym]
   (let [header-name (name sym)]
-    (fn [request]
-      (-> request :headers (get header-name)))))
+    (with-meta
+      (fn [request]
+                 (-> request :headers (get header-name)))
+      ;; Needed by the Swagger support to identify that a argument is derived from a specific header.
+      {:header-name header-name})))
 
 (defn- make-param-arg-resolver [sym]
   (let [kw (keyword sym)]
@@ -278,16 +281,11 @@
                              :route-params  route-params
                              :arg-resolvers arg-resolvers}))))))))
 
-(defn- create-arglist-resolver
+(defn- identify-arglist-resolvers
   "Returns a function that is passed the Ring request and returns an array of argument values which
   the endpoint function can be applied to."
   [arg-resolvers route-params arglist]
-  (if (seq arglist)
-    (->>
-      arglist
-      (map (partial identify-argument-resolver arg-resolvers route-params))
-      (apply juxt))
-    (constantly ())))
+  (map (partial identify-argument-resolver arg-resolvers route-params) arglist))
 
 (defn- expand-context
   [context]
@@ -417,9 +415,16 @@
                                 (map (comp symbol name))
                                 set)
 
-              arglist-resolver (create-arglist-resolver endpoint-arg-resolvers
-                                                        route-params
-                                                        arglist)
+              arglist-resolvers (identify-arglist-resolvers endpoint-arg-resolvers
+                                                             route-params
+                                                             arglist)
+
+              merged-metadata' (assoc merged-metadata
+                                 :argument-resolvers (zipmap arglist arglist-resolvers))
+
+              arglist-resolver (if (empty? arglist-resolvers)
+                                 (constantly ())
+                                 (apply juxt arglist-resolvers))
 
               context-length (count container-context)
 
@@ -444,11 +449,11 @@
               request-handler (-> (fn [request]
                                     (apply endpoint-fn (arglist-resolver request)))
 
-                                  (full-middleware merged-metadata)
+                                  (full-middleware merged-metadata')
 
                                   apply-context-middleware
                                   logging-middleware)]
-          [method endpoint-context request-handler merged-metadata])))))
+          [method endpoint-context request-handler merged-metadata'])))))
 
 (defn- expand-namespace-entry
   "Expands on entry from the output of [[build-namespace-table]] and [[expand-namespace-metadata]],

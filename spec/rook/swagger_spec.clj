@@ -67,20 +67,34 @@
 
 (describe "io.aviso.rook.swagger"
 
+  (with-all swagger (swagger-object nil swagger-options
+                                    ["hotels" 'hotels
+                                     [[:hotel-id "rooms"]
+                                      'rooms]]))
+
   (it "can construct swagger data"
-      (should-not-be-nil (swagger-object nil swagger-options
-                                         ["hotels" 'hotels
-                                          [[:hotel-id "rooms"]
-                                           'rooms]])))
+      (should-not-be-nil @swagger))
 
   (context "requests"
+    (it "can capture header parameters and descriptions"
+        ;; We could set this up as in other cases, but the meta-data and interactions are complex
+        ;; enough that we should drive from an "integrated" example:
+        (->>
+          (get-in @swagger [:paths "/hotels/{id}" "put" "parameters"])
+          (filter #(= "if-match" (:name %)))
+          first
+          (should= {:description "Used for optimistic locking."
+                    :name        "if-match"
+                    :type        :string
+                    :in          :header})))
+
     (it "can capture path parameter descriptions"
         (should= {:operation-path [{:description "id docs"
-                                    :name        :id
+                                    :name        "id"
                                     :type        :string
                                     :in          :path
                                     :required    true}]}
-                 (sw/default-path-params-injector nil {} {:meta {:arglists [[(with-meta 'id {:documentation "id docs"})]]}
+                 (sw/default-path-params-injector nil {} {:meta {:arglists [[(with-meta 'id {:description "id docs"})]]}
                                                           :path ["foo" :id "bar"]} [:operation-path]))))
 
   (context "responses"

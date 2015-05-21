@@ -40,7 +40,7 @@
 (defn show
   "Returns a single hotel, if found."
   {:responses show-responses}
-  [^{:documentation "Unique id of hotel."} id]
+  [^{:description "Unique id of hotel."} id]
   nil)
 
 (rs/defschema ChangeHotelRequest
@@ -57,4 +57,7 @@
   "Updates a Hotel, to rename it. May result in a 409 Conflict if some other hotel has the same name."
   {:body-schema ChangeHotelRequest
    :responses   change-responses}
-  [id params])
+  [^{:description "Id of hotel to update."} id
+   params
+   ^{:header      true
+     :description "Used for optimistic locking."} if-match])

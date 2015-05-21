@@ -61,6 +61,14 @@
 
 ;; Revisit order of parameters in these for ease of ->> threading; should swagger-object always be the last?
 
+(defn- parameter-object
+  [parameter-name location required? description]
+  (cond-> {:name (name parameter-name)
+           :type :string                                    ; may add something later to refine this
+           :in   location}
+          required? (assoc :required required?)
+          description (assoc :description description)))
+
 (defn default-path-params-injector
   "Identifies each path parameter and adds a value for it to the swagger-object at the path defined by params-key."
   [swagger-options swagger-object routing-entry params-key]
@@ -71,18 +79,29 @@
                       first
                       (map (fn [sym] [(keyword (name sym))
                                       ;; Possibly we could pick up a default from swagger-options?
-                                      (-> sym meta :documentation)]))
+                                      (-> sym meta :description)]))
                       (into {}))
         reducer  (fn [so path-id]
                    (let [description (get id->docs path-id)
-                         entry       (cond-> {:name     path-id
-                                              :type     :string ; may add something later to refine this
-                                              :in       :path
-                                              :required true}
-                                             description (assoc :description description))]
-                     (update-in so params-key
-                                conj entry)))]
+                         param-object (parameter-object path-id :path true description)]
+                     (update-in so params-key conj param-object)))]
     (reduce reducer swagger-object path-ids)))
+
+(defn default-header-params-injector
+  "Identifies each header parameter and adds a value for it to the swagger-object at the path defined by params-key.
+   Headers are recognized via the :rook-header-name metadata on the argument resolver for the argument."
+  {:since "0.1.29"}
+  [swagger-options swagger-object routing-entry params-key]
+  (let [resolvers (-> routing-entry :meta :argument-resolvers)
+        reducer
+                  (fn [so arg-sym]
+                    (let [resolver    (get resolvers arg-sym)
+                          header-name (-> resolver meta :header-name)]
+                      (if header-name
+                        (update-in so params-key conj (parameter-object header-name :header false (-> arg-sym meta :description)))
+                        so)))]
+    (reduce reducer swagger-object (-> routing-entry :meta :arglists first))))
+
 
 (defn analyze-schema-key
   "Simplifies a key from a schema reducing it to a keyword (or, to support s/Str or s/Keyword as a key,
@@ -378,8 +397,8 @@
         description  (or (:description swagger-meta)
                          (:doc endpoint-meta))
         summary      (:summary swagger-meta)
-        {:keys [path-params-injector query-params-injector body-params-injector responses-injector
-                operation-decorator]} swagger-options
+        {:keys [path-params-injector query-params-injector body-params-injector header-params-injector
+                responses-injector operation-decorator]} swagger-options
         params-key   (concat paths-key ["parameters"])]
     (as-> swagger-object %
           (assoc-in % paths-key
@@ -393,6 +412,7 @@
           (path-params-injector swagger-options % routing-entry params-key)
           (query-params-injector swagger-options % routing-entry params-key)
           (body-params-injector swagger-options % routing-entry params-key)
+          (header-params-injector swagger-options % routing-entry params-key)
           (responses-injector swagger-options % routing-entry paths-key)
           (update-in % paths-key (fn [operation]
                                    (operation-decorator swagger-options % routing-entry operation))))))
@@ -487,6 +507,7 @@
    :path-params-injector           default-path-params-injector
    :query-params-injector          default-query-params-injector
    :body-params-injector           default-body-params-injector
+   :header-params-injector         default-header-params-injector
    :responses-injector             default-responses-injector
    :response-decorator             default-response-decorator})
 
