@@ -8,18 +8,23 @@
 
 (rs/defschema ShowHotelResponse
   "Describes a hotel."
-  {:id         s/Uuid
-   :created_at s/Inst
-   :updated_at s/Inst
-   :name       s/Str})
+  {:id         (rs/with-description "Unique id for the hotel." s/Uuid)
+   :created_at (rs/with-description "Instant when hotel was first created." s/Inst)
+   :updated_at (rs/with-description "Instant when hotel was last updated." s/Inst)
+   :name       (rs/with-description "The name of the hotel." s/Str)})
 
 
 (rs/defschema IndexQuery
-  {(s/optional-key :sort)       (s/enum :created_at :updated_at :name)
-   (s/optional-key :descending) s/Bool})
+  {(s/optional-key :sort)       (rs/with-description
+                                  "Indentified differnt ways the list of hotels may be sorted."
+                                  (s/enum :created_at :updated_at :name))
+   (s/optional-key :descending) (rs/with-description
+                                  "Indicates that sorting (if any) should be in descending, not ascending, order."
+                                  s/Bool)})
 
 (def index-responses
-  {HttpServletResponse/SC_OK (rs/schema HotelList "List of matching hotels in specified order." [ShowHotelResponse])})
+  {HttpServletResponse/SC_OK (rs/with-description "List of matching hotels in specified order."
+                                                  [ShowHotelResponse])})
 
 (defn index
   "Returns a list of all hotels, with control over sort order."

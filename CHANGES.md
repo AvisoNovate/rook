@@ -1,3 +1,10 @@
+## 0.1.29 - UNRELEASED
+
+Improvements to the Swagger generation
+
+* Descriptions of properties of schemas are now captured
+
+
 ## 0.1.28 - 29 Apr 2015
 
 Added the :lazy option to io.aviso.rook.server/construct-handler.

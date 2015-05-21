@@ -7,21 +7,23 @@
   (:require [io.aviso.rook.dispatcher :as d]
             [clj-yaml.core :as yaml]
             [cheshire.core :as json]
-            [io.aviso.rook.swagger :as rs]
+            [io.aviso.rook.swagger :as sw]
             [io.aviso.rook :as rook]
             [clj-http.client :as client]
             [io.aviso.toolchest.collections :refer [pretty-print]]
             [qbits.jet.server :as jet]
             [io.aviso.tracker :as t]
             [clojure.tools.logging :as l]
-            [io.aviso.rook.server :as server])
+            [io.aviso.rook.server :as server]
+            [io.aviso.rook.schema :as rs]
+            [schema.core :as s])
   (:import [org.eclipse.jetty.server Server]
            [javax.servlet.http HttpServletResponse]))
 
 (defn- swagger-object
   [rook-options swagger-options & ns-specs]
   (let [[_ routing-table] (d/construct-namespace-handler rook-options ns-specs)]
-    (rs/construct-swagger-object swagger-options routing-table)))
+    (sw/construct-swagger-object swagger-options routing-table)))
 
 (defn get*
   [path]
@@ -40,17 +42,17 @@
                       (pretty-print response#))))))
 
 
-(def swagger-options (-> rs/default-swagger-options
+(def swagger-options (-> sw/default-swagger-options
                          (assoc-in [:template :info :title] "Hotels and Rooms API")
                          (assoc-in [:template :info :version] "Pre-Alpha")))
 
 (comment
   (binding [t/*log-trace-level* :info]
-           (-> (swagger-object nil swagger-options
-                               ["hotels" 'hotels
-                                [[:hotel-id "rooms"] 'rooms]])
-               (json/generate-string {:pretty true})
-               println)))
+    (-> (swagger-object nil swagger-options
+                        ["hotels" 'hotels
+                         [[:hotel-id "rooms"] 'rooms]])
+        (json/generate-string {:pretty true})
+        println)))
 
 (defn start-server
   []
@@ -70,6 +72,23 @@
                                          ["hotels" 'hotels
                                           [[:hotel-id "rooms"]
                                            'rooms]])))
+
+  (context "responses"
+
+    (with-all response-description
+              (rs/with-description "Error Body Description"
+                                   {:error                    (rs/with-description "logical error name" s/Str)
+                                    (s/optional-key :message) (rs/with-description "user presentable message" s/Str)}))
+
+    (it "can capture schema descriptions"
+        (should= {:path {:responses {200 {:description "Error Body Description"
+                                          :schema      {:required   [:error]
+                                                        :properties {:error   {:type        :string
+                                                                               :description "logical error name"}
+                                                                     :message {:type        :string
+                                                                               :description "user presentable message"}}}}}}}
+
+                 (sw/default-responses-injector sw/default-swagger-options {} {:meta {:responses {200 @response-description}}} [:path]))))
 
   (context "end-to-end (synchronous)"
 

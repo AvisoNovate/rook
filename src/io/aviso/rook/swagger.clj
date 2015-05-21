@@ -154,7 +154,9 @@
 
   IsInstance
   (convert-schema [schema swagger-options swagger-object]
-    (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema)))
+    ;; Generally, the description (if any) is on the IsInstance, and what's wrapped is typically
+    ;; a java.lang.Class with no metadata.
+    (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema) schema))
 
   IPersistentVector
   (convert-schema [schema swagger-options swagger-object]
@@ -177,18 +179,20 @@
       (->swagger-schema swagger-options swagger-object schema))))
 
 (defn- simple->swagger-schema
-  "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, etc."
-  [swagger-options swagger-object schema]
-  (cond-let
+  "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, :description, etc."
+  ([swagger-options swagger-object schema]
+   (simple->swagger-schema swagger-options swagger-object schema schema))
+  ([swagger-options swagger-object schema description-schema]
+   (cond-let
 
-    [data-type-mappings (:data-type-mappings swagger-options)
-     data (get data-type-mappings schema)]
+     [data-type-mappings (:data-type-mappings swagger-options)
+      data (get data-type-mappings schema)]
 
-    (some? data)
-    [swagger-object (merge-in-description data schema)]
+     (some? data)
+     [swagger-object (merge-in-description data description-schema)]
 
-    :else
-    (convert-schema schema swagger-options swagger-object)))
+     :else
+     (convert-schema schema swagger-options swagger-object))))
 
 (defn default-query-params-injector
   "Identifies each query parameter via the :query-schema metadata and injects it."
@@ -254,6 +258,10 @@
                                                   (-> schema meta :doc))})]
       (reduce reducer [swagger-object base] schema))))
 
+(defn- strip-doc
+  [schema]
+  (vary-meta schema dissoc :doc :description))
+
 ;; Can we merge simple->swagger-schema and ->swagger-schema?
 
 (defn ->swagger-schema
@@ -269,6 +277,8 @@
     [swagger-object nil]
 
     (vector? schema)
+    ;; We should probably verify that a vector has a single schema element; that's all that
+    ;; JSON schemas can handle, which is a subset of Schema.
     (let [[so' item-reference] (->swagger-schema swagger-options swagger-object (first schema))]
       [so' {:type  :array
             :items item-reference}])
@@ -281,7 +291,9 @@
         (nil? schema-ns))
     ;; Nested schemas may be named, however, and will need to write into the swagger-object :definitions
     ;; map.
-    (let [[so' new-schema] (map->swagger-schema swagger-options swagger-object schema)]
+    ;; For these anonymous/inline schemas, we strip out the doc & description, as that should have been captured at the
+    ;; point where the schema is first referenced (i.e., a response definition).
+    (let [[so' new-schema] (map->swagger-schema swagger-options swagger-object (strip-doc schema))]
       [so' new-schema])
 
     ;; Avoid forward slash in the swagger name, as that's problematic, especially for
