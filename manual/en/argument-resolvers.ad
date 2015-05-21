@@ -90,7 +90,7 @@ For example, setting up this argument resolver:
   [hotel-db]
   (rook/namespace-handler {:context ["api"]}
     ["hotels" 'ex.hotels {'hotel-db            (constantly hotel-db)
-                           if-unmodified-since :header}
+                          'if-unmodified-since :header}
       [[:hotel-id "rooms"] 'ex.rooms]])))
 ----
 
@@ -104,4 +104,7 @@ Would allow this simplification to the endpoint function:
   ...)
 ----
 
+The symbol name, `if-modified-since`, is matched against the argument resolver map, and this
+indicates that the argument is resolved as a header. The argument symbol is converted to
+the string "if-modified-since" and used to find the value in the :headers key of the Ring request map.
 

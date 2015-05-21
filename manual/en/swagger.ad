@@ -104,7 +104,7 @@ is only emitted once, which can greatly reduce the size of the Swagger document 
 
 The Schema's key is built from it's containing namespace and symbol name.
 
-== Adding descriptions.
+== Adding descriptions
 
 The with-description and description functions are used to added a :description metadata to schemas; this
 eventually becomes the :description key in the equivalent object in the Swagger document.
@@ -134,10 +134,30 @@ eventually becomes the :description key in the equivalent object in the Swagger 
 TYhe with-description function is used to decorate a schema.
 The description function is used when there is no schema.
 
+== Adding parameter documentation
+
+[source,clojure]
+----
+(defn change
+  "Allows a hotel's name to be changed."
+  {:body-schema ChangeHotelRequest
+   :responses   change-responses}
+  [^{:description "Id of hotel to update."} id
+   params
+   ^{:header      true
+     :description "Used for optimistic locking."} if-match])
+----
+
+Adding :description metadata to a path parameter or header parameter will include that description in the
+Swagger output.
+
 == Customization
 
 Please refer to the io.aviso.rook.swagger namespace; in a nutshell, the default swagger options includes injectors
 (which should only be overridden with extreme care) and decorators (which are intended to be overridden).
+
+Injectors create the default structure; decorators are passed the result of the injector and can modify it further.
+
 
 == Limitations
 

@@ -13,8 +13,8 @@ Rook uses a set of naming conventions and metadata to determine the value to
 in each argument to your endpoint function. This is called _argument resolution_.
 
 Deep down, the standard case is that each argument will be resolved as a function applied
-to the Ring request; this usually means getting a key from the map, or navigating a
-path starting from the Ring request. 
+to the Ring request; this usually means getting a key from the Ring request map, or navigating a
+path starting with the Ring request map.
 
 The trick, of course, is to ensure that the _correct_ argument resolver function is identified (or constructed) for each argument.
 
@@ -174,7 +174,7 @@ The final map of argument resolvers used for any particular endpoint function is
 == Specifying global defaults for arguments
 
 When defining the namespace handler, the first argument may be a map of
-options. The :arg-resolvers key is merged into the default set of argument resolvers (see notes below about
+options. The :arg-resolvers option key is merged into the default set of argument resolvers (see notes below about
 advanced merging options).
 
 .Example
