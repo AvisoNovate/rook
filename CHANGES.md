@@ -1,6 +1,6 @@
-## 0.1.29 - UNRELEASED
+## 0.1.29 - 2 Jun 2019
 
-Improvements to the Swagger generation
+Improvements to the generation of Swagger API descriptions:
 
 * Descriptions of properties of schemas are now captured
 * :description meta data on path variables is now captured
