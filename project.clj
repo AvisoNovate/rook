@@ -5,25 +5,27 @@
                       :url  "http://www.apache.org/licenses/LICENSE-2.0.html"}
             :profiles {:dev
                        {:dependencies [[ring-mock "0.1.5"]
-                                       [cc.qbits/jet "0.5.4"]
+                                       [cc.qbits/jet "0.6.4" :exclusions [org.clojure/clojure]]
                                        [speclj "3.2.0"]
                                        [ch.qos.logback/logback-classic "1.1.3"]
-                                       [clj-http "1.1.0"]]}}
+                                       [clj-http "1.1.2"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
                            [io.aviso/pretty "0.1.18"]
                            [io.aviso/toolchest "0.1.2"]
-                           [cheshire "5.4.0"]
+                           [cheshire "5.5.0"]
                            [potemkin "0.3.13"]
                            ;; A  conflict between clj-http (dev) and ring-middleware-format
-                           [org.clojure/tools.reader "0.8.16"]
+                           [org.clojure/tools.reader "0.9.2"]
                            [org.clojure/tools.logging "0.3.1"]
                            [io.aviso/tracker "0.1.6"]
                            [medley "0.6.0" :exclusions [com.keminglabs/cljx org.clojure/clojure]]
-                           [ring-middleware-format "0.5.0" :exclusions [ring/ring-devel org.clojure/tools.reader ring]]
+                           [ring-middleware-format "0.5.0" :exclusions [ring/ring-devel org.clojure/tools.reader ring
+                                                                        com.cognitect/transit-clj
+                                                                        com.cognitect/transit-java]]
                            [ring/ring-core "1.3.2" :exclusions [commons-fileupload]]
-                           [prismatic/schema "0.4.0"]]
+                           [prismatic/schema "0.4.3"]]
             :plugins [[speclj "3.2.0"]
                       [lein-shell "0.4.0"]]
             :jvm-opts ["-Xmx1g"]
