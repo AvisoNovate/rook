@@ -204,6 +204,21 @@
                          ;; string) and switch back to :body
                          body)))))
 
+    (describe "path matching with wildcards"
+
+      (with-all handler (namespace->handler 'wildcard))
+
+      (for [[uri expected] (partition 2
+                                      ["/foo" :foo
+                                       "/foo/bar" :foo-bar
+                                       "/foo/bazz" [:foo-any "bazz"]
+                                       "/foo/bar/bazz" [:foo-bar-any "bazz"]
+                                       "/foo/gnip/gnop/bar" [:foo-any "gnip/gnop/bar"]
+                                       ])]
+        (it (format "Should match `%s' as %s" uri expected)
+            (should= expected
+                     (@handler (mock/request :get uri))))))
+
     (describe "conflicts and versioning"
 
       (it "should throw exception when endpoints conflict"

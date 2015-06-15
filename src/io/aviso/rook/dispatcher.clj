@@ -99,6 +99,12 @@
     (fn [request]
       (internals/get-injection request kw))))
 
+(defn- make-wildcard-path-resolver [sym]
+  (fn [request]
+    (->> request
+         ::wildcard-path
+         (str/join "/"))))
+
 (defn- to-clojureized-keyword
   "Converts a keyword with embedded underscores into one with embedded dashes."
   [kw]
@@ -121,18 +127,20 @@
   Symbols are direct argument resolvers; functions that take the Ring request and return the value
   for that argument."
   (let [params-resolver (make-request-key-resolver :params)]
-    {:request      (constantly identity)
-     :request-key  make-request-key-resolver
-     :header       make-header-arg-resolver
-     :param        make-param-arg-resolver
-     :injection    make-injection-resolver
-     :resource-uri make-resource-uri-arg-resolver
-     'request      identity
-     'params       params-resolver
-     '_params      params-resolver
-     'params*      clojurized-params-arg-resolver
-     '_params*     clojurized-params-arg-resolver
-     'resource-uri (make-resource-uri-arg-resolver 'resource-uri)}))
+    {:request       (constantly identity)
+     :request-key   make-request-key-resolver
+     :header        make-header-arg-resolver
+     :param         make-param-arg-resolver
+     :injection     make-injection-resolver
+     :resource-uri  make-resource-uri-arg-resolver
+     :wildcard-path make-wildcard-path-resolver
+     'request       identity
+     'params        params-resolver
+     '_params       params-resolver
+     'params*       clojurized-params-arg-resolver
+     '_params*      clojurized-params-arg-resolver
+     'resource-uri  (make-resource-uri-arg-resolver nil)
+     'wildcard-path (make-wildcard-path-resolver nil)}))
 
 (defn- merge-arg-resolver-maps
   "Merges an argument resolver map into another argument resolver map.
@@ -249,36 +257,41 @@
   [arg-resolvers route-params arg]
   (let [arg-meta (meta arg)]
     (t/track #(format "Identifying argument resolver for `%s'." arg)
-             (cond
+             (cond-let
                ;; route param resolution takes precedence
                (contains? route-params arg)
                (make-route-param-resolver arg)
 
+               [resolver (:io.aviso.rook/resolver arg-meta)]
+
                ;; explicit ::rook/resolver metadata takes precedence for non-route params
-               (contains? arg-meta :io.aviso.rook/resolver)
-               (find-resolver arg-resolvers arg (:io.aviso.rook/resolver arg-meta))
+               (some? resolver)
+               (find-resolver arg-resolvers arg resolver)
 
+               ;; explicit tags attached to the arg symbol itself come next
+               [resolver-tag (find-argument-resolver-tag arg-resolvers arg arg-meta)]
+
+               (some? resolver-tag)
+               (find-resolver arg-resolvers arg resolver-tag)
+
+               ;; non-route-param name-based resolution is implicit and
+               ;; should not override explicit tags, so this check comes
+               ;; last; NB. the value at arg-symbol might be a keyword
+               ;; identifying a resolver factory, so we still need to call
+               ;; find-resolver
+               [arg-resolver (get arg-resolvers arg)]
+
+               (some? arg-resolver)
+               (find-resolver arg-resolvers arg arg-resolver)
+
+               ;; only static resolution is supported
                :else
-               (if-let [resolver-tag (find-argument-resolver-tag
-                                       arg-resolvers arg arg-meta)]
-                 ;; explicit tags attached to the arg symbol itself come next
-                 (find-resolver arg-resolvers arg resolver-tag)
-
-                 ;; non-route-param name-based resolution is implicit and
-                 ;; should not override explicit tags, so this check comes
-                 ;; last; NB. the value at arg-symbol might be a keyword
-                 ;; identifying a resolver factory, so we still need to call
-                 ;; find-resolver
-                 (if (contains? arg-resolvers arg)
-                   (find-resolver arg-resolvers arg (get arg-resolvers arg))
-
-                   ;; only static resolution is supported
-                   (throw (ex-info
-                            (format "Unable to identify argument resolver for symbol `%s'." arg)
-                            {:symbol        arg
-                             :symbol-meta   arg-meta
-                             :route-params  route-params
-                             :arg-resolvers arg-resolvers}))))))))
+               (throw (ex-info
+                        (format "Unable to identify argument resolver for symbol `%s'." arg)
+                        {:symbol        arg
+                         :symbol-meta   arg-meta
+                         :route-params  route-params
+                         :arg-resolvers arg-resolvers}))))))
 
 (defn- identify-arglist-resolvers
   "Returns a function that is passed the Ring request and returns an array of argument values which
@@ -411,6 +424,7 @@
 
               route-params (->> endpoint-context
                                 (filter keyword?)
+                                (remove #(= % :*))          ; this is a placeholder for path elements, but doesn't match
                                 (map (comp symbol name))
                                 set)
 
@@ -495,6 +509,18 @@
   (update-in dispatch-map (conj path method)
              conj' [handler endpoint-meta route-params]))
 
+(defn- keyword->placeholder
+  [element]
+  (cond
+    (string? element) element
+
+    (= :* element) :*
+
+    (keyword? element) :_
+
+    :else
+    (throw (IllegalStateException.))))
+
 (defn- construct-dispatch-map
   "Constructs the dispatch map from routing specs (created by
   [[construct-routing-table]]. The structure of the dispatch map
@@ -504,12 +530,14 @@
 
   The :_ key in a node represents a position of a path argument, the value is a nested node.
 
+  The :* key in a node represents a wildcard; the path element is consumed without changing the node.
+
   The other keys in a node are request methods (:get, :put, etc., or :all). The value
   is a vector of handler data, each of which is a vector of [handler endpoint-meta route-params]."
   [routing-specs]
   (reduce
     (fn [dispatch-map [method path handler endpoint-meta]]
-      (let [path' (mapv #(if (keyword? %) :_ %) path)
+      (let [path'          (mapv keyword->placeholder path)
             ;; Build a map from keyword to its position in the path
             route-params (reduce-kv (fn [m i term]
                                       (if (keyword? term)
@@ -569,23 +597,39 @@
   (fn [request]
     (let [[request-method request-path] (request-route-spec request)]
       (loop [[path-term & remaining-path] request-path
+             wildcard-terms nil
              node dispatch-map]
         (cond-let
 
           ;; Managed to get to the end of the path?
           (nil? path-term)
-          (invoke-leaf' request request-method request-path node)
+          (invoke-leaf' (if wildcard-terms
+                          (assoc request ::wildcard-path wildcard-terms)
+                          request)
+                        request-method request-path node)
 
           [literal-node (get node path-term)]
 
           (some? literal-node)
-          (recur remaining-path literal-node)
+          (recur remaining-path nil literal-node)
 
           ;; Not an exact match on string, is there a route param placeholder?
           [param-node (get node :_)]
 
           (some? param-node)
-          (recur remaining-path param-node)
+          (recur remaining-path nil param-node)
+
+          ;; The other magic type, :*, represents one or more path elements,
+          ;; which are consumed without changing the dispatch node. The :* should
+          ;; only appear at the end of a route.
+
+          (some? wildcard-terms)
+          (recur remaining-path (conj wildcard-terms path-term) node)
+
+          [wild-node (:* node)]
+
+          (some? wild-node)
+          (recur remaining-path [path-term] wild-node)
 
           ;; Reach a term in the path that is neither a literal term
           ;; nor a route param placeholder, which results in a non-match.

@@ -1,6 +1,7 @@
 ## 0.1.30 - UNRELEASED
 
-
+Adds support for :* in an endpoint's route metadata. :* matches one or more path terms; the matched portion of the URI
+is available as the endpoint argument wildcard-path.
 
 ## 0.1.29 - 2 Jun 2019
 

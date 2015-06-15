@@ -52,6 +52,9 @@ a resource designed to be easily accessible using JSON and client-side JavaScrip
 |resource-uri
 |The URI for the namespace containing the function. See the notes on
 link:resource-uri.html[calculating the Resource URI].
+
+|wildcard-path
+|The portion of the request URI matched by a trailing :* in the endpoint's route.
 |===
 
 TIP: It is ok to use map destructuring on an argument, but then you must use the :as key to identify its name, so that Rook can determine the argument's name, for determining argument resolution.
@@ -95,6 +98,8 @@ Another way to specify argument resolution is with metadata tags. The presence o
 |:resource-uri
 |The argument is resolved to the containing namespace's link:resource-uri.html[resource URI].
 
+|:wildcard-path
+|The portion of the request URI matched by a trailing :* in the endpoint's route.
 |===
 
 .Example
@@ -112,6 +117,19 @@ In this example, the id argument is resolved from a route param (because the con
 
 WARNING: You should have at most one of these tags on any single parameter; having multiple
 will result in a runtime exception.
+
+Another example involves a wildcard. Wildcards must appear at the end.
+
+[source,clojure]
+----
+(defn get-resource
+  {:route [:get ["resource" :*]]}
+  [wildcard-path]
+  ...)
+----
+
+The wildcard-path argument will be the portion of the URI matched by the :* term; if the input URI is "http://localhost:8080/resource/public/index.html"
+then wildcard-path will be "public/index.html".
 
 == Argument Resolver Metadata
 

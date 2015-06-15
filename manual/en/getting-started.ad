@@ -90,6 +90,17 @@ If you want to match a URI such as `PUT /users/_12345_/activate`, you would map 
   ...)
 ----
 
+Generally, a keyword becomes a place holder for a path variable; in the example above, the :id will be available via
+the id argument of the invoked endpoint function.
+If the keyword was :activation-id, then the argument would have to be named activation-id to match.
+
+As a special case, the keyword :* may be placed last in the route.
+This is a wildcard match.
+A wildcard matches **one** or more path element.
+
+The portion of the path matched by the wildcard can be retrieved using an argument named wildcard-path (or by adding
+^:wildcard-path metadata to a parameter).
+
 == A minimal server
 
 As we'll see shortly, this is not the typical way to start a server (for
