@@ -3,18 +3,15 @@
     clojure.repl
     io.aviso.repl
     io.aviso.exception
-    io.aviso.logging
-    speclj.config))
+    speclj.config)
+  (:require [io.aviso.logging
+             :as logging]))
 
 (install-pretty-exceptions)
-(install-pretty-logging)
-(install-uncaught-exception-handler)
+(logging/install-pretty-logging)
+(logging/install-uncaught-exception-handler)
 
 (alter-var-root #'default-config assoc :color true :reporters ["documentation"])
 
-(alter-var-root #'*default-frame-filter*
-                (fn [default]
-                  (fn [frame]
-                    (if (-> frame :name (.startsWith "speclj."))
-                      :terminate
-                      (default frame)))))
+(alter-var-root #'*default-frame-rules*
+                conj [:name "speclj.running" :terminate])

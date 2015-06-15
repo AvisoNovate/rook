@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.1.29"
+(defproject io.aviso/rook "0.1.30"
             :description "Sane, smart, fast, Clojure web services"
             :url "http://howardlewisship.com/io.aviso/documentation/rook"
             :license {:name "Apache Sofware License 2.0"
@@ -12,7 +12,7 @@
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.6.0"]
-                           [io.aviso/pretty "0.1.17"]
+                           [io.aviso/pretty "0.1.18"]
                            [io.aviso/toolchest "0.1.2"]
                            [cheshire "5.4.0"]
                            [potemkin "0.3.13"]
@@ -35,7 +35,9 @@
                                     "spec,",
                                     "doc,"
                                     "deploy-doc,"
-                                    "deploy" "clojars"]}
+                                    "deploy" "clojars"]
+                      ;; Redirect lein ancient to use spec to check that dependencies upgrades are ok.
+                      "test"       ["spec"]}
             :test-paths ["spec"]
             :codox {:src-dir-uri               "https://github.com/AvisoNovate/rook/blob/master/"
                     :src-linenum-anchor-prefix "L"
