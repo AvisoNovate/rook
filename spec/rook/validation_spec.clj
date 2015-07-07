@@ -3,7 +3,8 @@
         ring.mock.request
         io.aviso.rook
         io.aviso.rook.schema-validation)
-  (:require [schema.core :as s])
+  (:require [schema.core :as s]
+            [io.aviso.rook.schema :as rs])
   (:import [javax.servlet.http HttpServletResponse]
            [java.util Date UUID]))
 
@@ -73,7 +74,13 @@
 
             (should-be-valid {:params {:id uuid}}
                              (validate-against-schema {:params {:id (str uuid)}}
-                                                      {:id s/Uuid}))))))
+                                                      {:id s/Uuid}))))
+      
+      (it "should handle coercions that include descriptions"
+          (let [uuid (UUID/randomUUID)]
+            (should-be-valid {:params {:id uuid}}
+                             (validate-against-schema {:params {:id (str uuid)}}
+                                                      {:id (rs/with-description "A UUID" s/Uuid)}))))))
 
   (describe "middleware"
 

@@ -2,7 +2,8 @@
 
 Updated Clojure dependency to 1.7.0.
 
-
+Rook can now handle coercion, even when the schema has been decorated with a description via
+io.aviso.rook.schema/with-description.
 
 ## 0.1.30 - 15 Jun 2015
 

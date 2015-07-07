@@ -3,7 +3,9 @@
   {:added "0.1.27"}
   (:require [schema.core :as s]
             [schema.macros :as macros]
-            [io.aviso.toolchest.metadata :refer [assoc-meta]])
+            [io.aviso.toolchest.macros :refer [cond-let]]
+            [io.aviso.toolchest.metadata :refer [assoc-meta]]
+            [schema.coerce :as coerce])
   (:import [schema.core Maybe EnumSchema Both OptionalKey]))
 
 (defmacro schema
@@ -89,4 +91,24 @@
   [s]
   (with-description s nil))
 
+
+(defn coercion-matcher
+  "A coercion matcher that builds on a delegate matcher (schema.coerce/string-coercion-matcher, typically), but understands how to unwwrap
+  schemas to eventually get to the class to coercer mapping."
+  {:added "0.1.31"}
+  [schema delegate-coercion-matcher]
+  (cond-let
+    (nil? schema)
+    nil
+
+    [matcher (delegate-coercion-matcher schema)]
+
+    (some? matcher)
+    matcher
+
+    (satisfies? SchemaUnwrapper schema)
+    (recur (unwrap-schema schema) delegate-coercion-matcher)
+
+    :else
+    nil))
 

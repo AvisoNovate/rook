@@ -7,11 +7,12 @@
     [schema.coerce :as coerce]
     [schema.utils :as su]
     [ring.middleware.keyword-params :as kp]
+    [io.aviso.rook.schema :as schema]
     [io.aviso.rook.internals :as internals]
     [io.aviso.rook.utils :as utils])
   (:import [javax.servlet.http HttpServletResponse]
            [java.text SimpleDateFormat DateFormat]
-           [java.util TimeZone Date UUID]))
+           [java.util TimeZone Date]))
 
 ;; Sneaky access to a private function.
 (def ^:private keyify-params (deref #'kp/keyify-params))
@@ -43,8 +44,7 @@
 
 (def ^:private string-coercions
   (merge coerce/+string-coercions+
-         {s/Uuid (coerce/safe #(UUID/fromString %))
-          s/Inst (coerce/safe #(parse-instant %))}))
+         {s/Inst (coerce/safe #(parse-instant %))}))
 
 (defn- string-coercion-matcher
   [schema]
@@ -89,7 +89,7 @@
 
 (defn ^:no-doc schema->coercer
   [schema]
-  (coerce/coercer schema string-coercion-matcher))
+  (coerce/coercer schema #(schema/coercion-matcher % string-coercion-matcher)))
 
 (defn- do-wrap
   [handler metadata metadata-key request-key pre-coerce]
