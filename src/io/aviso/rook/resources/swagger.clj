@@ -1,6 +1,7 @@
 (ns io.aviso.rook.resources.swagger
-  "Exposes a resource used to access the Swagger description for the mapped namespaces (excluding this one, and any other
-  endpoints with the :no-swagger metadata."
+  "Exposes a resource used to access the Swagger description for the mapped namespaces.
+
+  Namespaces with the :no-swagger metadata (including this one) are excluded from the generated documentation."
   {:no-swagger true
    :added      "0.1.27"}
   (:require [ring.util.response :as res]
