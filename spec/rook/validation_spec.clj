@@ -41,7 +41,7 @@
           (should-be-nil new-request)
           (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
           (should= {:error   "invalid-request-data"
-                    :message "Request for endpoint `my/endpoint' contained invalid data: {:user-name disallowed-key, :name missing-required-key}"}
+                    :message "Request for endpoint `my/endpoint' contained invalid data: {:name missing-required-key, :user-name disallowed-key}"}
                    (-> response :body))))
 
     (describe "coercions"

@@ -16,7 +16,7 @@
   (if (:plug metadata)
     (fn [request]
       (-> request
-          (update-in [:plug] (fnil conj []) tag)
+          (update :plug (fnil conj []) tag)
           handler))))
 
 (def request {:uri "/"})

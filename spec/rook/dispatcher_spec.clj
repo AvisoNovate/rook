@@ -197,7 +197,7 @@
                          [handler] (d/construct-namespace-handler nil [['rook-test mw]])
                          body #(:body % %)]
                      (-> (mock/request method path)
-                         (update-in [:params] merge extra-params)
+                         (update :params merge extra-params)
                          handler
                          ;; TODO: fix rook-spec and rook-test/activate (the
                          ;; latter should return a response map rather than a

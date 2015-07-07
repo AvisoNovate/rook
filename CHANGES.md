@@ -1,3 +1,9 @@
+## 0.1.31 - UNRELEASED
+
+Updated Clojure dependency to 1.7.0.
+
+
+
 ## 0.1.30 - 15 Jun 2015
 
 Adds support for :* in an endpoint's route metadata. :* matches one or more path terms; the matched portion of the URI
