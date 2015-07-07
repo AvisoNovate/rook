@@ -22,14 +22,60 @@
   (medley/remove-vals nil? m))
 
 
+(defn- count-indentation
+  "For an input string, "
+  [input]
+  (let [[_ ^String indent] (re-matches #"(\s*).*" input)]
+    [(.length indent) input]))
+
+(defn ^:no-doccle cleanup-indentation-for-markdown
+  "Fixes the indentation of a :doc or :documentation string to be valid for (extended) Markdown."
+  [input]
+  (cond-let
+    (nil? input)
+    nil
+
+    [lines (str/split-lines input)]
+
+    (= 1 (count lines))
+    input
+
+    [lines' (mapv count-indentation (rest lines))
+     non-zero-indents (->> lines'
+                           (map first)
+                           (filter pos?))]
+
+    ;; Not enough lines to bother re-indenting?
+    (< (count non-zero-indents) 2)
+    input
+
+    [min-indent (reduce min non-zero-indents)]
+
+    (zero? min-indent)
+    input
+
+    :else
+    (apply str
+           (first lines)
+           "\n"
+           (interpose "\n"
+                      (for [[indent line] lines']
+                        (if (zero? indent)
+                          line
+                          (subs line min-indent)))))))
+
+(defn- extract-documentation
+  [holder]
+  (let [metadata (meta holder)]
+    (-> (:description metadata)
+        (or (:doc metadata))
+        cleanup-indentation-for-markdown)))
+
 (defn- merge-in-description
   [swagger-schema schema]
-  (let [schema-meta (meta schema)
-        description (or (:description schema-meta)
-                        (:doc schema-meta))]
-    (if description
-      (assoc swagger-schema :description description)
-      swagger-schema)))
+  (if-let [description (extract-documentation schema)]
+    (assoc swagger-schema :description description)
+    swagger-schema))
 
 (def default-swagger-template
   "A base skeleton for a Swagger Object (as per the Swagger 2.0 specification), that is further populated from Rook namespace
@@ -286,8 +332,7 @@
                                       [:properties k])]
                            [acc-so' (cond-> (assoc-in acc-schema path swagger-schema)
                                             required? (update-in [:required] conj k))])))))]
-    (let [base (remove-nil-vals {:description (or (-> schema meta :description)
-                                                  (-> schema meta :doc))})]
+    (let [base (remove-nil-vals {:description (extract-documentation schema)})]
       (reduce reducer [swagger-object base] schema))))
 
 (defn- strip-doc
@@ -368,9 +413,7 @@
         reducer   (fn [so [status-code schema]]
                     (t/track
                       #(format "Describing %d response." status-code)
-                      (let [schema-meta (meta schema)
-                            description (or (:description schema-meta)
-                                            (:doc schema-meta)
+                      (let [description (or (extract-documentation schema)
                                             ;; description is required in the Response Object, so we need some default here.
                                             "Documentation not provided.")
                             [so' schema-reference] (->swagger-schema swagger-options so schema)
@@ -396,8 +439,9 @@
   [swagger-options swagger-object routing-entry paths-key]
   (let [{endpoint-meta :meta} routing-entry
         swagger-meta (:swagger endpoint-meta)
-        description  (or (:description swagger-meta)
-                         (:doc endpoint-meta))
+        description  (-> (:description swagger-meta)
+                         (or (:doc endpoint-meta))
+                         cleanup-indentation-for-markdown)
         summary      (:summary swagger-meta)
         {:keys [path-params-injector query-params-injector body-params-injector header-params-injector
                 responses-injector operation-decorator]} swagger-options

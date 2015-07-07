@@ -65,6 +65,9 @@
                                        :port         8192})]
     #(.stop server)))
 
+(defn- join-lines [& lines]
+  (apply str (interpose "\n" lines)))
+
 (describe "io.aviso.rook.swagger"
 
   (with-all swagger (swagger-object nil swagger-options
@@ -74,6 +77,44 @@
 
   (it "can construct swagger data"
       (should-not-be-nil @swagger))
+
+  (context "markdown"
+
+    (it "can re-indent markdown properly"
+
+        (should=
+          (join-lines
+            "foo"
+            ""
+            "bar"
+            ": bar desc"
+            ""
+            "baz"
+            ":baz desc"
+            "")
+          (sw/cleanup-indentation-for-markdown
+            (join-lines
+              "foo"
+              "  "
+              "  bar"
+              "  : bar desc"
+              "  "
+              "  baz"
+              "  :baz desc"
+              "  "))))
+
+    (it "handles edge cases"
+
+        (should-be-nil (sw/cleanup-indentation-for-markdown nil))
+
+        (let [input "single line"]
+          (should-be-same input (sw/cleanup-indentation-for-markdown input)))
+
+        (let [input "multiple lines\r\nwithout\nindentation"]
+          (should-be-same input (sw/cleanup-indentation-for-markdown input)))
+
+        (let [input "only a single\n  line is indented"]
+          (should-be-same input (sw/cleanup-indentation-for-markdown input)))))
 
   (context "requests"
     (it "can capture header parameters and descriptions"

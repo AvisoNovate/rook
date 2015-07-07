@@ -5,6 +5,10 @@ Updated Clojure dependency to 1.7.0.
 Rook can now handle coercion, even when the schema has been decorated with a description via
 io.aviso.rook.schema/with-description.
 
+Description strings extracted from :doc or :documentation metadata are now re-indented before being emitted
+into the Swagger API description. Previously, lines after the first were indented (typically) two extra characters
+and some Markdown extensions would have trouble parsing the result properly.
+
 ## 0.1.30 - 15 Jun 2015
 
 Adds support for :* in an endpoint's route metadata. :* matches one or more path terms; the matched portion of the URI
