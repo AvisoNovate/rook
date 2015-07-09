@@ -90,18 +90,17 @@
             ": bar desc"
             ""
             "baz"
-            ":baz desc"
+            ": baz desc"
             "")
           (sw/cleanup-indentation-for-markdown
-            (join-lines
-              "foo"
-              "  "
-              "  bar"
-              "  : bar desc"
-              "  "
-              "  baz"
-              "  :baz desc"
-              "  "))))
+            "foo
+
+            bar
+            : bar desc
+
+            baz
+            : baz desc
+            ")))
 
     (it "handles edge cases"
 
@@ -113,7 +112,8 @@
         (let [input "multiple lines\r\nwithout\nindentation"]
           (should-be-same input (sw/cleanup-indentation-for-markdown input)))
 
-        (let [input "only a single\n  line is indented"]
+        (let [input "only a single
+        line is indented"]
           (should-be-same input (sw/cleanup-indentation-for-markdown input)))))
 
   (context "requests"
