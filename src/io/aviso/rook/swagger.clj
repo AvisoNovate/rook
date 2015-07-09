@@ -40,7 +40,7 @@
     (= 1 (count lines))
     input
 
-    [lines' (mapv count-indentation (rest lines))
+    [lines' (mapv count-indentation lines)
      non-zero-indents (->> lines'
                            (map first)
                            (filter pos?))]
@@ -56,8 +56,6 @@
 
     :else
     (apply str
-           (first lines)
-           "\n"
            (interpose "\n"
                       (for [[indent line] lines']
                         (if (zero? indent)
