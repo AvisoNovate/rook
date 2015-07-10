@@ -114,7 +114,7 @@
 
         (let [input "only a single
         line is indented"]
-          (should-be-same input (sw/cleanup-indentation-for-markdown input)))))
+          (should= "only a single\nline is indented" (sw/cleanup-indentation-for-markdown input)))))
 
   (context "requests"
     (it "can capture header parameters and descriptions"

@@ -45,8 +45,7 @@
                            (map first)
                            (filter pos?))]
 
-    ;; Not enough lines to bother re-indenting?
-    (< (count non-zero-indents) 2)
+    (empty? non-zero-indents)
     input
 
     [min-indent (reduce min non-zero-indents)]
