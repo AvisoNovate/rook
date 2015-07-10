@@ -28,7 +28,7 @@
   (let [[_ ^String indent] (re-matches #"(\s*).*" input)]
     [(.length indent) input]))
 
-(defn ^:no-doccle cleanup-indentation-for-markdown
+(defn ^:no-doc cleanup-indentation-for-markdown
   "Fixes the indentation of a :doc or :documentation string to be valid for (extended) Markdown."
   [input]
   (cond-let
