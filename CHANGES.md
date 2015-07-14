@@ -1,4 +1,4 @@
-## 0.1.32 - UNRELEASED
+## 0.1.32 - 14 Jul 2015
 
 Small improvements to how documentation is extracted from nested schemas (as part of the Swagger support).
 For example,
