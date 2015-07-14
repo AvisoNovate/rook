@@ -1,5 +1,11 @@
 ## 0.1.32 - UNRELEASED
 
+Small improvements to how documentation is extracted from nested schemas (as part of the Swagger support).
+For example,
+`(s/maybe (rs/with-description "The frobinator's unique id." s/Str))` will now find that
+description, where previously it did not.
+
+Update to latest dependencies, including Ring 1.4.0.
 
 ## 0.1.31 - 7 Jul 2015
 

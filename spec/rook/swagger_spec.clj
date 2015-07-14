@@ -78,6 +78,16 @@
   (it "can construct swagger data"
       (should-not-be-nil @swagger))
 
+  (context "extraction of documentation"
+
+    (it "can extract nested documentation"
+        (should= "got it"
+                 (sw/extract-documentation (s/maybe (rs/with-description "got it" s/Str)))))
+
+    (it "knows when to stop"
+        (should-be-nil
+          (sw/extract-documentation (s/maybe s/Str)))))
+
   (context "markdown"
 
     (it "can re-indent markdown properly"

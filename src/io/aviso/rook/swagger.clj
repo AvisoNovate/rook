@@ -6,7 +6,7 @@
 
   This is currently under heavy development and is likely to be somewhat unstable for a couple of releases."
   (:require [schema.core :as s]
-            [io.aviso.rook.schema :refer [unwrap-schema]]
+            [io.aviso.rook.schema :refer [unwrap-schema SchemaUnwrapper]]
             [clojure.string :as str]
             [medley.core :as medley]
             [io.aviso.toolchest.macros :refer [cond-let]]
@@ -61,12 +61,32 @@
                           line
                           (subs line min-indent)))))))
 
-(defn- extract-documentation
+(defn- find-documentation
   [holder]
-  (let [metadata (meta holder)]
-    (-> (:description metadata)
-        (or (:doc metadata))
-        cleanup-indentation-for-markdown)))
+  (cond-let
+    (nil? holder)
+    nil
+
+    [holder-meta (meta holder)]
+
+    [docs (or (:description holder-meta)
+              (:doc holder-meta))]
+
+    (some? docs)
+    docs
+
+    [unwrapped (and (satisfies? SchemaUnwrapper holder)
+                    (unwrap-schema holder))]
+
+    unwrapped
+    (recur unwrapped)
+
+    :else
+    nil))
+
+(defn ^:no-doc extract-documentation
+  [holder]
+  (cleanup-indentation-for-markdown (find-documentation holder)))
 
 (defn- merge-in-description
   [swagger-schema schema]
