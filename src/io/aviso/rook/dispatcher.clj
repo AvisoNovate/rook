@@ -320,7 +320,8 @@
   "Keys to suppress when producing debugging output about function metadata; the goal is to present
   just the non-standard metadata. :route is left in (whether explicit, or added by naming
   convention)."
-  (cons :function (-> #'map meta keys)))
+  ; The use of clojure.core/map is completely arbitrary
+  (into [:function] (-> #'map meta keys)))
 
 (defn ^:no-doc build-namespace-table
   "Returns a seq of expanded ns-specs.
@@ -387,6 +388,27 @@
          (conj ns-spec (evaluate-namespace-metadata context ns-sym)))
        ns-specs))
 
+(defn- eval-argument-meta
+  "Much like namespace metadata, metadata on an individual argument's symbol is visible but not evaluated.
+  This function replaces the meta-data of an argument symbol with the evaluated version of the metadata."
+  [ns-sym argument]
+  (cond-let
+    [raw-meta (meta argument)]
+
+    (nil? raw-meta)
+    argument
+
+    [evaled-meta (t/track
+                   (format "Evaluating metadata on symbol %s." argument)
+                   (binding [*ns* (the-ns ns-sym)]
+                     (eval raw-meta)))]
+
+    (= raw-meta evaled-meta)
+    argument
+
+    :else
+    (with-meta argument evaled-meta)))
+
 (defn- construct-namespace-table-entry
   [container-context ns-sym arg-resolvers middleware ns-metadata fn-name fn-var]
   (t/track
@@ -420,7 +442,9 @@
               endpoint-arg-resolvers (merge-arg-resolver-maps arg-resolvers
                                                               (:arg-resolvers merged-metadata))
 
-              arglist (->> fn-meta :arglists first (map symbol-for-argument))
+              arglist (->> fn-meta :arglists first
+                           (map (partial eval-argument-meta ns-sym))
+                           (map symbol-for-argument))
 
               route-params (->> endpoint-context
                                 (filter keyword?)

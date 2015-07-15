@@ -71,25 +71,55 @@
   (unwrap-schema [this]
     (.schemas this)))
 
+(defn- assoc-schema-meta
+  [schema key value]
+  (cond
+    (nil? schema)
+    (recur s/Any key value)
+
+    (= Class (type schema))
+    (recur (IsInstance. schema) key value)
+
+    :else
+    (assoc-meta schema key value)))
+
 (defn with-description
   "Adds a :description key to the metadata of the schema.
 
-  Since nil can't have metadata, a nil schema is quietly converted to schema.core/Any."
+  Since nil can't have metadata, a nil schema is quietly converted to schema.core/Any. Likewise,
+  a class is wrapped using an [[IsInstance]] schema."
   [description schema]
-  (cond
-    (nil? schema)
-    (recur description s/Any)
+  (assoc-schema-meta schema :description description))
 
-    (= Class (type schema))
-    (recur description (IsInstance. schema))
+(defn with-usage-description
+  "Adds :usage-description key to the metadata.
 
-    :else
-    (assoc-meta schema :description description)))
+  The usage description is used at the point a schema is referenced.
+  In output, this will be description of the property that *uses* the schema.
+  Later in the output documentation, the schema itself will be output, using just its :description
+  (or :doc) metadata."
+  {:added "0.1.33"}
+  [usage-description schema]
+  (assoc-schema-meta schema :usage-description usage-description))
 
 (defn description
   "A convienience for generating a description with no schema."
   [s]
   (with-description s nil))
+
+(s/defn with-data-type
+  "Adds Swagger-specific data type metadata to a Schema."
+  {:added "0.1.33"}
+  [swagger-meta :- {:type
+                    ;; As per http://json-schema.org/latest/json-schema-core.html#anchor4
+                    (s/enum :string :number :boolean :array :integer :null :object)
+
+                    (s/optional-key :format)
+                    ;; As per https://github.com/swagger-api/swagger-spec/blob/master/versions/2.0.md#dataTypeFormat
+                    ;; Not all formats apply to all types.
+                    (s/enum :int32 :int64 :float :double :byte :date :date-time :password)}
+   schema]
+  (assoc-meta schema :swagger-data-type swagger-meta))
 
 
 (defn coercion-matcher

@@ -1,3 +1,17 @@
+## 0.1.33 - 15 July 2015
+
+More Swagger fixes:
+
+- Change "otherProperties" to "additionalProperties"
+- Include `type: 'object'` for object schemas
+- Dig down through nested schemas to find the data type mapping (much like description extraction in 0.1.32)
+- New function io.aviso.rook.schema/with-data-type is used to annotate the type and format for a schema where this
+  can't be normally deduced, such as when using schema.core/pred.
+- New function io.aviso.rook.schema/with-usage-description allows a description of how a schema is being used, distinct
+  from the schemas own description.
+- Metadata on endpoint function parameters is now evaluated, as was already done with namespace metadata
+- Schemas created via schema.core/maybe now include `"x-nullable": true` in their definition.
+
 ## 0.1.32 - 14 Jul 2015
 
 Small improvements to how documentation is extracted from nested schemas (as part of the Swagger support).
@@ -21,7 +35,7 @@ and some Markdown extensions would have trouble parsing the result properly.
 ## 0.1.30 - 15 Jun 2015
 
 Adds support for :* in an endpoint's route metadata. :* matches one or more path terms; the matched portion of the URI
-is available as the endpoint argument wildcard-path.
+is available as the endpoint argument `wildcard-path`.
 
 ## 0.1.29 - 2 Jun 2015
 
@@ -53,12 +67,11 @@ When the necessary metadata (:query-schema, :form-schema, :body-schema, :schema)
 Swagger 2.0 support has been completely rewritten. *In progress.* 
 
 The io.aviso.rook.client namespace has been removed with no replacement.
-As a client library, it was not well suited to a server-oriented library.
 
 ## 0.1.26 - 30 Mar 2015
 
 Rook is now focused on dispatch of incoming requests to endpoints; a hard look at the async features have found them to
-be problematic, and not returning on the desired investment and they have been removed.
+be problematic on several fronts, and not providing any measurable performance improvement; they have been removed.
  
 io.aviso.rook.server has a new function, wrap-with-exception-catching, which catches exceptions, reports them
 (using io.aviso/tracker), and returns a 500 failure response.

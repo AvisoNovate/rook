@@ -7,7 +7,6 @@
 ;; These are just placeholders for testing the Swagger integration:
 
 (rs/defschema ShowHotelResponse
-  "Describes a hotel."
   {:id         (rs/with-description "Unique id for the hotel." s/Uuid)
    :created_at (rs/with-description "Instant when hotel was first created." s/Inst)
    :updated_at (rs/with-description "Instant when hotel was last updated." s/Inst)
@@ -34,13 +33,15 @@
   nil)
 
 (def show-responses
-  {HttpServletResponse/SC_OK        (rs/with-description "The hotel matching the id, if found." ShowHotelResponse)
+  {HttpServletResponse/SC_OK        (rs/with-usage-description "The hotel matching the id, if found." ShowHotelResponse)
    HttpServletResponse/SC_NOT_FOUND (rs/description "No hotel with the provided id could be found.")})
+
+(def ^:private hotel-id-description "Unique id of hotel.")
 
 (defn show
   "Returns a single hotel, if found."
   {:responses show-responses}
-  [^{:description "Unique id of hotel."} id]
+  [^{:description hotel-id-description} id]
   nil)
 
 (rs/defschema ChangeHotelRequest
@@ -57,7 +58,7 @@
   "Updates a Hotel, to rename it. May result in a 409 Conflict if some other hotel has the same name."
   {:body-schema ChangeHotelRequest
    :responses   change-responses}
-  [^{:description "Id of hotel to update."} id
+  [^{:description hotel-id-description} id
    params
    ^{:header      true
      :description "Used for optimistic locking."} if-match])

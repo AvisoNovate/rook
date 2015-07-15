@@ -1,5 +1,4 @@
 (ns io.aviso.rook.swagger
-
   "ALPHA / EXPERIMENTAL
 
   Generates a Swagger 2.0 API description from Rook namespace metadata.
@@ -21,6 +20,9 @@
   [m]
   (medley/remove-vals nil? m))
 
+(defn- is-nullable?
+  [schema]
+  (instance? Maybe schema))
 
 (defn- count-indentation
   "For an input string, "
@@ -29,7 +31,7 @@
     [(.length indent) input]))
 
 (defn ^:no-doc cleanup-indentation-for-markdown
-  "Fixes the indentation of a :doc or :documentation string to be valid for (extended) Markdown."
+  "Fixes the indentation of a :doc or :description string to be valid for (extended) Markdown."
   [input]
   (cond-let
     (nil? input)
@@ -61,6 +63,17 @@
                           line
                           (subs line min-indent)))))))
 
+(defn- unwrap
+  [schema]
+  (if (satisfies? SchemaUnwrapper schema)
+    (unwrap-schema schema)))
+
+(defn- direct-doc
+  [metadata]
+  (or (:usage-description metadata)
+      (:description metadata)
+      (:doc metadata)))
+
 (defn- find-documentation
   [holder]
   (cond-let
@@ -69,16 +82,14 @@
 
     [holder-meta (meta holder)]
 
-    [docs (or (:description holder-meta)
-              (:doc holder-meta))]
+    [docs (direct-doc holder-meta)]
 
     (some? docs)
     docs
 
-    [unwrapped (and (satisfies? SchemaUnwrapper holder)
-                    (unwrap-schema holder))]
+    [unwrapped (unwrap holder)]
 
-    unwrapped
+    (some? unwrapped)
     (recur unwrapped)
 
     :else
@@ -226,7 +237,6 @@
   (convert-schema [schema swagger-options swagger-object]
     (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options swagger-object (unwrap-schema schema))]
       [swagger-object' (-> swagger-schema
-                           (assoc :allowEmptyValue true)
                            (merge-in-description schema))]))
 
   AnythingSchema
@@ -273,6 +283,25 @@
       "Converting map schema."
       (->swagger-schema swagger-options swagger-object schema))))
 
+(defn ^:no-doc find-data-type-mapping
+  [swagger-options schema]
+  (cond-let
+    (nil? schema)
+    nil
+
+    [data-type-meta (-> schema meta :swagger-data-type)]
+
+    (some? data-type-meta)
+    data-type-meta
+
+    [data-type (-> swagger-options :data-type-mappings (get schema))]
+
+    (some? data-type)
+    data-type
+
+    :else
+    (recur swagger-options (unwrap schema))))
+
 (defn- simple->swagger-schema
   "Converts a simple (non-object) Schema into an inline Swagger Schema, with keys :type and perhaps :format, :description, etc."
   ([swagger-options swagger-object schema]
@@ -280,11 +309,10 @@
   ([swagger-options swagger-object schema description-schema]
    (cond-let
 
-     [data-type-mappings (:data-type-mappings swagger-options)
-      data (get data-type-mappings schema)]
+     [data-type (find-data-type-mapping swagger-options schema)]
 
-     (some? data)
-     [swagger-object (merge-in-description data description-schema)]
+     (some? data-type)
+     [swagger-object (merge-in-description data-type description-schema)]
 
      :else
      (convert-schema schema swagger-options swagger-object))))
@@ -306,11 +334,12 @@
                       (t/track
                         #(format "Describing query parameter `%s'." (name k))
                         (let [[swagger-object' swagger-schema] (simple->swagger-schema swagger-options so key-schema)
-                              full-description (-> swagger-schema
-                                                   (assoc :name k
-                                                          :in :query
-                                                          :required required)
-                                                   (merge-in-description key-schema))]
+                              full-description (cond-> (-> swagger-schema
+                                                           (assoc :name k
+                                                                  :in :query
+                                                                  :required required)
+                                                           (merge-in-description key-schema))
+                                                       (is-nullable? key-schema) (assoc :allowEmptyValue true))]
                           (update-in swagger-object' params-key
                                      conj full-description)))))]
       (reduce reducer swagger-object schema))
@@ -344,17 +373,29 @@
                        (t/track
                          #(format "Describing key `%s'." key-name)
                          (let [[acc-so' swagger-schema] (simple->swagger-schema swagger-options acc-so schema-value)
+                               nullable? (is-nullable? schema-value)
+                               swagger-schema' (cond-> (merge-in-description swagger-schema schema-value)
+                                                       nullable? (assoc :x-nullable true))
                                path (if (= ::wildcard k)
-                                      [:otherProperties]
+                                      [:additionalProperties]
                                       [:properties k])]
-                           [acc-so' (cond-> (assoc-in acc-schema path swagger-schema)
+                           [acc-so' (cond-> (assoc-in acc-schema path swagger-schema')
                                             required? (update-in [:required] conj k))])))))]
-    (let [base (remove-nil-vals {:description (extract-documentation schema)})]
+    (let [base (remove-nil-vals {:type        :object
+                                 :description (extract-documentation schema)})]
       (reduce reducer [swagger-object base] schema))))
 
-(defn- strip-doc
+(defn- strip-usage-doc
   [schema]
-  (vary-meta schema dissoc :doc :description))
+  (vary-meta schema dissoc :usage-description))
+
+(defn- merge-direct-doc
+  "Merges in documentation that's directly on the provided schema (but ignores nested)."
+  [swagger-schema schema]
+  (let [local-doc (-> schema meta direct-doc)]
+    (if local-doc
+      (assoc swagger-schema :description local-doc)
+      swagger-schema)))
 
 ;; Can we merge simple->swagger-schema and ->swagger-schema?
 
@@ -374,8 +415,9 @@
     ;; We should probably verify that a vector has a single schema element; that's all that
     ;; JSON schemas can handle, which is a subset of Schema.
     (let [[so' item-reference] (->swagger-schema swagger-options swagger-object (first schema))]
-      [so' {:type  :array
-            :items item-reference}])
+      [so' (merge-direct-doc {:type  :array
+                              :items item-reference}
+                             schema)])
 
     [schema-name (s/schema-name schema)
      schema-ns (-> schema meta :ns)]
@@ -387,19 +429,21 @@
     ;; map.
     ;; For these anonymous/inline schemas, we strip out the doc & description, as that should have been captured at the
     ;; point where the schema is first referenced (i.e., a response definition).
-    (let [[so' new-schema] (map->swagger-schema swagger-options swagger-object (strip-doc schema))]
+    (let [[so' new-schema] (map->swagger-schema swagger-options swagger-object (strip-usage-doc schema))]
       [so' new-schema])
 
     ;; Avoid forward slash in the swagger name, as that's problematic, especially for
     ;; the swagger-ui (which must be taking a few liberties or shortcuts).
     [swagger-name (str schema-ns \: schema-name)
-     swagger-reference {"$ref" (str "#/definitions/" swagger-name)}
+     usage-doc (-> schema meta :usage-description)
+     swagger-reference (cond-> {"$ref" (str "#/definitions/" swagger-name)}
+                               usage-doc (assoc :description usage-doc))
      swagger-schema (get-in swagger-object [:definitions swagger-name])]
 
     (some? swagger-schema)
     [swagger-object swagger-reference]
 
-    [[so-1 new-schema] (map->swagger-schema swagger-options swagger-object schema)
+    [[so-1 new-schema] (map->swagger-schema swagger-options swagger-object (strip-usage-doc schema))
      so-2 (assoc-in so-1 [:definitions swagger-name] new-schema)]
 
     :else
@@ -455,11 +499,9 @@
   Returns the modified swagger-object."
   [swagger-options swagger-object routing-entry paths-key]
   (let [{endpoint-meta :meta} routing-entry
-        swagger-meta (:swagger endpoint-meta)
-        description  (-> (:description swagger-meta)
-                         (or (:doc endpoint-meta))
+        description  (-> (direct-doc endpoint-meta)
                          cleanup-indentation-for-markdown)
-        summary      (:summary swagger-meta)
+        summary      (:summary endpoint-meta)
         {:keys [path-params-injector query-params-injector body-params-injector header-params-injector
                 responses-injector operation-decorator]} swagger-options
         params-key   (concat paths-key ["parameters"])]

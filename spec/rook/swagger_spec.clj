@@ -88,6 +88,15 @@
         (should-be-nil
           (sw/extract-documentation (s/maybe s/Str)))))
 
+  (context "extraction of data type"
+    (it "can find mapping from wrapped schemas"
+        (should= {:type :integer}
+                 (sw/find-data-type-mapping sw/default-swagger-options (s/maybe (rs/with-description "wrapped" s/Int)))))
+
+    (it "knows when to stop"
+        (should-be-nil
+          (sw/find-data-type-mapping sw/default-swagger-options StringBuffer))))
+
   (context "markdown"
 
     (it "can re-indent markdown properly"
@@ -126,6 +135,75 @@
         line is indented"]
           (should= "only a single\nline is indented" (sw/cleanup-indentation-for-markdown input)))))
 
+  (context "schemas"
+
+    (rs/defschema ItemCost
+      "The cost of an item."
+      {(s/optional-key :currency) (rs/with-description "Three digit currency code." s/Str)
+       :amount                    (rs/with-description "Numeric value." s/Str)})
+
+    (rs/defschema ItemResponse
+      "The cost of the identified item."
+      {:cost (rs/with-usage-description "Cost of item with taxes and discounts." ItemCost)})
+
+    (it "can process nested schemas"
+        (let [[swagger-object schema] (sw/->swagger-schema sw/default-swagger-options {} ItemResponse)]
+          (should= {:definitions
+                    {"rook.swagger-spec:ItemCost"     {:type        :object
+                                                       :description "The cost of an item."
+                                                       :properties
+                                                                    {:currency {:type        :string
+                                                                                :description "Three digit currency code."}
+                                                                     :amount   {:type        :string
+                                                                                :description "Numeric value."}}
+                                                       :required    [:amount]}
+                     "rook.swagger-spec:ItemResponse" {:type        :object
+                                                       :description "The cost of the identified item."
+                                                       :properties  {:cost {"$ref"       "#/definitions/rook.swagger-spec:ItemCost"
+                                                                            :description "Cost of item with taxes and discounts."
+                                                                            }}
+                                                       :required    [:cost]}}} swagger-object)
+          (should= {"$ref" "#/definitions/rook.swagger-spec:ItemResponse"} schema)))
+
+    (it "recognizes the Swagger meta-data"
+        (let [[swagger-object schema] (sw/->swagger-schema
+                                        sw/default-swagger-options
+                                        {}
+                                        {:tricky (rs/with-description "Tricky!"
+                                                                      (rs/with-data-type {:type   :string
+                                                                                          :format :password}
+                                                                                         (s/both s/Str
+                                                                                                 (s/pred #(< 5 (.length %)) 'min-length))))})]
+          (should= {} swagger-object)
+          (should= {:type     :object
+                    :properties
+                              {:tricky {:type :string :format :password :description "Tricky!"}}
+                    :required [:tricky]} schema)))
+
+    (rs/defschema OptionalItemResponse
+      "Optional item cost."
+      {:cost (s/maybe ItemCost)})
+
+    (it "marks s/maybe with x-nullable"
+        (let [[swagger-object schema] (sw/->swagger-schema sw/default-swagger-options {} OptionalItemResponse)]
+          (should= {:definitions
+                    {"rook.swagger-spec:ItemCost" {:type        :object
+                                                   :description "The cost of an item."
+                                                   :properties
+                                                                {:currency {:type        :string
+                                                                            :description "Three digit currency code."}
+                                                                 :amount   {:type        :string
+                                                                            :description "Numeric value."}}
+                                                   :required    [:amount]}
+                     "rook.swagger-spec:OptionalItemResponse"
+                                                  {:type        :object
+                                                   :description "Optional item cost."
+                                                   :properties  {:cost {"$ref"       "#/definitions/rook.swagger-spec:ItemCost"
+                                                                        :description "The cost of an item."
+                                                                        :x-nullable  true}}
+                                                   :required    [:cost]}}} swagger-object)
+          (should= {"$ref" "#/definitions/rook.swagger-spec:OptionalItemResponse"} schema))))
+
   (context "requests"
     (it "can capture header parameters and descriptions"
         ;; We could set this up as in other cases, but the meta-data and interactions are complex
@@ -140,25 +218,25 @@
                     :in          :header})))
 
     (it "can capture path parameter descriptions"
-        (should= {:operation-path [{:description "id docs"
-                                    :name        "id"
-                                    :type        :string
-                                    :in          :path
-                                    :required    true}]}
-                 ;; :argument is supplied by i.a.r.dispatcher; it handle deconstruction maps (reducing them to the :as symbol),
-                 (sw/default-path-params-injector nil {} {:meta {:arguments [(with-meta 'id {:description "id docs"})]}
-                                                          :path ["foo" :id "bar"]} [:operation-path]))))
+        (should= [{:name        "id"
+                   :type        :string
+                   :in          :path
+                   :required    true
+                   :description "Unique id of hotel."}]
+                 (get-in @swagger [:paths "/hotels/{id}" "get" "parameters"]))))
 
   (context "responses"
 
     (with-all response-description
-              (rs/with-description "Error Body Description"
+              (rs/with-description "Something Went Boom"
                                    {:error                    (rs/with-description "logical error name" s/Str)
                                     (s/optional-key :message) (rs/with-description "user presentable message" s/Str)}))
 
     (it "can capture schema descriptions"
-        (should= {:path {:responses {200 {:description "Error Body Description"
+        (should= {:path {:responses {200 {:description "Something Went Boom"
                                           :schema      {:required   [:error]
+                                                        :description "Something Went Boom"
+                                                        :type :object
                                                         :properties {:error   {:type        :string
                                                                                :description "logical error name"}
                                                                      :message {:type        :string
