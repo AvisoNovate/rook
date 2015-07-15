@@ -118,7 +118,7 @@
    :info        {:title   "<UNSPECIFIED>"
                  :version "<UNSPECIFIED>"}})
 
-(defn keyword->path?
+(defn- keyword->path?
   [v]
   (if (keyword? v)
     (str \{ (name v) \})
@@ -216,7 +216,7 @@
 
   (convert-schema [schema swagger-options swagger-object]
     "Given a particular implementation of Prismatic Schema, do a conversion to a Swagger/JSON schema.
-    Return a tuple of the (possibly updated swagger-object) and the converted schema."))
+    Return a tuple of the (possibly updated) swagger-object and the converted schema."))
 
 (extend-protocol SchemaConversion
 
