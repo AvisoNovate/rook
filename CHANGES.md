@@ -1,4 +1,4 @@
-## 0.1.33 - 15 July 2015
+## 0.1.33 - 15 Jul 2015
 
 More Swagger fixes:
 
