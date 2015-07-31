@@ -1,3 +1,7 @@
+## 0.1.34 - 31 Jul 2015
+
+Rolled back Clojure compatibility to 1.6.
+
 ## 0.1.33 - 15 Jul 2015
 
 More Swagger fixes:

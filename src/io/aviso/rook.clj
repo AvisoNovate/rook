@@ -24,7 +24,7 @@
   (that will match against function argument symbols, converted to keywords)."
   {:added "0.1.10"}
   [request injection-map]
-  (update request ::injections merge injection-map))
+  (update-in request [::injections] merge injection-map))
 
 (defn inject
   "Merges a single keyword key and value into the map of injectable argument values store in the request.

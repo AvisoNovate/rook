@@ -36,5 +36,5 @@
   Increments an existing counter."
   {:route [:put [:id "increment"]]}
   [id]
-  (swap! counters #(update % id (fnil inc 0)))
+  (swap! counters #(update-in % [id] (fnil inc 0)))
   (r/response (@counters id)))
