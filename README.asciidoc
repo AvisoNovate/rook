@@ -1,4 +1,4 @@
-== Rook - Sane, smart, fast, Clojure web services
+## Rook - Sane, smart, fast, Clojure web services
 
 image:http://clojars.org/io.aviso/rook/latest-version.svg[Clojars Project, link="http://clojars.org/io.aviso/rook"]
 
