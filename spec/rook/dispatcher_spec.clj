@@ -14,8 +14,8 @@
             ring.middleware.keyword-params
             [clojure.edn :as edn]
             [io.aviso.rook.server :as server])
-  (:import [javax.servlet.http HttpServletResponse]))
-
+  (:import [javax.servlet.http HttpServletResponse]
+           (clojure.lang ExceptionInfo)))
 
 (defn generate-huge-resource-namespace [ns-name size]
   (if-let [ns (find-ns ns-name)]
@@ -243,18 +243,62 @@
           (let [override ^:replace-resolvers {'magic-value (constantly "**magic**")}
                 handler (rook/namespace-handler {:arg-resolvers override}
                                                 [["magic"] 'magic])]
-            (-> (mock/request :get "/magic")
-                handler
-                (should= "**magic**"))))
+            (should= "**magic**"
+                     (handler (mock/request :get "/magic")))))
 
       (it "supports overriding default arg resolver factories"
           (let [override ^:replace-factories {:magic (fn [sym]
                                                        (constantly (str "**presto[" sym "]**")))}
                 handler (rook/namespace-handler {:arg-resolvers override}
                                                 [["presto"] 'presto])]
-            (-> (mock/request :get "/presto/42")
-                handler
-                (should= "42 -- **presto[extra]**"))))))
+            (should= "42 -- **presto[extra]**"
+                     (handler (mock/request :get "/presto/42")))))
+
+      (context "explicit argument resolution"
+
+        ;; Relates to the rook/resolve-argument function added in 0.1.35
+
+        (it "can identify argument resolvers from convention name of symbol"
+            (let [handler (rook/namespace-handler ['explicit-arg-resolver])]
+              (should= "gnip/gnop"
+                       (-> (mock/request :get "/symbol-example/gnip/gnop")
+                           handler
+                           :body
+                           :value))))
+
+        (it "can resolve expand keywords to metadata map"
+            (let [handler (rook/namespace-handler ['explicit-arg-resolver])]
+              (should= "resolved!"
+                       (-> (mock/request :get "/keyword-example")
+                           (mock/header :special-header "resolved!")
+                           handler
+                           :body
+                           :value))))
+
+
+        (it "checks for endpoints in request"
+            (let [request {}]
+              (try
+
+                (rook/resolve-argument-value request nil 'foo)
+
+                (-fail "unreachable")
+                (catch ExceptionInfo e
+                  (should-contain "argument resolvers" (.getMessage e))
+                  (should= {:missing-key ::d/endpoint-arg-resolvers
+                            :request     {}} (ex-data e))))))
+
+        (it "checks for route-params in request"
+            (let [request {::d/endpoint-arg-resolvers {}}]
+              (try
+
+                (rook/resolve-argument-value request nil 'foo)
+
+                (-fail "unreachable")
+                (catch ExceptionInfo e
+                  (should-contain "route parameters" (.getMessage e))
+                  (should= {:missing-key ::d/route-params
+                            :request     request} (ex-data e)))))))))
 
   (describe "handlers with a large number of endpoints"
 

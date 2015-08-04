@@ -254,44 +254,45 @@
 
   arg
   : Argument, a symbol."
-  [arg-resolvers route-params arg]
-  (let [arg-meta (meta arg)]
-    (t/track #(format "Identifying argument resolver for `%s'." arg)
-             (cond-let
-               ;; route param resolution takes precedence
-               (contains? route-params arg)
-               (make-route-param-resolver arg)
+  ([arg-resolvers route-params arg]
+   (identify-argument-resolver arg-resolvers route-params (meta arg) arg))
+  ([arg-resolvers route-params arg-meta arg]
+   (t/track #(format "Identifying argument resolver for `%s'." arg)
+            (cond-let
+              ;; route param resolution takes precedence
+              (contains? route-params arg)
+              (make-route-param-resolver arg)
 
-               [resolver (:io.aviso.rook/resolver arg-meta)]
+              [resolver (:io.aviso.rook/resolver arg-meta)]
 
-               ;; explicit ::rook/resolver metadata takes precedence for non-route params
-               (some? resolver)
-               (find-resolver arg-resolvers arg resolver)
+              ;; explicit ::rook/resolver metadata takes precedence for non-route params
+              (some? resolver)
+              (find-resolver arg-resolvers arg resolver)
 
-               ;; explicit tags attached to the arg symbol itself come next
-               [resolver-tag (find-argument-resolver-tag arg-resolvers arg arg-meta)]
+              ;; explicit tags attached to the arg symbol itself come next
+              [resolver-tag (find-argument-resolver-tag arg-resolvers arg arg-meta)]
 
-               (some? resolver-tag)
-               (find-resolver arg-resolvers arg resolver-tag)
+              (some? resolver-tag)
+              (find-resolver arg-resolvers arg resolver-tag)
 
-               ;; non-route-param name-based resolution is implicit and
-               ;; should not override explicit tags, so this check comes
-               ;; last; NB. the value at arg-symbol might be a keyword
-               ;; identifying a resolver factory, so we still need to call
-               ;; find-resolver
-               [arg-resolver (get arg-resolvers arg)]
+              ;; non-route-param name-based resolution is implicit and
+              ;; should not override explicit tags, so this check comes
+              ;; last; NB. the value at arg-symbol might be a keyword
+              ;; identifying a resolver factory, so we still need to call
+              ;; find-resolver
+              [arg-resolver (get arg-resolvers arg)]
 
-               (some? arg-resolver)
-               (find-resolver arg-resolvers arg arg-resolver)
+              (some? arg-resolver)
+              (find-resolver arg-resolvers arg arg-resolver)
 
-               ;; only static resolution is supported
-               :else
-               (throw (ex-info
-                        (format "Unable to identify argument resolver for symbol `%s'." arg)
-                        {:symbol        arg
-                         :symbol-meta   arg-meta
-                         :route-params  route-params
-                         :arg-resolvers arg-resolvers}))))))
+              ;; only static resolution is supported
+              :else
+              (throw (ex-info
+                       (format "Unable to identify argument resolver for symbol `%s'." arg)
+                       {:symbol        arg
+                        :symbol-meta   arg-meta
+                        :route-params  route-params
+                        :arg-resolvers arg-resolvers}))))))
 
 (defn- identify-arglist-resolvers
   "Returns a function that is passed the Ring request and returns an array of argument values which
@@ -472,7 +473,8 @@
               apply-context-middleware (fn [handler]
                                          (fn [request]
                                            (-> request
-                                               (assoc ::context (->> request ::path (take context-length) (str/join "/")))
+                                               (assoc ::context (->> request ::path (take context-length) (str/join "/"))
+                                                      ::endpoint-arg-resolvers endpoint-arg-resolvers)
                                                handler)))
 
               logging-middleware (fn [handler]
@@ -678,3 +680,41 @@
                     construct-dispatch-map
                     create-map-traversal-handler)]
     [handler routing-table]))
+
+(defn resolve-argument-value
+  "Resolves an argument, as if it were an argument to an endpoint function.
+
+  request
+  : The Ring request map, as passed through middleware and to the endpoint.
+
+  argument-meta
+  : A map of metadata about the symbol (may be nil)
+
+  argument-symbol
+  : A symbol identifying the name of the parameter. This is sometimes needed to construct
+    the argument resolver function.
+
+
+  Throws an exception if no (single) argument resolver can be identified."
+  {:added "0.1.35"}
+  [request argument-meta argument-symbol]
+  {:pre [(map? request)
+         (symbol? argument-symbol)]}
+  (cond-let
+    [{resolvers    ::endpoint-arg-resolvers
+      route-params ::route-params} request]
+
+    (nil? resolvers)
+    (throw (ex-info "Unable to extract argument resolvers for endpoint from request."
+                    {:missing-key ::endpoint-arg-resolvers
+                     :request     request}))
+
+    (nil? route-params)
+    (throw (ex-info "Unable to extract route parameters from request."
+                    {:missing-key ::route-params
+                     :request     request}))
+
+    [f (identify-argument-resolver resolvers route-params argument-meta argument-symbol)]
+
+    :else
+    (f request)))

@@ -164,3 +164,25 @@
                handler))))
 
 
+(defn resolve-argument-value
+  "Resolves an argument, as if it were an argument to an endpoint function.
+
+  request
+  : The Ring request map, as passed through middleware and to the endpoint.
+
+  argument-meta
+  : A map of metadata about the symbol, or a single keyword. A keyword is converted
+    to a map (of the keyword, to true).
+
+  argument-symbol
+  : A symbol identifying the name of the parameter. This is sometimes needed to construct
+    the argument resolver function.
+
+  Throws an exception if no (single) argument resolver can be identified."
+  {:added "0.1.35"}
+  [request argument-meta argument-symbol]
+  (dispatcher/resolve-argument-value request
+                               (if (keyword? argument-meta)
+                                 {argument-meta true}
+                                 argument-meta)
+                               argument-symbol))

@@ -1,3 +1,8 @@
+## 0.1.35 - UNRELEASED
+
+Added io.aviso.rook/resolve-argument, which is used to access argument values using the same resolution logic
+as 
+
 ## 0.1.34 - 31 Jul 2015
 
 Rolled back Clojure compatibility to 1.6.
