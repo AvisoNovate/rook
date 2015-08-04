@@ -7,7 +7,7 @@
                        {:dependencies [[ring-mock "0.1.5"]
                                        [cc.qbits/jet "0.6.6" :exclusions [org.clojure/clojure]]
                                        [speclj "3.2.0" :exclusions [org.clojure/clojure]]
-                                       [ch.qos.logback/logback-classic "1.1.3"]
+                                       [io.aviso/logging "0.1.0" :exclusions [org.clojure/clojure]]
                                        [clj-http "1.1.2"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
