@@ -1,7 +1,7 @@
-## 0.1.35 - UNRELEASED
+## 0.1.35 - 4 Aug 2015
 
 Added io.aviso.rook/resolve-argument, which is used to access argument values using the same resolution logic
-as 
+as when invoking endpoint functions.
 
 ## 0.1.34 - 31 Jul 2015
 
