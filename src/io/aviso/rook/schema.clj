@@ -114,10 +114,9 @@
                     ;; As per http://json-schema.org/latest/json-schema-core.html#anchor4
                     (s/enum :string :number :boolean :array :integer :null :object)
 
-                    (s/optional-key :format)
-                    ;; As per https://github.com/swagger-api/swagger-spec/blob/master/versions/2.0.md#dataTypeFormat
-                    ;; Not all formats apply to all types.
-                    (s/enum :int32 :int64 :float :double :byte :date :date-time :password)}
+                    ;; Although there's a bunch of commonly accepted values for this, it's actually
+                    ;; designed to be open-ended.
+                    (s/optional-key :format) s/Any}
    schema]
   (assoc-meta schema :swagger-data-type swagger-meta))
 

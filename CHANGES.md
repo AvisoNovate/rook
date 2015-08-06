@@ -1,3 +1,7 @@
+## 0.1.36 - UNRELEASED
+
+Relax restrictions on :format with io.aviso.rook.schema/with-data-type.
+
 ## 0.1.35 - 4 Aug 2015
 
 Added io.aviso.rook/resolve-argument, which is used to access argument values using the same resolution logic
