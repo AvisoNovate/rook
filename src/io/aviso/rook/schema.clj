@@ -108,7 +108,9 @@
   (with-description s nil))
 
 (s/defn with-data-type
-  "Adds Swagger-specific data type metadata to a Schema."
+  "Adds Swagger-specific data type metadata to a Schema.
+
+  A Class is promoted to an [[IsInstance]] schema."
   {:added "0.1.33"}
   [swagger-meta :- {:type
                     ;; As per http://json-schema.org/latest/json-schema-core.html#anchor4
@@ -118,7 +120,7 @@
                     ;; designed to be open-ended.
                     (s/optional-key :format) s/Any}
    schema]
-  (assoc-meta schema :swagger-data-type swagger-meta))
+  (assoc-schema-meta schema :swagger-data-type swagger-meta))
 
 
 (defn coercion-matcher
