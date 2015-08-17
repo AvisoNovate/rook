@@ -1,4 +1,4 @@
-## 0.1.36 - UNRELEASED
+## 0.1.36 - 17 Aug 2015
 
 Relax restrictions on :format with io.aviso.rook.schema/with-data-type.
 
