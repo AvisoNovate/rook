@@ -20,10 +20,24 @@
   (:import [org.eclipse.jetty.server Server]
            [javax.servlet.http HttpServletResponse]))
 
+(defmacro private [symbol & args]
+  `(let [sym# (quote ~symbol)
+         var# (or (get (ns-interns 'io.aviso.rook.swagger) sym#)
+                  (throw (ex-info "Could not lookup var."
+                                  {:symbol sym#})))]
+     (var# ~@args)))
+
 (defn- swagger-object
   [rook-options swagger-options & ns-specs]
   (let [[_ routing-table] (d/construct-namespace-handler rook-options ns-specs)]
     (sw/construct-swagger-object swagger-options routing-table)))
+
+(s/def empty-routing-entry :- sw/RoutingEntry
+  {:method :get
+   :path   []
+   :meta   {:arguments []
+            :function  "spec/fake-endpoint"
+            :route     [:get []]}})
 
 (defn get*
   [path]
@@ -78,24 +92,27 @@
   (it "can construct swagger data"
       (should-not-be-nil @swagger))
 
+  (it "produces correct swagger data"
+      (s/validate sw/SwaggerObject @swagger))
+
   (context "extraction of documentation"
 
     (it "can extract nested documentation"
         (should= "got it"
-                 (sw/extract-documentation (s/maybe (rs/with-description "got it" s/Str)))))
+                 (private extract-documentation (s/maybe (rs/with-description "got it" s/Str)))))
 
     (it "knows when to stop"
         (should-be-nil
-          (sw/extract-documentation (s/maybe s/Str)))))
+          (private extract-documentation (s/maybe s/Str)))))
 
   (context "extraction of data type"
     (it "can find mapping from wrapped schemas"
         (should= {:type :integer}
-                 (sw/find-data-type-mapping sw/default-swagger-options (s/maybe (rs/with-description "wrapped" s/Int)))))
+                 (private find-data-type-mapping sw/default-swagger-options (s/maybe (rs/with-description "wrapped" s/Int)))))
 
     (it "knows when to stop"
         (should-be-nil
-          (sw/find-data-type-mapping sw/default-swagger-options StringBuffer))))
+          (private find-data-type-mapping sw/default-swagger-options StringBuffer))))
 
   (context "markdown"
 
@@ -111,7 +128,7 @@
             "baz"
             ": baz desc"
             "")
-          (sw/cleanup-indentation-for-markdown
+          (private cleanup-indentation-for-markdown
             "foo
 
             bar
@@ -123,17 +140,17 @@
 
     (it "handles edge cases"
 
-        (should-be-nil (sw/cleanup-indentation-for-markdown nil))
+        (should-be-nil (private cleanup-indentation-for-markdown nil))
 
         (let [input "single line"]
-          (should-be-same input (sw/cleanup-indentation-for-markdown input)))
+          (should-be-same input (private cleanup-indentation-for-markdown input)))
 
         (let [input "multiple lines\r\nwithout\nindentation"]
-          (should-be-same input (sw/cleanup-indentation-for-markdown input)))
+          (should-be-same input (private cleanup-indentation-for-markdown input)))
 
         (let [input "only a single
         line is indented"]
-          (should= "only a single\nline is indented" (sw/cleanup-indentation-for-markdown input)))))
+          (should= "only a single\nline is indented" (private cleanup-indentation-for-markdown input)))))
 
   (context "schemas"
 
@@ -147,34 +164,37 @@
       {:cost (rs/with-usage-description "Cost of item with taxes and discounts." ItemCost)})
 
     (it "can process nested schemas"
-        (let [[swagger-object schema] (sw/->swagger-schema sw/default-swagger-options {} ItemResponse)]
-          (should= {:definitions
-                    {"rook.swagger-spec:ItemCost"     {:type        :object
-                                                       :description "The cost of an item."
-                                                       :properties
-                                                                    {:currency {:type        :string
-                                                                                :description "Three digit currency code."}
-                                                                     :amount   {:type        :string
-                                                                                :description "Numeric value."}}
-                                                       :required    [:amount]}
-                     "rook.swagger-spec:ItemResponse" {:type        :object
-                                                       :description "The cost of the identified item."
-                                                       :properties  {:cost {"$ref"       "#/definitions/rook.swagger-spec:ItemCost"
-                                                                            :description "Cost of item with taxes and discounts."
-                                                                            }}
-                                                       :required    [:cost]}}} swagger-object)
+        (let [[swagger-object schema] (private ->swagger-schema sw/default-swagger-options
+                                               sw/default-swagger-template
+                                               ItemResponse)]
+          (should= {"rook.swagger-spec:ItemCost"     {:type        :object
+                                                      :description "The cost of an item."
+                                                      :properties
+                                                                   {:currency {:type        :string
+                                                                               :description "Three digit currency code."}
+                                                                    :amount   {:type        :string
+                                                                               :description "Numeric value."}}
+                                                      :required    [:amount]}
+                    "rook.swagger-spec:ItemResponse" {:type        :object
+                                                      :description "The cost of the identified item."
+                                                      :properties  {:cost {"$ref"       "#/definitions/rook.swagger-spec:ItemCost"
+                                                                           :description "Cost of item with taxes and discounts."
+                                                                           }}
+                                                      :required    [:cost]}}
+                   (:definitions swagger-object))
           (should= {"$ref" "#/definitions/rook.swagger-spec:ItemResponse"} schema)))
 
     (it "recognizes the Swagger meta-data"
-        (let [[swagger-object schema] (sw/->swagger-schema
+        (let [[swagger-object schema] (private ->swagger-schema
                                         sw/default-swagger-options
-                                        {}
+                                               sw/default-swagger-template
                                         {:tricky (rs/with-description "Tricky!"
                                                                       (rs/with-data-type {:type   :string
                                                                                           :format :password}
                                                                                          (s/both s/Str
                                                                                                  (s/pred #(< 5 (.length %)) 'min-length))))})]
-          (should= {} swagger-object)
+          (should= sw/default-swagger-template
+                   swagger-object)
           (should= {:type     :object
                     :properties
                               {:tricky {:type :string :format :password :description "Tricky!"}}
@@ -185,23 +205,25 @@
       {:cost (s/maybe ItemCost)})
 
     (it "marks s/maybe with x-nullable"
-        (let [[swagger-object schema] (sw/->swagger-schema sw/default-swagger-options {} OptionalItemResponse)]
-          (should= {:definitions
-                    {"rook.swagger-spec:ItemCost" {:type        :object
-                                                   :description "The cost of an item."
-                                                   :properties
-                                                                {:currency {:type        :string
-                                                                            :description "Three digit currency code."}
-                                                                 :amount   {:type        :string
-                                                                            :description "Numeric value."}}
-                                                   :required    [:amount]}
-                     "rook.swagger-spec:OptionalItemResponse"
-                                                  {:type        :object
-                                                   :description "Optional item cost."
-                                                   :properties  {:cost {"$ref"       "#/definitions/rook.swagger-spec:ItemCost"
-                                                                        :description "The cost of an item."
-                                                                        :x-nullable  true}}
-                                                   :required    [:cost]}}} swagger-object)
+        (let [[swagger-object schema] (private ->swagger-schema sw/default-swagger-options
+                                               sw/default-swagger-template
+                                               OptionalItemResponse)]
+          (should= {"rook.swagger-spec:ItemCost" {:type        :object
+                                                  :description "The cost of an item."
+                                                  :properties
+                                                               {:currency {:type        :string
+                                                                           :description "Three digit currency code."}
+                                                                :amount   {:type        :string
+                                                                           :description "Numeric value."}}
+                                                  :required    [:amount]}
+                    "rook.swagger-spec:OptionalItemResponse"
+                                                 {:type        :object
+                                                  :description "Optional item cost."
+                                                  :properties  {:cost {"$ref"       "#/definitions/rook.swagger-spec:ItemCost"
+                                                                       :description "The cost of an item."
+                                                                       :x-nullable  true}}
+                                                  :required    [:cost]}}
+                   (:definitions swagger-object))
           (should= {"$ref" "#/definitions/rook.swagger-spec:OptionalItemResponse"} schema))))
 
   (context "requests"
@@ -209,7 +231,7 @@
         ;; We could set this up as in other cases, but the meta-data and interactions are complex
         ;; enough that we should drive from an "integrated" example:
         (->>
-          (get-in @swagger [:paths "/hotels/{id}" "put" "parameters"])
+          (get-in @swagger [:paths "/hotels/{id}" :put :parameters])
           (filter #(= "if-match" (:name %)))
           first
           (should= {:description "Used for optimistic locking."
@@ -223,7 +245,7 @@
                    :in          :path
                    :required    true
                    :description "Unique id of hotel."}]
-                 (get-in @swagger [:paths "/hotels/{id}" "get" "parameters"]))))
+                 (get-in @swagger [:paths "/hotels/{id}" :get :parameters]))))
 
   (context "responses"
 
@@ -233,16 +255,20 @@
                                     (s/optional-key :message) (rs/with-description "user presentable message" s/Str)}))
 
     (it "can capture schema descriptions"
-        (should= {:path {:responses {200 {:description "Something Went Boom"
-                                          :schema      {:required   [:error]
-                                                        :description "Something Went Boom"
-                                                        :type :object
-                                                        :properties {:error   {:type        :string
-                                                                               :description "logical error name"}
-                                                                     :message {:type        :string
-                                                                               :description "user presentable message"}}}}}}}
+        (should= {:responses {200 {:description "Something Went Boom"
+                                   :schema      {:required    [:error]
+                                                 :description "Something Went Boom"
+                                                 :type        :object
+                                                 :properties  {:error   {:type        :string
+                                                                         :description "logical error name"}
+                                                               :message {:type        :string
+                                                                         :description "user presentable message"}}}}}}
 
-                 (sw/default-responses-injector sw/default-swagger-options {} {:meta {:responses {200 @response-description}}} [:path]))))
+                 (-> (sw/default-responses-injector sw/default-swagger-options
+                                                    sw/default-swagger-template
+                                                    (assoc-in empty-routing-entry [:meta :responses 200] @response-description)
+                                                    [:path])
+                     :path))))
 
   (context "end-to-end (synchronous)"
 

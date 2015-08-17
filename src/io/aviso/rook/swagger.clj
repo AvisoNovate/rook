@@ -1,9 +1,30 @@
 (ns io.aviso.rook.swagger
-  "ALPHA / EXPERIMENTAL
+  "Generates a Swagger 2.0 API description from Rook namespace metadata.
 
-  Generates a Swagger 2.0 API description from Rook namespace metadata.
+  This is currently under heavy development and is likely to be somewhat unstable for a couple of releases.
 
-  This is currently under heavy development and is likely to be somewhat unstable for a couple of releases."
+
+  Building the Swagger document is complex, and it is not a perfect mapping from Rook and Prismatic Schema to
+  Swagger and Swagger's customized version of JSON Schema.
+
+  The process works from the routing table, an expanded list of all the Rook endpoint namespaces, generated as part of the work of
+  [[construct-namespace-handler]].
+
+  This data is pulled apart and used to build up a [[SwaggerObject]] through multiple iterations.
+
+  The SwaggerOption includes two types of callbacks: injectors and decorators.
+
+  Injectors do the main work of building any individual piece of the SwaggerObject, such as an operation,
+  or a possible response from an operation.
+  Injectors can be overridden, but this is often not necessary, and should be avoided where possible.
+
+  Decorators receive the output of the injector and can modify the result which is then placed into the appropriate
+  place within the SwaggerObject.
+  The default decorators ignore most of their arguments, and return the data to be decorator unchanged.
+
+  It is common to add decorators that understand endpoint metadata, and modify or add information to
+  the Swagger description that is application specific: the canonical example is documenting authentication
+  in terms of permissions and/or roles required."
   (:require [schema.core :as s]
             [io.aviso.rook.schema :refer [unwrap-schema SchemaUnwrapper]]
             [clojure.string :as str]
@@ -15,6 +36,153 @@
   (:import [schema.core EnumSchema Maybe Both Predicate AnythingSchema]
            [io.aviso.rook.schema IsInstance]
            [clojure.lang IPersistentMap IPersistentVector]))
+
+
+
+
+(s/defschema ^{:added "0.1.36"} SwaggerSchema
+  "Swagger Schemas are, again, quite variable, with involved rules about what is optional and required."
+  {(s/optional-key "$ref")       s/Str
+   (s/optional-key :description) s/Str
+   s/Any                         s/Any})
+
+(s/defschema ^{:added "0.1.36"} Response
+  {:description             s/Str
+   (s/optional-key :schema) SwaggerSchema
+   s/Any                    s/Any})
+
+(s/defschema ^{:added "0.1.36"} Responses
+  "A set of responses, based on numeric HTTP status code.
+
+  The numeric keys will be converted to strings when the entire structure is exported as JSON."
+  {s/Num Response})
+
+(s/defschema ^{:added "0.1.36"} ParameterLocation
+  (s/enum :query :header :path :formData :body))
+
+(s/defschema ^{:added "0.1.36"} Parameter
+  {:name                      s/Str
+   :in                        ParameterLocation
+   (s/optional-key :required) s/Bool
+   (s/optional-key :schema)   SwaggerSchema
+   ;; There's a lot more, since it's possible to specify the type inlne, or an array of a type
+   ;; (schema, schema reference, or inline type). It's hard to model the rules of what is allowed
+   ;; or required, but this is a good start.
+   s/Any                      s/Any})
+
+(s/defschema ^{:added "0.1.36"} Operation
+  {(s/optional-key :description) s/Str
+   ;; Rook always adds this, but it is optional in the Swagger 2.0 spec.
+   (s/optional-key :operationId) s/Str
+   (s/optional-key :parameters)  [Parameter]
+   :responses                    Responses
+   s/Any                         s/Any})
+
+(s/defschema ^{:added "0.1.36"} PathItem
+  {(s/optional-key s/Keyword) Operation
+   s/Any                      s/Any})
+
+(s/defschema ^{:added "0.1.36"} Paths
+  ;; s/Str would seem to make sense here, but results in ClassCastExceptions
+  {s/Str PathItem
+   ;; Running into Prismatic Schema limitations here, attempt to add
+   ;; s/Any s/Any results in "More than one non-optional/required key schemata: [java.lang.String Any]"
+   })
+
+(s/defschema ^{:added "0.1.36"} Definitions
+  "The definitions part of the Swagger Object; string keys (identified via the \"$ref\" key in other parts
+  of the SwaggerObject) identify entries here. It is kept wide open due to the internal complexity of schemas."
+  {s/Str s/Any})
+
+(s/defschema ^{:added "0.1.36"} SwaggerObject
+  "Defines the *required* properties of the SwaggerObject. "
+  {:swagger     s/Str
+   :info        {:title   s/Str
+                 :version s/Str
+                 s/Any    s/Any}
+   :paths       Paths
+   :definitions Definitions
+   ;; And quite a few more. The above are just the required ones.
+   s/Any        s/Any})
+
+(s/defschema ^{:added "0.1.36"} PathTerm
+  "A term in a path is either a literal string, or a keyword (representing a path variable)."
+  (s/either s/Str s/Keyword))
+
+(s/defschema ^{:added "0.1.36"} Method
+  "An HTTP method (:get, :post, etc.) used for routing and matching of endpoints."
+  (apply s/enum :all dispatcher/supported-methods))
+
+(s/defschema ^{:added "0.1.36"} Route
+  "Describes a route mapping to one (or more) endpoints, interms of a method and a path."
+  [(s/one Method 'method) (s/one [PathTerm] 'path)])
+
+(s/defschema ^{:added "0.1.36"} Metadata
+  "Endpoint metadata, which includes all metadata inherited from the namespace, and some specific keys added by
+  Rook."
+  {:function  s/Str                                         ; fully qualified name of the endpoint function
+   :route     Route
+   :arguments [s/Symbol]
+   s/Any      s/Any})
+
+(s/defschema ^{:added "0.1.36"} RoutingEntry
+  "The routing data about a single endpoint function."
+  {:method Method
+   :path   [PathTerm]
+   :meta   Metadata})
+
+(s/defschema ^{:added "0.1.36"} JSONType
+  "The type of a parameter."
+  {:type                    (s/enum :integer :number :string :boolean)
+   ;; Although there's a few common types, this is actually wide-open.
+   (s/optional-key :format) s/Keyword})
+
+(s/defschema ^{:added "0.1.36"} ParamsKey
+  "Path from the root of the [[SwaggerObject]] to the parameters object of a specific operation."
+  [s/Any])
+
+(def ^:private base-swagger-options
+  {:template                       SwaggerObject
+   ;; Path at which the swagger.json resource will be exposed; useful for moving it down from the root
+   ;; e.g. ["api"] to make the URI "/api/swagger.json".
+   :path                           [s/Str]
+   ;; Name of the request parameter used for the body of the request.
+   :body-name                      s/Keyword
+   ;; Mapping of header name to a short description of the meaning of the header.
+   :default-header-descriptions    {s/Str s/Str}
+   ;; This predicate is used to remove some RoutingEntries, good for internal or testing
+   ;; endpoints that should not be documented.
+   :routing-entry-remove-predicate (s/=> s/Bool RoutingEntry)
+   :data-type-mappings             {s/Any JSONType}})
+
+(s/defschema ^{:added "0.1.36"} SwaggerOptions
+  "The options which are passed to [[construct-swagger-object]], and then passed to most of the injectors
+  and decorators. This doesn't include the callbacks, as those are themselves defined in terms of SwaggerOptions,
+  and Schema can't do such recursive definitions."
+  (assoc base-swagger-options
+    ;; This is a placeholder for the callback types defined in FullSwaggerOptions
+    s/Any s/Any))
+
+(s/defschema ^{:added "0.1.36"} ParamsInjector
+  "A function that adds parameter defintiions of a particular type to an [[Operation]]."
+  (s/=> SwaggerObject SwaggerOptions SwaggerObject RoutingEntry ParamsKey))
+
+(s/defschema ^{:added "0.1.36"} FullSwaggerOptions
+  "The options which are passed to [[construct-swagger-object]], and then passed to most of the injectors
+  and decorators.  This is the same as [[SwaggerOptions]], but with the various injector and decorator
+  callbacks included."
+  (merge base-swagger-options
+         {:route-injector         (s/=> SwaggerObject SwaggerOptions SwaggerObject RoutingEntry)
+          :configurer             (s/=> SwaggerObject SwaggerOptions SwaggerObject [RoutingEntry])
+          :operation-injector     (s/=> SwaggerObject SwaggerOptions SwaggerObject RoutingEntry [s/Any])
+          :operation-decorator    (s/=> PathItem SwaggerOptions SwaggerObject RoutingEntry PathItem)
+          :path-params-injector   ParamsInjector
+          :query-params-injector  ParamsInjector
+          :body-params-injector   ParamsInjector
+          :header-params-injector ParamsInjector
+          :responses-injector     (s/=> SwaggerObject SwaggerOptions SwaggerObject RoutingEntry [s/Any])
+          :response-decorator     (s/=> Response SwaggerOptions SwaggerObject RoutingEntry s/Num s/Any Response)}))
+
 
 (defn- remove-nil-vals
   [m]
@@ -30,7 +198,7 @@
   (let [[_ ^String indent] (re-matches #"(\s*).*" input)]
     [(.length indent) input]))
 
-(defn ^:no-doc cleanup-indentation-for-markdown
+(defn- cleanup-indentation-for-markdown
   "Fixes the indentation of a :doc or :description string to be valid for (extended) Markdown."
   [input]
   (cond-let
@@ -95,7 +263,7 @@
     :else
     nil))
 
-(defn ^:no-doc extract-documentation
+(defn- extract-documentation
   [holder]
   (cleanup-indentation-for-markdown (find-documentation holder)))
 
@@ -105,11 +273,10 @@
     (assoc swagger-schema :description description)
     swagger-schema))
 
-(def default-swagger-template
+(s/def default-swagger-template :- SwaggerObject
   "A base skeleton for a Swagger Object (as per the Swagger 2.0 specification), that is further populated from Rook namespace
   and schema data."
-  {
-   :swagger     "2.0"
+  {:swagger     "2.0"
    :paths       (sorted-map)
    :definitions (sorted-map)
    :schemes     ["http" "https"]
@@ -124,28 +291,35 @@
     (str \{ (name v) \})
     v))
 
-(defn path->str
+(s/defn path->str :- s/Str
   "Converts a Rook path (sequence of strings and keywords) into a Swagger path; e.g. [\"users\" :id] to \"/users/{id}\"."
-  [path]
+  [path :- [PathTerm]]
   (->>
     path
     (map keyword->path?)
     (str/join "/")
     (str "/")))
 
-(defn parameter-object
+(s/defn parameter-object :- Parameter
   "Creates a parameter object, as part of an operation."
   {:added "0.1.29"}
-  [parameter-name location required? description]
+  [parameter-name :- (s/either s/Str s/Symbol s/Keyword)
+   location :- ParameterLocation
+   required? :- s/Bool
+   description :- (s/maybe s/Str)]
   (cond-> {:name (name parameter-name)
            :type :string                                    ; may add something later to refine this
            :in   location}
           required? (assoc :required required?)
           description (assoc :description description)))
 
-(defn default-path-params-injector
+(s/defn default-path-params-injector :- SwaggerObject
   "Identifies each path parameter and adds a value for it to the swagger-object at the path defined by params-key."
-  [swagger-options swagger-object routing-entry params-key]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry
+   params-key :- ParamsKey
+   ]
   (let [path-ids (->> routing-entry :path (filter keyword?))
         id->docs (->> routing-entry
                       :meta
@@ -160,11 +334,14 @@
                      (update-in so params-key conj param-object)))]
     (reduce reducer swagger-object path-ids)))
 
-(defn default-header-params-injector
+(s/defn default-header-params-injector :- SwaggerObject
   "Identifies each header parameter and adds a value for it to the swagger-object at the path defined by params-key.
    Headers are recognized via the :rook-header-name metadata on the argument resolver for the argument."
   {:since "0.1.29"}
-  [swagger-options swagger-object routing-entry params-key]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry
+   params-key :- ParamsKey]
   (let [resolvers (-> routing-entry :meta :argument-resolvers)
         reducer
                   (fn [so arg-sym]
@@ -179,7 +356,7 @@
     (reduce reducer swagger-object (-> routing-entry :meta :arguments))))
 
 
-(defn analyze-schema-key
+(defn- analyze-schema-key
   "Simplifies a key from a schema reducing it to a keyword (or, to support s/Str or s/Keyword as a key,
   the special key ::wildcard), and whether the key is required or optional."
   [schema-key]
@@ -283,7 +460,7 @@
       "Converting map schema."
       (->swagger-schema swagger-options swagger-object schema))))
 
-(defn ^:no-doc find-data-type-mapping
+(defn- find-data-type-mapping
   [swagger-options schema]
   (cond-let
     (nil? schema)
@@ -317,9 +494,12 @@
      :else
      (convert-schema schema swagger-options swagger-object))))
 
-(defn default-query-params-injector
+(s/defn default-query-params-injector :- SwaggerObject
   "Identifies each query parameter via the :query-schema metadata and injects it."
-  [swagger-options swagger-object routing-entry params-key]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry
+   params-key :- ParamsKey]
   (if-let [schema (-> routing-entry :meta :query-schema)]
     ;; Assumes that the schema is a map.
     (let [reducer (fn [so [key-id key-schema]]
@@ -346,8 +526,11 @@
     ; no :query-schema
     swagger-object))
 
-(defn map->swagger-schema
-  [swagger-options swagger-object schema]
+(s/defn map->swagger-schema :- [(s/one SwaggerObject 'swagger-object)
+                                (s/one SwaggerSchema 'swagger-schema)]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   schema :- s/Any]
   (letfn [(reducer [[acc-so acc-schema :as acc] [schema-key schema-value]]
                    ;; An s/Any as a key exists to "be generous in what you accept" and can be ignored.
                    (if (= s/Any schema-key)
@@ -399,7 +582,7 @@
 
 ;; Can we merge simple->swagger-schema and ->swagger-schema?
 
-(defn ->swagger-schema
+(defn- ->swagger-schema
   "Converts a Prismatic schema to a Swagger schema (or possibly, a \"$ref\" map pointing to a schema). A $ref
   will occur when the schema has the :name and :ns metadata, otherwise it will be inlined.
 
@@ -449,16 +632,19 @@
     :else
     [so-2 swagger-reference]))
 
-(defn default-body-params-injector
+(s/defn default-body-params-injector :- SwaggerObject
   "Uses the :body-schema metadata to identify the body params."
-  [swagger-options swagger-object routing-entry paths-key]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry
+   params-key :- ParamsKey]
   (t/track
     "Describing body parameters."
     (if-let [schema (-> routing-entry :meta :body-schema)]
 
       ;; Assumption: it's a map and named
       (let [[swagger-object' schema-reference] (->swagger-schema swagger-options swagger-object schema)]
-        (update-in swagger-object' paths-key
+        (update-in swagger-object' params-key
                    conj {:name     (:body-name swagger-options)
                          :in       :body
                          :required true
@@ -466,9 +652,12 @@
       ; no schema:
       swagger-object)))
 
-(defn default-responses-injector
+(s/defn default-responses-injector :- SwaggerObject
   "Uses the :responses metadata to identify possible responses."
-  [swagger-options swagger-object routing-entry paths-key]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry
+   paths-key :- [s/Any]]
   (let [responses (-> routing-entry :meta :responses)
         decorator (:response-decorator swagger-options)
         reducer   (fn [so [status-code schema]]
@@ -485,33 +674,40 @@
                         (assoc-in so' (concat paths-key [:responses status-code]) response))))]
     (reduce reducer swagger-object responses)))
 
-(defn default-operation-decorator
+(s/defn default-operation-decorator :- PathItem
   "Decorates a PathItemObject (which describes a single Rook endpoint) just before it is added to the Swagger object.
   This implementation returns it unchanged."
-  [swagger-options swagger-object routing-entry path-item-object]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry
+   path-item-object :- PathItem]
   path-item-object)
 
-(defn default-operation-injector
+(s/defn default-operation-injector :- SwaggerObject
   "Injects an Object object based on a single routing entry.
 
   The paths-key is a coordinate into the swagger-object where the PathItemObject should be created.
 
   Returns the modified swagger-object."
-  [swagger-options swagger-object routing-entry paths-key]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry
+   paths-key :- [s/Any]]
+  {:pre [(vector? paths-key)]}
   (let [{endpoint-meta :meta} routing-entry
         description  (-> (direct-doc endpoint-meta)
                          cleanup-indentation-for-markdown)
         summary      (:summary endpoint-meta)
         {:keys [path-params-injector query-params-injector body-params-injector header-params-injector
                 responses-injector operation-decorator]} swagger-options
-        params-key   (concat paths-key ["parameters"])]
+        params-key   (conj paths-key :parameters)]
     (as-> swagger-object %
           (assoc-in % paths-key
                     (remove-nil-vals {:description description
                                       :summary     summary
                                       ;; This is required inside a Operation object:
                                       :responses   (sorted-map)
-                                      ;; There are a couple of scnearious where the function name is not
+                                      ;; There are a couple of scenarios where the function name is not
                                       ;; unique, alas. But that doesn't seem to cause problems.
                                       :operationId (:function endpoint-meta)}))
           (path-params-injector swagger-options % routing-entry params-key)
@@ -522,7 +718,7 @@
           (update-in % paths-key (fn [operation]
                                    (operation-decorator swagger-options % routing-entry operation))))))
 
-(defn default-route-injector
+(s/defn default-route-injector :- SwaggerObject
   "The default route converter.  The swagger-options may contain an override of this function.
 
   swagger-options
@@ -545,20 +741,22 @@
     and including :function as the string name of the endpoint.
 
   Returns the modified swagger-object."
-  [swagger-options swagger-object routing-entry]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry]
   (t/track
     #(format "Describing endpoint %s `/%s'."
              (-> routing-entry :method name .toUpperCase)
              (->> routing-entry :path (str/join "/")))
     (let [path-str           (-> routing-entry :path path->str)
           ;; Ignoring :all for the moment.
-          method-str         (-> routing-entry :method name)
+          method             (-> routing-entry :method)
           operation-injector (:operation-injector swagger-options)]
       ;; Invoke the constructor for the path info. It may need to make changes to the :definitions, so we have
       ;; to let it modify the entire Swagger object ... but we help it out by providing the path
       ;; to where the PathInfoObject (which describes what Rook calls a "route").
       (operation-injector swagger-options swagger-object routing-entry
-                          [:paths path-str method-str]))))
+                          [:paths path-str method]))))
 
 (defn- routing-entry->map
   [[method path _ endpoint-meta]]
@@ -573,15 +771,22 @@
     (for [m dispatcher/supported-methods]
       (assoc routing-entry :method m))))
 
-(defn default-configurer
+(s/defn default-configurer :- SwaggerObject
   "The configurer is passed the swagger options, the final Swagger object, and the seq of routing entries,
    and can make final changes to it. This implementation does nothing, returning the Swagger object unchanged."
-  [swagger-options swagger-object routing-entries]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entries :- [RoutingEntry]]
   swagger-object)
 
-(defn default-response-decorator
+(s/defn default-response-decorator :- Response
   "A callback to decorate a specific response object just before it is stored into the swagger-object."
-  [swagger-options swagger-object routing-entry status-code response-schema response-object]
+  [swagger-options :- SwaggerOptions
+   swagger-object :- SwaggerObject
+   routing-entry :- RoutingEntry
+   status-code :- s/Num
+   response-schema :- s/Any
+   response-object :- Response]
   response-object)
 
 (def default-data-type-mappings
@@ -598,7 +803,7 @@
    s/Inst    {:type :string :format :date-time}
    s/Uuid    {:type :string :format :uuid}})
 
-(def default-swagger-options
+(s/def default-swagger-options :- FullSwaggerOptions
   {:template                       default-swagger-template
    :path                           []
    ;; Name of special parameter used for the body of the request
@@ -620,10 +825,11 @@
    :responses-injector             default-responses-injector
    :response-decorator             default-response-decorator})
 
-(defn construct-swagger-object
+(s/defn construct-swagger-object :- SwaggerObject
   "Constructs the root Swagger object from the Rook options, swagger options, and the routing table
   (part of the result from [[construct-namespace-handler]])."
-  [swagger-options routing-table]
+  [swagger-options :- FullSwaggerOptions
+   routing-table]
   (t/track
     "Constructing Swagger API Description."
     (let [{:keys [template route-injector configurer routing-entry-remove-predicate]} swagger-options

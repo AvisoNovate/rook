@@ -2,6 +2,9 @@
 
 Relax restrictions on :format with io.aviso.rook.schema/with-data-type.
 
+Add significant amounts of Prismatic Schema to the structures and functions in
+io.aviso.rook.swagger.
+
 ## 0.1.35 - 4 Aug 2015
 
 Added io.aviso.rook/resolve-argument, which is used to access argument values using the same resolution logic
