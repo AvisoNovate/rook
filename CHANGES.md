@@ -1,8 +1,8 @@
 ## 0.1.36 - 17 Aug 2015
 
-Relax restrictions on :format with io.aviso.rook.schema/with-data-type.
+Relaxed restrictions on :format with io.aviso.rook.schema/with-data-type.
 
-Add significant amounts of Prismatic Schema to the structures and functions in
+Added significant amounts of Prismatic Schema to the structures and functions in
 io.aviso.rook.swagger.
 
 ## 0.1.35 - 4 Aug 2015
