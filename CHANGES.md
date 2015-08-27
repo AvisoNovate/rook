@@ -1,3 +1,9 @@
+## 0.1.37 - UNRELEASED
+
+Improvements to the initial example provided in the manual.
+
+Updated a number of dependencies to latest.
+
 ## 0.1.36 - 17 Aug 2015
 
 Relaxed restrictions on :format with io.aviso.rook.schema/with-data-type.
