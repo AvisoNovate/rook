@@ -8,7 +8,7 @@
             :profiles {:dev
                        {:dependencies [[ring-mock "0.1.5"]
                                        [cc.qbits/jet "0.6.6"]
-                                       [speclj "3.2.0"]
+                                       [speclj "3.3.1"]
                                        [io.aviso/logging "0.1.0"]
                                        [clj-http "2.0.0"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
@@ -28,7 +28,7 @@
                            [ring/ring-core "1.4.0" :exclusions [commons-fileupload]]
                            [prismatic/schema "0.4.4"]]
             :plugins [[lein-ancient "0.6.7"]
-                      [speclj "3.2.0"]
+                      [speclj "3.3.1"]
                       [lein-shell "0.4.0"]]
             :jvm-opts ["-Xmx1g"]
             :shell {:commands {"scp" {:dir "doc"}}}
