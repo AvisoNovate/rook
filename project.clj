@@ -25,7 +25,8 @@
                            [ring-middleware-format "0.5.0" :exclusions [ring/ring-devel org.clojure/tools.reader ring]]
                            [ring/ring-core "1.4.0" :exclusions [commons-fileupload]]
                            [prismatic/schema "0.4.4"]]
-            :plugins [[speclj "3.2.0" :exclusions [org.clojure/clojure]]
+            :plugins [[lein-ancient "0.6.7"]
+                      [speclj "3.2.0" :exclusions [org.clojure/clojure]]
                       [lein-shell "0.4.0"]]
             :jvm-opts ["-Xmx1g"]
             :shell {:commands {"scp" {:dir "doc"}}}
