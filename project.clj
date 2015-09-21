@@ -24,7 +24,7 @@
                            [org.clojure/tools.logging "0.3.1"]
                            [io.aviso/tracker "0.1.7"]
                            [medley "0.7.0"]
-                           [ring-middleware-format "0.6.0" :exclusions [ring/ring-devel org.clojure/tools.reader ring]]
+                           [ring-middleware-format "0.6.0" :exclusions [org.clojure/tools.reader ring]]
                            [ring/ring-core "1.4.0" :exclusions [commons-fileupload]]
                            [prismatic/schema "0.4.4"]]
             :plugins [[lein-ancient "0.6.7"]
