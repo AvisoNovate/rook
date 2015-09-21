@@ -13,7 +13,7 @@
                                        [clj-http "2.0.0"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
-            :dependencies [[org.clojure/clojure "1.6.0"]
+            :dependencies [[org.clojure/clojure "1.7.0"]
                            [io.aviso/pretty "0.1.19"]
                            [io.aviso/toolchest "0.1.2"]
                            [cheshire "5.5.0"]
