@@ -131,7 +131,7 @@ eventually becomes the :description key in the equivalent object in the Swagger 
   nil)
 ----
 
-TYhe with-description function is used to decorate a schema.
+The with-description function is used to decorate a schema.
 The description function is used when there is no schema.
 
 == Adding parameter documentation
