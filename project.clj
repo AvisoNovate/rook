@@ -26,7 +26,7 @@
                            [medley "0.7.0"]
                            [ring-middleware-format "0.6.0" :exclusions [org.clojure/tools.reader ring]]
                            [ring/ring-core "1.4.0" :exclusions [commons-fileupload]]
-                           [prismatic/schema "0.4.4"]]
+                           [prismatic/schema "1.0.1"]]
             :plugins [[lein-ancient "0.6.7"]
                       [speclj "3.3.1"]
                       [lein-shell "0.4.0"]]
