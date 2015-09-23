@@ -2,10 +2,9 @@
   "Some small enhancements to Prismatic Schema that are valuable to, or needed by, the Swagger support."
   {:added "0.1.27"}
   (:require [schema.core :as s]
-            [schema.macros :as macros]
+            [schema.spec.leaf :as leaf]
             [io.aviso.toolchest.macros :refer [cond-let]]
-            [io.aviso.toolchest.metadata :refer [assoc-meta]]
-            [schema.coerce :as coerce])
+            [io.aviso.toolchest.metadata :refer [assoc-meta]])
   (:import [schema.core Maybe EnumSchema Both OptionalKey]))
 
 (defmacro schema
@@ -40,11 +39,11 @@
 (defrecord IsInstance [^Class expected-class]
   s/Schema
 
-  (walker [this]
-    (fn [x]
-      (if (instance? expected-class x)
-        x
-        (macros/validation-error this x (list 'instance? expected-class x)))))
+  (spec [_]
+    (leaf/leaf-spec
+      (fn [x]
+        (when (instance? expected-class x)
+          x))))
 
   (explain [_]
     (list 'instance? expected-class))

@@ -41,11 +41,13 @@
               response (wrap-invalid-response "my/endpoint" failures)]
           (should-be-nil new-request)
           (should= HttpServletResponse/SC_BAD_REQUEST (:status response))
-          (should= {:error   "invalid-request-data"
-                    ;; The order in which these keys appear is very sensitive to the version of Clojure. It is defintely
-                    ;; different between Clojure 1.6 and 1.7.
-                    :message "Request for endpoint `my/endpoint' contained invalid data: {:user-name disallowed-key, :name missing-required-key}"}
-                   (-> response :body))))
+          (let [body (response :body)
+                error (body :error)
+                message (body :message)]
+            (should= "invalid-request-data" error)
+            (should-contain #"Request for endpoint `my/endpoint' contained invalid data:" message)
+            (should-contain #":user-name disallowed-key" message)
+            (should-contain #":name missing-required-key" message))))
 
     (describe "coercions"
 
@@ -77,7 +79,7 @@
             (should-be-valid {:params {:id uuid}}
                              (validate-against-schema {:params {:id (str uuid)}}
                                                       {:id s/Uuid}))))
-      
+
       (it "should handle coercions that include descriptions"
           (let [uuid (UUID/randomUUID)]
             (should-be-valid {:params {:id uuid}}
