@@ -70,7 +70,7 @@ Primarily useful when dealing with nested parameters, to obtain a vector when ke
 
 (defn- ->vector [vm]
   (cond (vector? vm) vm
-        (map? vm) (vals vm)
+        (map? vm) (vals vm) ; caution, vals does not preserve order; just an example.
         :else []))
 
 (def index-coercions

@@ -4,7 +4,7 @@
 
 (defn ->vector [vm]
   (cond (vector? vm) vm
-        (map? vm) (vals vm)
+        (map? vm) (vals vm) ; caution, vals does not preserve order; works for the purpose of the testing
         :else []))
 
 (defn index
