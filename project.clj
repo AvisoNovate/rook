@@ -10,7 +10,13 @@
                                        [cc.qbits/jet "0.6.6"]
                                        [speclj "3.3.1"]
                                        [io.aviso/logging "0.1.0"]
-                                       [clj-http "2.0.0"]]}}
+                                       [clj-http "2.0.0"]]}
+                       :1.6
+                       {:dependencies [[org.clojure/clojure "1.6.0"]
+                                       [speclj "3.2.0"]
+                                       [medley "0.6.0"
+                                        :exclusions [com.keminglabs/cljx]]]
+                        :plugins [[speclj "3.2.0"]]}}
             ;; List "resolved" dependencies first, which occur when there are conflicts.
             ;; We pin down the version we want, then exclude anyone who disagrees.
             :dependencies [[org.clojure/clojure "1.7.0"]
