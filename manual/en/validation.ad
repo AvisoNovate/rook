@@ -57,6 +57,44 @@ Schema doesn't have a good way to identify relationships between the keys; for i
 In this simple example, it can be simply ignored, but in other cases, you may need logic inside
 your endpoint function to cross-validate parameter values.
 
+== Custom coercions
+
+Useful when params input needs to be transformed in a custom way prior to using it.
+Primarily useful when dealing with nested parameters, to obtain a vector when keys are present.
+
+[source,clojure]
+----
+(s/defschema IndexParameters
+  {:tags [s/Keyword]
+   s/Any s/Any})
+
+(defn- ->vector [vm]
+  (cond (vector? vm) vm
+        (map? vm) (vals vm) ; caution, vals does not preserve order; just an example.
+        :else []))
+
+(def index-coercions
+  {[s/Keyword] ->vector})
+
+(defn index
+  "Lists out all hotel rooms, filtered by tag."
+  {:schema IndexParameters
+   :coercions index-coercions}
+  [^:injected db-conn
+   {tags :tags
+    :as params}]
+    ...
+  )
+----
+
+With the custom coercions in the example the following two calls will both yield a vector in the tags parameter:
+
+* /foos?tags[]=big&tags[]=small
+* /foos?tags[0]=big&tags[1]=small
+
+Without the custom coercion, the second query string would have yielded a map for the tags parameter, resulting
+in a validation error.
+
 == Body Validation
 
 Validation of the body is essentially the same.  The :body-params request key is validated against the :body-schema

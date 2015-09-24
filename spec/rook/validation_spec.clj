@@ -4,7 +4,8 @@
         io.aviso.rook
         io.aviso.rook.schema-validation)
   (:require [schema.core :as s]
-            [io.aviso.rook.schema :as rs])
+            [io.aviso.rook.schema :as rs]
+            [validating])
   (:import [javax.servlet.http HttpServletResponse]
            [java.util Date UUID]))
 
@@ -21,8 +22,10 @@
   (Date.))
 
 (defn validate-against-schema
-  [request schema]
-  (coerce-and-validate request :params (schema->coercer schema) identity))
+  ([request schema]
+   (coerce-and-validate request :params (schema->coercer schema) identity))
+  ([request schema coercions]
+   (coerce-and-validate request :params (schema->coercer schema coercions) identity)))
 
 (describe "io.aviso.rook.schema-validation"
 
@@ -75,7 +78,6 @@
 
       (it "should coerce strings to s/Uuid"
           (let [uuid (UUID/randomUUID)]
-
             (should-be-valid {:params {:id uuid}}
                              (validate-against-schema {:params {:id (str uuid)}}
                                                       {:id s/Uuid}))))
@@ -84,7 +86,19 @@
           (let [uuid (UUID/randomUUID)]
             (should-be-valid {:params {:id uuid}}
                              (validate-against-schema {:params {:id (str uuid)}}
-                                                      {:id (rs/with-description "A UUID" s/Uuid)}))))))
+                                                      {:id (rs/with-description "A UUID" s/Uuid)}))))
+
+      (it "should coerce with custom coercions"
+          (should-be-valid {:params {:tags [:a]}}
+                           (validate-against-schema {:params {:tags ["a"]}}
+                                                    {:tags [s/Keyword]}
+                                                    {[s/Keyword] validating/->vector})))
+
+      (it "should coerce with custom coercions"
+          (should-be-valid {:params {:tags [:a]}}
+                           (validate-against-schema {:params {:tags {"0" "a"}}}
+                                                    {:tags [s/Keyword]}
+                                                    {[s/Keyword] validating/->vector})))))
 
   (describe "middleware"
 
@@ -105,6 +119,19 @@
                      (request :post "/")
                      (assoc :params {:first-name "Wrong Key"})
                      handler
-                     :status))))))
+                     :status))))
+
+    (it "uses custom coercions when present"
+        (let [handler  (namespace-handler ['validating wrap-with-schema-validation])
+              resp-vec (-> (request :get "/")
+                           (assoc :params {:tags ["big"]})
+                           handler)
+              resp-map (-> (request :get "/")
+                           (assoc :params {:tags {"0" "big"}})
+                           handler)]
+          (should= HttpServletResponse/SC_OK (:status resp-vec))
+          (should= ["big"] (:body resp-vec))
+          (should= HttpServletResponse/SC_OK (:status resp-map))
+          (should= ["big"] (:body resp-map))))))
 
 (run-specs)
