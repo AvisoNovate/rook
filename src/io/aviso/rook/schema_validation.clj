@@ -51,6 +51,22 @@
   (or (string-coercions schema)
       (coerce/string-coercion-matcher schema)))
 
+(defn schema->coercer
+  "Returns a coercer based on a schema definitaion and extra coercions.
+
+  schema
+  : Schema definitaion.
+
+  coercions
+  : Optional map of extra coercions."
+  ([schema]
+    (schema->coercer schema nil))
+  ([schema coercions]
+   (let [delegate-coercion-matcher #(or (if (some? coercions) (coercions %))
+                                        (string-coercion-matcher %))
+         coercion-matcher          #(schema/coercion-matcher % delegate-coercion-matcher)]
+     (coerce/coercer schema coercion-matcher))))
+
 (defn ^:no-doc wrap-invalid-response
   [endpoint-name failures]
   (utils/failure-response HttpServletResponse/SC_BAD_REQUEST
@@ -68,7 +84,7 @@
                                      (:query-params request')
                                      (:body-params request'))))))
 
-(defn ^:no-doc coerce-and-validate
+(defn coerce-and-validate
   "Performs the validation. The data is coerced using the string-cooercion-matcher (which makes sense
   as many of the values are provided as string query parameters, but need to be other types).
 
@@ -87,15 +103,12 @@
       [(su/error-val validated)]
       [nil (rebuild-request request key validated)])))
 
-(defn ^:no-doc schema->coercer
-  [schema]
-  (coerce/coercer schema #(schema/coercion-matcher % string-coercion-matcher)))
-
 (defn- do-wrap
-  [handler metadata metadata-key request-key pre-coerce]
-  (if-let [schema (get metadata metadata-key)]
-    (let [coercer  (schema->coercer schema)
-          function (:function metadata)]
+  [handler metadata schema-key coercions-key request-key pre-coerce]
+  (if-let [schema (get metadata schema-key)]
+    (let [coercions (get metadata coercions-key)
+          coercer   (schema->coercer schema coercions)
+          function  (:function metadata)]
       (fn [request]
         (let [[failures new-request] (coerce-and-validate request request-key coercer pre-coerce)]
           (if failures
@@ -107,8 +120,10 @@
   Schema validation allows any of the following request keys to be coerced and validated
   using a Prismatic Schema:  :query-params, :form-params, :body-params, :params.
 
-  For each of the request keys, there's a corresponding metadata key:  :query-schema,
-  :form-schema, :body-schema, and :schema.
+  For each of the request keys, there's a corresponding metadata:
+
+  * schema-key: :query-schema, :form-schema, :body-schema, and :schema.
+  * coercions-key: :query-coercions, :form-coercions, :body-coercions, and :coercions.
 
   These schema values are also incorporated into Swagger descriptions of the endpoint.
 
@@ -117,8 +132,8 @@
   an accurate Swagger description).
 
   When a schema is present in the metadata, the corresponding request key is first
-  keywordized, then coerced
-  and validated.  On a validation failure, a [[failure-response]] is returned to the client.
+  keywordized, then coerced and validated.
+  On a validation failure, a [[failure-response]] is returned to the client.
 
   Otherwise, the request key is updated with the  validated data, and
   the :params key is rebuilt as the shallow merge of the other three keys.
@@ -129,8 +144,7 @@
   The various convention argument resolvers (params, _params, params*, _params) all operate
   on the :params key of the request."
   (internals/compose-middleware
-    (do-wrap :schema :params identity)
-    (do-wrap :body-schema :body-params identity)
-    (do-wrap :form-schema :form-params keyify-params)
-    (do-wrap :query-schema :query-params keyify-params)))
-
+    (do-wrap :schema :coercions :params identity)
+    (do-wrap :body-schema :body-coercions :body-params identity)
+    (do-wrap :form-schema :form-coercions :form-params keyify-params)
+    (do-wrap :query-schema :query-coercions :query-params keyify-params)))

@@ -21,8 +21,15 @@
   (Date.))
 
 (defn validate-against-schema
-  [request schema]
-  (coerce-and-validate request :params (schema->coercer schema) identity))
+  ([request schema]
+   (coerce-and-validate request :params (schema->coercer schema) identity))
+  ([request schema coercions]
+   (coerce-and-validate request :params (schema->coercer schema coercions) identity)))
+
+(defn ->vector [vm]
+  (cond (vector? vm) vm
+        (map? vm) (vals vm)
+        :else []))
 
 (describe "io.aviso.rook.schema-validation"
 
@@ -73,16 +80,27 @@
 
       (it "should coerce strings to s/Uuid"
           (let [uuid (UUID/randomUUID)]
-
             (should-be-valid {:params {:id uuid}}
                              (validate-against-schema {:params {:id (str uuid)}}
                                                       {:id s/Uuid}))))
-      
+
       (it "should handle coercions that include descriptions"
           (let [uuid (UUID/randomUUID)]
             (should-be-valid {:params {:id uuid}}
                              (validate-against-schema {:params {:id (str uuid)}}
-                                                      {:id (rs/with-description "A UUID" s/Uuid)}))))))
+                                                      {:id (rs/with-description "A UUID" s/Uuid)}))))
+
+      (it "should coerce with custom coercions"
+          (should-be-valid {:params {:tags [:a]}}
+                           (validate-against-schema {:params {:tags ["a"]}}
+                                                    {:tags [s/Keyword]}
+                                                    {[s/Keyword] ->vector})))
+
+      (it "should coerce with custom coercions"
+          (should-be-valid {:params {:tags [:a]}}
+                           (validate-against-schema {:params {:tags {"0" "a"}}}
+                                                    {:tags [s/Keyword]}
+                                                    {[s/Keyword] ->vector})))))
 
   (describe "middleware"
 
