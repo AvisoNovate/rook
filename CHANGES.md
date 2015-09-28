@@ -4,6 +4,10 @@ Improvements to the initial example provided in the manual.
 
 Updated a number of dependencies to latest.
 
+`lein with-profile +1.6 spec` now runs tests under 1.6 and `lein spec` under 1.7
+
+Custom endpoint coercions for request parameters.
+
 ## 0.1.36 - 17 Aug 2015
 
 Relaxed restrictions on :format with io.aviso.rook.schema/with-data-type.
