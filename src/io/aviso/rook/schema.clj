@@ -5,7 +5,7 @@
             [schema.spec.leaf :as leaf]
             [io.aviso.toolchest.macros :refer [cond-let]]
             [io.aviso.toolchest.metadata :refer [assoc-meta]])
-  (:import [schema.core Maybe EnumSchema Both OptionalKey]))
+  (:import [schema.core Maybe EnumSchema Both OptionalKey Either]))
 
 (defmacro schema
   "Creates a named schema, which includes metadata as per [[defschema]]. This is useful for one-off
@@ -31,10 +31,16 @@
    `(def ~name ~docstring (schema ~name ~docstring ~form))))
 
 (defprotocol SchemaUnwrapper
-  "A protocol for 'unwrapping' a Schema, to extract a nested Schema (or, in certain cases a seq of schemas)."
+  "A protocol for 'unwrapping' a Schema, to extract a nested Schema (or, in
+  certain cases a seq of schemas)."
 
   (unwrap-schema [this]
-    "Returns the nested schema (or schemas) where appropriate, or throws an exception when a nested schema is not available."))
+    "Returns the nested schema (or schemas) where appropriate, or throws an
+    exception when a nested schema is not available.")
+
+  (unwrap-cardinality [this]
+    "Returns :one or :many depending on whether the given schema wraps a
+    single child schema or a number of children."))
 
 (defrecord IsInstance [^Class expected-class]
   s/Schema
@@ -50,7 +56,9 @@
 
   SchemaUnwrapper
 
-  (unwrap-schema [_] expected-class))
+  (unwrap-schema [_] expected-class)
+
+  (unwrap-cardinality [_] :one))
 
 (extend-protocol SchemaUnwrapper
 
@@ -58,17 +66,36 @@
   (unwrap-schema [this]
     (s/explicit-schema-key this))
 
+  (unwrap-cardinality [this]
+    :one)
+
   Maybe
   (unwrap-schema [this]
     (.schema this))
+
+  (unwrap-cardinality [this]
+    :one)
 
   EnumSchema
   (unwrap-schema [this]
     (.vs this))
 
+  (unwrap-cardinality [this]
+    :many)
+
   Both
   (unwrap-schema [this]
-    (.schemas this)))
+    (.schemas this))
+
+  (unwrap-cardinality [this]
+    :many)
+
+  Either
+  (unwrap-schema [this]
+    (.schemas this))
+
+  (unwrap-cardinality [this]
+    :many))
 
 (defn- assoc-schema-meta
   [schema key value]
@@ -137,7 +164,11 @@
     matcher
 
     (satisfies? SchemaUnwrapper schema)
-    (recur (unwrap-schema schema) delegate-coercion-matcher)
+    (let [card      (unwrap-cardinality schema)
+          unwrapped (unwrap-schema schema)]
+      (if (= :one card)
+        (recur unwrapped delegate-coercion-matcher)
+        (some #(coercion-matcher % delegate-coercion-matcher) unwrapped)))
 
     :else
     nil))
