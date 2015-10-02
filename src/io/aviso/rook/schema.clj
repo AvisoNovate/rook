@@ -188,7 +188,7 @@
   4. A map of \"0\", \"1\", …, \"n\" → Object – will be converted to a vector
      with indices preserved.
 
-  Given any other input, returns nil."
+  Any other input will be returned unchanged."
   [xs]
   (cond
     (vector? xs) xs
@@ -208,8 +208,8 @@
               ;; expected key is missing, so either there is a gap in the input
               ;; map's index range or there is a non-numeric key in there;
               ;; either way, this is not a well-formed vector-like input
-              nil)
+              xs)
             (persistent! out))))
       [])
 
-    :else nil))
+    :else xs))
