@@ -182,10 +182,10 @@
 
   2. A sequential collection – will return (vec xs).
 
-  2. A map of 0, 1, …, n → Object – will be converted to a vector with indices
+  3. A map of 0, 1, …, n → Object – will be converted to a vector with indices
      preserved.
 
-  3. A map of \"0\", \"1\", …, \"n\" → Object – will be converted to a vector
+  4. A map of \"0\", \"1\", …, \"n\" → Object – will be converted to a vector
      with indices preserved.
 
   Given any other input, returns nil."
