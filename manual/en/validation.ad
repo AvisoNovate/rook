@@ -116,7 +116,7 @@ or as the request body.
 
 The link:arguments.html[argument convention] `params` is resolved to that data, as in the example above.
 
-A second convension, `params*`, is the same data, but with JSON-style keywords (:first_name) converted to Clojure
+A second convention, `params*`, is the same data, but with JSON-style keywords (:first_name) converted to Clojure
 style (:first-name).
 
 == Response Validation
