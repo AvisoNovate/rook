@@ -1,8 +1,9 @@
 (ns io.aviso.rook.dispatcher
-  "The heart of Rook's dispatch logic, converting namespace specifications into a Ring request handler.
+  "The heart of Rook's dispatch logic, converting namespace specifications
+  into a Ring request handler.
 
-  The main function is [[construct-namespace-handler]], but this is normally only invoked
-  by [[namespace-handler]]."
+  The main function is [[construct-namespace-handler]], but this is normally
+  only invoked by [[namespace-handler]]."
   {:added "0.1.10"}
   (:require [clojure.string :as string]
             [io.aviso.tracker :as t]
@@ -21,12 +22,11 @@
   #{:get :put :post :patch :delete :head :options})
 
 (def ^:private default-mappings
-
   "Default function -> route spec mappings.
 
-  Namespace dispatch tables will by default include entries for public
-  Vars named by the keys in this map, with methods and routes
-  provided by the values."
+  Namespace dispatch tables will by default include entries for public Vars
+  named by the keys in this map, with methods and routes provided by the
+  values."
   {'show    [:get [:id]]
    'modify  [:put [:id]]
    ;; change will be removed at some point
@@ -44,7 +44,8 @@
     true))
 
 (defn ^:no-doc resource-uri-for
-  "An argument resolver that assembles the details in the request to form the qualified URI for the namespace."
+  "An argument resolver that assembles the details in the request to form the
+  qualified URI for the namespace."
   [request]
   (let [server-uri (or (:server-uri request)
                        (str (-> request :scheme name)
@@ -61,9 +62,10 @@
          (if-not (str/blank? context) "/"))))
 
 (defn default-namespace-middleware
-  "Default endpoint middleware that ignores the metadata and returns the handler unchanged.
-  Endpoint middleware is slightly different than Ring middleware, as the metadata from
-  the function is available. Endpoint middleware may also return nil."
+  "Default endpoint middleware that ignores the metadata and returns the
+  handler unchanged. Endpoint middleware is slightly different than Ring
+  middleware, as the metadata from the function is available. Endpoint
+  middleware may also return nil."
   [handler metadata]
   handler)
 
@@ -72,7 +74,8 @@
     (with-meta
       (fn [request]
                  (-> request :headers (get header-name)))
-      ;; Needed by the Swagger support to identify that a argument is derived from a specific header.
+      ;; Needed by the Swagger support to identify that a argument is derived
+      ;; from a specific header.
       {:header-name header-name})))
 
 (defn- make-param-arg-resolver [sym]
@@ -121,11 +124,12 @@
 (def default-arg-resolvers
   "The default argument resolvers provided by the system.
 
-  Keyword keys are factories; the value should take a symbol (from which metadata can be extracted)
-  and return an argument resolver customized for that symbol.
+  Keyword keys are factories; the value should take a symbol (from which
+  metadata can be extracted) and return an argument resolver customized for
+  that symbol.
 
-  Symbols are direct argument resolvers; functions that take the Ring request and return the value
-  for that argument."
+  Symbols are direct argument resolvers; functions that take the Ring request
+  and return the value for that argument."
   (let [params-resolver (make-request-key-resolver :params)]
     {:request       (constantly identity)
      :request-key   make-request-key-resolver
@@ -143,16 +147,16 @@
      'wildcard-path (make-wildcard-path-resolver nil)}))
 
 (defn- merge-arg-resolver-maps
-  "Merges an argument resolver map into another argument resolver map.
-  The keys of each map are either keywords (for argument resolver factories) or
+  "Merges an argument resolver map into another argument resolver map. The
+  keys of each map are either keywords (for argument resolver factories) or
   symbols (for argument resolvers).
 
   The metadata of the override-map guides the merge.
 
   :replace means the override-map is used instead of the base-map.
 
-  :replace-factories means that factories (keyword keys) from the base-map
-  are removed before the merge.
+  :replace-factories means that factories (keyword keys) from the base-map are
+  removed before the merge.
 
   :replace-resolvers means that the resolves (symbol keys) from the base-map
   are removed before the merge."
@@ -175,9 +179,8 @@
 
 
 (defn- request-route-spec
-  "Takes a Ring request map and returns `[method pathvec]`, where method
-  is a request method keyword and pathvec is a vector of path
-  segments.
+  "Takes a Ring request map and returns `[method pathvec]`, where method is a
+  request method keyword and pathvec is a vector of path segments.
 
   For example,
 
@@ -187,16 +190,15 @@
 
       [:get [\"foo\" \"bar\"]]
 
-  The individual path segments are URL decoded; UTF-8 encoding is
-  assumed."
+  The individual path segments are URL decoded; UTF-8 encoding is assumed."
   [request]
   [(:request-method request)
    (mapv #(URLDecoder/decode ^String % "UTF-8")
          (next (string/split (:uri request) #"/" 0)))])
 
 (defn- symbol-for-argument [arg]
-  "Returns the argument symbol for an argument; this is either the argument itself or
-  (if a map, for destructuring) the :as key of the map."
+  "Returns the argument symbol for an argument; this is either the argument
+  itself or (if a map, for destructuring) the :as key of the map."
   (if (map? arg)
     (if-let [as (:as arg)]
       as
@@ -239,14 +241,14 @@
                       {:arg arg :resolver-tags resolver-ks})))))
 
 (defn- identify-argument-resolver
-  "Identifies the specific argument resolver function for an argument, which can come from many sources based on
-  configuration in general, metadata on the argument symbol and on the function's metadata (merged with
-  the containing namespace's metadata).
+  "Identifies the specific argument resolver function for an argument, which
+  can come from many sources based on configuration in general, metadata on the
+  argument symbol and on the function's metadata (merged with the containing
+  namespace's metadata).
 
   arg-resolvers
-  : See the docstring on
-    [[io.aviso.rook.dispatcher/default-arg-resolvers]]. The map passed
-    to this function will have been extended with user-supplied
+  : See the docstring on [[io.aviso.rook.dispatcher/default-arg-resolvers]].
+    The map passed to this function will have been extended with user-supplied
     resolvers and/or resolver factories.
 
   route-params
@@ -265,7 +267,8 @@
 
               [resolver (:io.aviso.rook/resolver arg-meta)]
 
-              ;; explicit ::rook/resolver metadata takes precedence for non-route params
+              ;; explicit ::rook/resolver metadata takes precedence for
+              ;; non-route params
               (some? resolver)
               (find-resolver arg-resolvers arg resolver)
 
@@ -295,8 +298,8 @@
                         :arg-resolvers arg-resolvers}))))))
 
 (defn- identify-arglist-resolvers
-  "Returns a function that is passed the Ring request and returns an array of argument values which
-  the endpoint function can be applied to."
+  "Returns a function that is passed the Ring request and returns an array of
+  argument values which the endpoint function can be applied to."
   [arg-resolvers route-params arglist]
   (map (partial identify-argument-resolver arg-resolvers route-params) arglist))
 
@@ -318,9 +321,9 @@
 
 
 (def ^:private suppress-metadata-keys
-  "Keys to suppress when producing debugging output about function metadata; the goal is to present
-  just the non-standard metadata. :route is left in (whether explicit, or added by naming
-  convention)."
+  "Keys to suppress when producing debugging output about function metadata;
+  the goal is to present just the non-standard metadata. :route is left in
+  (whether explicit, or added by naming convention)."
   ; The use of clojure.core/map is completely arbitrary
   (into [:function] (-> #'map meta keys)))
 
@@ -335,10 +338,10 @@
 
   [[context ns-symbol arg-resolvers middleware]]
 
-  In the flattened/complete version, the context of child namespaces are prefixed
-  with the context of parent namespaces.  The arg-resolvers and middleware are always
-  present, with arg-resolvers representing the merge of the child namespace's arg-resolvers
-  with the parent's."
+  In the flattened/complete version, the context of child namespaces are
+  prefixed with the context of parent namespaces. The arg-resolvers and
+  middleware are always present, with arg-resolvers representing the merge of
+  the child namespace's arg-resolvers with the parent's."
   [root-context default-arg-resolvers default-middleware ns-specs]
   (loop [result (transient [])
          remaining ns-specs]
@@ -390,8 +393,9 @@
        ns-specs))
 
 (defn- eval-argument-meta
-  "Much like namespace metadata, metadata on an individual argument's symbol is visible but not evaluated.
-  This function replaces the meta-data of an argument symbol with the evaluated version of the metadata."
+  "Much like namespace metadata, metadata on an individual argument's symbol
+  is visible but not evaluated. This function replaces the meta-data of an
+  argument symbol with the evaluated version of the metadata."
   [ns-sym argument]
   (cond-let
     [raw-meta (meta argument)]
@@ -499,9 +503,9 @@
           [method endpoint-context request-handler merged-metadata'])))))
 
 (defn- expand-namespace-entry
-  "Expands on entry from the output of [[build-namespace-table]] and [[expand-namespace-metadata]],
-  converting each namespace entry into
-  a seq of routing entries:
+  "Expands on entry from the output of [[build-namespace-table]] and
+  [[expand-namespace-metadata]], converting each namespace entry into a seq of
+  routing entries:
 
       [method path handler endpoint-meta]
 
@@ -516,7 +520,8 @@
     that has been intercepted to include middleware, argument resolution, etc.
 
   endpoint-meta
-  : Merged meta-data for the handler, including key :function (namespace qualified name of the function)"
+  : Merged meta-data for the handler, including key :function (namespace
+    qualified name of the function)"
   [[context ns-sym arg-resolvers middleware ns-metadata]]
   (t/track
     #(format "Identifying endpoints in namespace `%s'." ns-sym)
@@ -549,17 +554,21 @@
 
 (defn- construct-dispatch-map
   "Constructs the dispatch map from routing specs (created by
-  [[construct-routing-table]]. The structure of the dispatch map
-  is a tree. Each node on the tree is a map.
+  [[construct-routing-table]]. The structure of the dispatch map is a tree.
+  Each node on the tree is a map.
 
-  String keys in a node are literal terms in the path, the value is a nested node.
+  String keys in a node are literal terms in the path, the value is a nested
+  node.
 
-  The :_ key in a node represents a position of a path argument, the value is a nested node.
+  The :_ key in a node represents a position of a path argument, the value is
+  a nested node.
 
-  The :* key in a node represents a wildcard; the path element is consumed without changing the node.
+  The :* key in a node represents a wildcard; the path element is consumed
+  without changing the node.
 
-  The other keys in a node are request methods (:get, :put, etc., or :all). The value
-  is a vector of handler data, each of which is a vector of [handler endpoint-meta route-params]."
+  The other keys in a node are request methods (:get, :put, etc., or :all).
+  The value is a vector of handler data, each of which is a vector of [handler
+  endpoint-meta route-params]."
   [routing-specs]
   (reduce
     (fn [dispatch-map [method path handler endpoint-meta]]
@@ -571,8 +580,8 @@
                                         m))
                                     {}
                                     path)
-            ;; Only these two keys are needed by the map traversal dispatcher, so there's no reason to keep
-            ;; the full metdata of the endpoint.
+            ;; Only these two keys are needed by the map traversal dispatcher,
+            ;; so there's no reason to keep the full metdata of the endpoint.
             endpoint-meta' (select-keys endpoint-meta [:function :match])]
         (if (= :all method)
           (reduce (fn [dispatch-map method]
@@ -603,15 +612,17 @@
               ;; function arguments.
               (assoc ::route-params (medley/map-vals (partial nth request-path) route-params)
                      ::path request-path)
-              ;; The handler here has the endpoint function at it's "center", but includes
-              ;; additional layers to provide arguments, as well as any middleware.
+              ;; The handler here has the endpoint function at it's "center",
+              ;; but includes additional layers to provide arguments, as well as
+              ;; any middleware.
               handler))
 
       ;; This is ok, it just means that the path is mapped to a method, just not
       ;; the method for this request.
       0 nil
 
-      ;; 2 or more is a problem, since there isn't a way to determine which to invoke.
+      ;; 2 or more is a problem, since there isn't a way to determine which
+      ;; to invoke.
       (throw (ex-info (format "Request %s matched %d endpoints."
                               (utils/summarize-request request)
                               (count matches))
@@ -662,11 +673,11 @@
           )))))
 
 (defn construct-namespace-handler
-  "Invoked from [[namespace-handler]] to construct a Ring request handler for the provided
-  options and namespace specifications.
+  "Invoked from [[namespace-handler]] to construct a Ring request handler for
+  the provided options and namespace specifications.
 
-  Returns a tuple of the constructed handler and the routing table (the flattened
-  version of the namespace specifications)."
+  Returns a tuple of the constructed handler and the routing table (the
+  flattened version of the namespace specifications)."
   {:added "0.1.20"}
   [options ns-specs]
   (let [routing-table (->> ns-specs
@@ -691,8 +702,8 @@
   : A map of metadata about the symbol (may be nil)
 
   argument-symbol
-  : A symbol identifying the name of the parameter. This is sometimes needed to construct
-    the argument resolver function.
+  : A symbol identifying the name of the parameter. This is sometimes needed
+    to construct the argument resolver function.
 
 
   Throws an exception if no (single) argument resolver can be identified."
@@ -714,7 +725,8 @@
                     {:missing-key ::route-params
                      :request     request}))
 
-    [f (identify-argument-resolver resolvers route-params argument-meta argument-symbol)]
+    [f (identify-argument-resolver
+         resolvers route-params argument-meta argument-symbol)]
 
     :else
     (f request)))
