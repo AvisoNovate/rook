@@ -1,11 +1,8 @@
 (ns validating
   (:require [schema.core :as s]
-            [io.aviso.rook.utils :as utils]))
+            [io.aviso.rook.utils :as utils]
+            [io.aviso.rook.schema :refer [->vector]]))
 
-(defn ->vector [vm]
-  (cond (vector? vm) vm
-        (map? vm) (vals vm) ; caution, vals does not preserve order; works for the purpose of the testing
-        :else []))
 
 (defn index
   {:schema    {:tags [s/Str]}

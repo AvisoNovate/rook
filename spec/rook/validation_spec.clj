@@ -92,13 +92,13 @@
           (should-be-valid {:params {:tags [:a]}}
                            (validate-against-schema {:params {:tags ["a"]}}
                                                     {:tags [s/Keyword]}
-                                                    {[s/Keyword] validating/->vector})))
+                                                    {[s/Keyword] rs/->vector})))
 
       (it "should coerce with custom coercions"
           (should-be-valid {:params {:tags [:a]}}
                            (validate-against-schema {:params {:tags {"0" "a"}}}
                                                     {:tags [s/Keyword]}
-                                                    {[s/Keyword] validating/->vector})))))
+                                                    {[s/Keyword] rs/->vector})))))
 
   (describe "middleware"
 

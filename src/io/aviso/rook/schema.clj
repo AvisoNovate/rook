@@ -173,3 +173,43 @@
     :else
     nil))
 
+
+(defn ->vector
+  "Coercer for vector-like (array-like) params. Expects to be handed data in
+  one of the following formats:
+
+  1. An existing vector – will be passed through.
+
+  2. A sequential collection – will return (vec xs).
+
+  2. A map of 0, 1, …, n → Object – will be converted to a vector with indices
+     preserved.
+
+  3. A map of \"0\", \"1\", …, \"n\" → Object – will be converted to a vector
+     with indices preserved.
+
+  Given any other input, returns nil."
+  [xs]
+  (cond
+    (vector? xs) xs
+
+    (sequential? xs) (vec xs)
+
+    (map? xs)
+    (if (seq xs)
+      (let [kc  (if (contains? xs 0)
+                  identity
+                  str)
+            len (count xs)]
+        (loop [out (transient []) i 0]
+          (if (< i len)
+            (if (contains? xs (kc i))
+              (recur (conj! out (get xs (kc i))) (inc i))
+              ;; expected key is missing, so either there is a gap in the input
+              ;; map's index range or there is a non-numeric key in there;
+              ;; either way, this is not a well-formed vector-like input
+              nil)
+            (persistent! out))))
+      [])
+
+    :else nil))
