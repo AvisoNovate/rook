@@ -64,14 +64,11 @@ Primarily useful when dealing with nested parameters, to obtain a vector when ke
 
 [source,clojure]
 ----
+(require '[io.aviso.rook.schema :refer [->vector]])
+
 (s/defschema IndexParameters
   {:tags [s/Keyword]
    s/Any s/Any})
-
-(defn- ->vector [vm]
-  (cond (vector? vm) vm
-        (map? vm) (vals vm) ; caution, vals does not preserve order; just an example.
-        :else []))
 
 (def index-coercions
   {[s/Keyword] ->vector})
