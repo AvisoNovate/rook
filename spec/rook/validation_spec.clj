@@ -88,17 +88,23 @@
                              (validate-against-schema {:params {:id (str uuid)}}
                                                       {:id (rs/with-description "A UUID" s/Uuid)}))))
 
-      (it "should coerce with custom coercions"
+      (it "should pass with custom coercions when vector"
           (should-be-valid {:params {:tags [:a]}}
                            (validate-against-schema {:params {:tags ["a"]}}
                                                     {:tags [s/Keyword]}
                                                     {[s/Keyword] rs/->vector})))
 
-      (it "should coerce with custom coercions"
+      (it "should coerce with custom coercions when map"
           (should-be-valid {:params {:tags [:a]}}
                            (validate-against-schema {:params {:tags {"0" "a"}}}
                                                     {:tags [s/Keyword]}
-                                                    {[s/Keyword] rs/->vector})))))
+                                                    {[s/Keyword] rs/->vector})))
+
+      (it "should fail validation with custom coercer when input is not well formed"
+          (let [[failure result] (validate-against-schema {:params {:tags "bogus"}}
+                                                    {:tags [s/Keyword]}
+                                                    {[s/Keyword] rs/->vector})]
+            (should-not-be-nil failure)))))
 
   (describe "middleware"
 
