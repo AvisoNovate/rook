@@ -189,6 +189,7 @@
      with indices preserved.
 
   Any other input will be returned unchanged."
+  {:added "0.1.39"}
   [xs]
   (cond
     (vector? xs) xs
