@@ -114,6 +114,9 @@
        ns-publics
        vals
        (keep endpoint-function)
+       ;; Sorting shouldn't be necessary, but helps make some tests more predictable;
+       ;; otherwise, subject to hash map ordering, which is not predictable.
+       (sort-by #(-> :endpoint :meta :name))
        (mapv #(build-pedestal-route % options))))
 
 (defn ^:private gen-routes
