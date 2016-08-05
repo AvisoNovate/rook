@@ -1,7 +1,7 @@
 (ns sample.simple)
 
-(defn get-item
-  {:rook-route [:get "/:id" ]}
+(defn all-items
+  {:rook-route [:get "" ]}
   []
   :get-item-response)
 
