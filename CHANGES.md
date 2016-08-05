@@ -1,3 +1,7 @@
+## 0.2.0  - UNRELEASED
+
+A major pivot to change Rook to be a way of generating Pedestal routing tables.
+
 ## 0.1.37 - UNRELEASED
 
 Improvements to the initial example provided in the manual.

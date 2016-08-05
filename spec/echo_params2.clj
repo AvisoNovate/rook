@@ -1,8 +1,0 @@
-(ns echo-params2
-  (:require [ring.util.response :as r]))
-
-(defn modify
-  "This actually fails, because there's no :as on the map."
-  [id {:keys [email new-password]}]
-  (assert new-password)
-  (r/response {:id id :email email}))
