@@ -3,12 +3,33 @@
   (:require [io.aviso.rook.internals :refer [deep-merge to-message]]
             [io.pedestal.interceptor :refer [interceptor]]))
 
-(defn ^:private context-resolver [k]
-  {:pre [(keyword? k)]}
-  (fn [_] k))
+
+(defn ^:private standard-arg-resolver
+  [ks]
+  (fn [context]
+    (let [v (get-in context ks)]
+      (if (some? v)
+        v
+        (throw (ex-info "Resolved argument value was nil."
+                        {:context-key-path ks}))))))
+
+(defn ^:private as-keyword
+  [sym]
+  (-> sym name keyword))
+
+(defn ^:private request-arg-resolver
+  [sym]
+  (let [meta-value (-> sym meta :request)]
+    (cond
+      (true? meta-value)
+      (standard-arg-resolver [:request (as-keyword sym)])
+
+      :else
+      (standard-arg-resolver [:request meta-value]))))
+
 
 (def default-arg-resolvers
-  {:request (context-resolver :request)})
+  {:request request-arg-resolver})
 
 (def default-options
   {:arg-resolvers default-arg-resolvers
@@ -36,7 +57,14 @@
   [endpoint arg-resolvers]
   (let [f (-> endpoint :var deref)
         supplier (when-not (empty? arg-resolvers)
-                   (apply juxt arg-resolvers))
+                   (let [applier (apply juxt arg-resolvers)]
+                     (fn [context]
+                       (try
+                         (applier context)
+                         (catch Throwable t
+                           (throw (ex-info "Failure resolving arguments."
+                                           endpoint
+                                           t)))))))
         endpoint-kw (keyword (-> endpoint :meta :ns ns-name name)
                              (-> endpoint :meta :name name))
         enter-fn (if supplier
@@ -122,16 +150,17 @@
        (keep endpoint-function)
        ;; Sorting shouldn't be necessary, but helps make some tests more predictable;
        ;; otherwise, subject to hash map ordering, which is not predictable.
-       (sort-by #(-> :endpoint :meta :name))
+       (sort-by #(-> % :endpoint :endpoint-name))
        (mapv #(build-pedestal-route % options))))
 
 (defn ^:private gen-routes
   [namespace-map options]
   (reduce-kv (fn [routes path ns-definition]
-               (let [{ns-symbol :ns
-                      nested-ns-map :nested} (if (symbol? ns-definition)
-                                               {:ns ns-definition}
-                                               ns-definition)]
+               (let [ns-definition' (if (symbol? ns-definition)
+                                      {:ns ns-definition}
+                                      ns-definition)
+                     {ns-symbol :ns
+                      nested-ns-map :nested} ns-definition']
                  (try
                    (let [current-ns (find-namespace ns-symbol)
                          current-ns-meta (->  current-ns meta (select-keys [:argument-resolvers :interceptors :constraints]))
@@ -147,7 +176,7 @@
                    (catch Throwable t
                      (throw (ex-info (format "Exception mapping routes for %s."
                                              (name ns-symbol))
-                                     ns-definition
+                                     ns-definition'
                                      t))))))
              []
              namespace-map))
