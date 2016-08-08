@@ -21,11 +21,15 @@
   (the-ns sym))
 
 (defn ^:private endpoint-function
+  "If a var has :rook-route metadata, then wrap it up in a map used elsewhere."
   [var]
   (when-let [metadata (meta var)]
     (and (:rook-route metadata)
          {:var var
-          :meta metadata})))
+          :meta metadata
+          :endpoint-name (str (-> metadata :ns ns-name name)
+                              "/"
+                              (-> metadata :name name))})))
 
 (defn ^:private fn-as-interceptor
   "Converts a function with a set of argument resolvers into a Pedestal interceptor."
@@ -47,6 +51,8 @@
 (defn ^:private arg->resolver
   [arg-sym arg-resolvers endpoint]
   (let [arg-meta (meta arg-sym)
+        ;; We're allergic to ambiguity, so we build a map of all the arg-resolvers, triggered
+        ;; by the metadata. We hope to get exactly one match.
         arg-resolvers (reduce-kv (fn [m k v]
                                    (if (get arg-meta k)
                                      (assoc m k
@@ -123,7 +129,9 @@
   [namespace-map options]
   (reduce-kv (fn [routes path ns-definition]
                (let [{ns-symbol :ns
-                      nested-ns-map :nested} ns-definition]
+                      nested-ns-map :nested} (if (symbol? ns-definition)
+                                               {:ns ns-definition}
+                                               ns-definition)]
                  (try
                    (let [current-ns (find-namespace ns-symbol)
                          current-ns-meta (->  current-ns meta (select-keys [:argument-resolvers :interceptors :constraints]))
@@ -174,6 +182,8 @@
   Each namespace may define metadata for :arg-resolvers, :constraints, and :interceptors.
   The supplied values are merged, or concatenated, to define defaults for any mapped functions
   in the namespace, and for any nested namespaces.
+
+  Alternately, a namespace definition may just be a symbol, used to identify the namespace.
 
   Mapped functions will have a :rook-route metadata value.
 

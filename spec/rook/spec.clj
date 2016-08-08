@@ -39,7 +39,10 @@
     (it "can invoke an endpoint"
         (should= :get-item-response
                  (-> @routes
-                     (get-response "/items")
-                     )))))
+                     (get-response "/items")))))
+
+  (it "can allow a namespace definition to be just a symbol for the namespace"
+      (should= [["/items" :get [:sample.simple/all-items]]]
+               (normalize (gen-table-routes {"/items" 'sample.simple} nil)))))
 
 (run-specs)
