@@ -1,6 +1,6 @@
 (ns io.aviso.rook
   "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
-  (:require [io.aviso.rook.internals :refer [deep-merge to-message]]
+  (:require [io.aviso.rook.internals :refer [deep-merge to-message into+]]
             [io.pedestal.interceptor :refer [interceptor]]))
 
 
@@ -163,16 +163,14 @@
                       nested-ns-map :nested} ns-definition']
                  (try
                    (let [current-ns (find-namespace ns-symbol)
-                         current-ns-meta (->  current-ns meta (select-keys [:argument-resolvers :interceptors :constraints]))
+                         current-ns-meta (-> current-ns meta (select-keys [:argument-resolvers :interceptors :constraints]))
                          nested-options (-> options
                                             (deep-merge current-ns-meta)
-                                            (update :prefix str path))
-                         namespace-routes (routes-in-namespace current-ns nested-options)
-                         nested-routes (when nested-ns-map
-                                         (gen-routes nested-ns-map nested-options))]
-                     (-> routes
-                         (into namespace-routes)
-                         (into nested-routes)))
+                                            (update :prefix str path))]
+                     (into+ routes
+                            (routes-in-namespace current-ns nested-options)
+                            (when nested-ns-map
+                              (gen-routes nested-ns-map nested-options))))
                    (catch Throwable t
                      (throw (ex-info (format "Exception mapping routes for %s."
                                              (name ns-symbol))

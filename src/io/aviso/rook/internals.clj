@@ -27,3 +27,7 @@
   [^Throwable t]
   (or (.getMessage t)
       (-> t .getClass .getName)))
+
+(defn into+
+  [coll & other-colls]
+  (reduce into coll other-colls))
