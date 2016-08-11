@@ -59,10 +59,10 @@
                               (-> metadata :name name))})))
 
 (defn ^:private fn-as-interceptor
-  "Converts a function with a set of argument resolvers into a Pedestal interceptor."
+  "Converts a function with a list of argument resolvers into a Pedestal interceptor."
   [endpoint arg-resolvers]
   (let [f (-> endpoint :var deref)
-        supplier (when-not (empty? arg-resolvers)
+        supplier (when (seq arg-resolvers)
                    (let [applier (apply juxt arg-resolvers)]
                      (fn [context]
                        (try
@@ -73,9 +73,9 @@
                                            t)))))))
         endpoint-kw (keyword (-> endpoint :meta :ns ns-name name)
                              (-> endpoint :meta :name name))
+        ;; TODO: Handle the case where the returned value is a core.async channel.
         enter-fn (if supplier
                    (fn [context]
-                     ;; TODO: Handle the case where the returned value is a core.async channel.
                      (assoc context :response (apply f (supplier context))))
                    (fn [context]
                      (assoc context :response (f))))]
