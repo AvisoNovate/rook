@@ -13,7 +13,7 @@
   (mapv #(update % 2 (partial map :name))
         routes))
 
-(defn bottom
+(defn ^Throwable bottom
   [^Throwable e]
   (if-let [nested (.getCause e)]
     (bottom nested)
@@ -69,7 +69,34 @@
                   (catch Throwable t t))]
           (should (instance? ExceptionInfo e))
           (should= "Resolved argument value was nil." (-> e bottom .getMessage))
-          (should= {:context-key-path [:request :does-not-exist]}
-                   (-> e bottom ex-data))))))
+          (should= {:parameter 'does-not-exist
+                    :context-key-path [:request :does-not-exist]}
+                   (-> e bottom ex-data)))))
+
+  (context "nested namespaces"
+    (with-all routes (gen-table-routes
+                       {"/hotels" {:ns 'sample.hotels
+                                   :nested {"/:hotel-id/rooms" 'sample.rooms}}}
+                       nil))
+
+    (it "can access endpoints in outer namespace"
+        ;; This also demonstrates getting constraints from the namespace metadata
+        ;; Also, we exercise the :path-param arg resolver.
+        (should= {:hotel-id "123456"
+                  :handler :sample.hotels/view-hotel}
+                 (get-response @routes "/hotels/123456")))
+
+    (it "can access endpoints in the nested namespace"
+        ;; This also demonstrates how nested namespaces inherit constraints from container
+        (should= {:hotel-id "111999"
+                  :handler :sample.rooms/rooms-index}
+                 (get-response @routes "/hotels/111999/rooms")))
+
+    (it "ignores routes where path variables violate constraints"
+        (should= nil
+                 (get-response @routes "/hotels/no-match"))
+
+        (should= nil
+                 (get-response @routes "/hotels/no-match/rooms")))))
 
 (run-specs)

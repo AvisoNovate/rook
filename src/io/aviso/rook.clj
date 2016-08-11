@@ -5,36 +5,42 @@
 
 
 (defn ^:private standard-arg-resolver
-  [ks]
+  [sym ks]
   (fn [context]
     (let [v (get-in context ks)]
       (if (some? v)
         v
         (throw (ex-info "Resolved argument value was nil."
-                        {:context-key-path ks}))))))
+                        {:parameter sym
+                         :context-key-path ks}))))))
 
-(defn ^:private as-keyword
+(defn ^:private from-meta
+  [sym meta-key]
+  (let [meta-value (-> sym meta (get meta-key))]
+    ;; This catches the typical default cause where the meta value is true,
+    ;; typically meaning the ^:my-resolver format was used. In that situation,
+    ;; convert the symbol name to an unqualified keyword.
+    (if (true? meta-value)
+      (-> sym name keyword)
+
+      meta-value)))
+
+(defn ^:private request-resolver
   [sym]
-  (-> sym name keyword))
+  (standard-arg-resolver sym [:request (from-meta sym :request)]))
 
-(defn ^:private request-arg-resolver
+(defn ^:private path-param-resolver
   [sym]
-  (let [meta-value (-> sym meta :request)]
-    (cond
-      (true? meta-value)
-      (standard-arg-resolver [:request (as-keyword sym)])
-
-      :else
-      (standard-arg-resolver [:request meta-value]))))
-
+  (standard-arg-resolver sym [:request :path-params (from-meta sym :path-param)]))
 
 (def default-arg-resolvers
-  {:request request-arg-resolver})
+  {:request request-resolver
+   :path-param path-param-resolver})
 
 (def default-options
   {:arg-resolvers default-arg-resolvers
-                      :constraints {}
-                      :interceptors []})
+   :constraints {}
+   :interceptors []})
 
 (defn ^:private find-namespace
   [sym]
@@ -62,7 +68,7 @@
                        (try
                          (applier context)
                          (catch Throwable t
-                           (throw (ex-info "Failure resolving arguments."
+                           (throw (ex-info "Exception resolving endpoint function arguments."
                                            endpoint
                                            t)))))))
         endpoint-kw (keyword (-> endpoint :meta :ns ns-name name)
@@ -77,47 +83,49 @@
                   :enter enter-fn})))
 
 (defn ^:private arg->resolver
-  [arg-sym arg-resolvers endpoint]
-  (let [arg-meta (meta arg-sym)
+  [parameter arg-resolvers endpoint]
+  (let [parameter-meta (meta parameter)
         ;; We're allergic to ambiguity, so we build a map of all the arg-resolvers, triggered
         ;; by the metadata. We hope to get exactly one match.
-        arg-resolvers (reduce-kv (fn [m k v]
-                                   (if (get arg-meta k)
+        fn-resolvers (reduce-kv (fn [m k v]
+                                  (if (get parameter-meta k)
                                      (assoc m k
                                             (try
-                                              (v arg-sym)
+                                              (v parameter)
                                               (catch Throwable t
                                                 (throw (ex-info (format "Exception invoking argument resolver generator %s: %s"
                                                                         k
                                                                         (to-message t))
                                                                 {:endpoint endpoint
-                                                                 :arg arg-sym
-                                                                 :arg-meta arg-meta
-                                                                 :arg-resolver k})))))))
-                                 {}
-                                 arg-resolvers)]
-    (case (count arg-resolvers)
+                                                                 :parameter parameter
+                                                                 :parameter-meta parameter-meta
+                                                                 :arg-resolver k}
+                                                                t)))))
+                                     m))
+                                {}
+                                arg-resolvers)]
+    (case (count fn-resolvers)
 
       0
-      (throw (ex-info (format "No argument resolver found for argument %s." arg-sym)
+      (throw (ex-info (format "No argument resolver found for parameter %s." parameter)
                       {:endpoint endpoint
-                       :arg arg-sym
-                       :arg-meta arg-meta
-                       :arg-resolvers (keys arg-resolvers)}))
+                       :parameter parameter
+                       :parameter-meta parameter-meta
+                       :arg-resolvers (keys fn-resolvers)}))
 
       1
-      (-> arg-resolvers vals first)
+      (-> fn-resolvers vals first)
 
       ;; Otherwise
-      (throw (ex-info (format "Multiple argument resolvers apply to argument %s." arg-sym)
+      (throw (ex-info (format "Multiple argument resolvers apply to parameter %s." parameter)
                       {:endpoint endpoint
-                       :arg arg-sym
-                       :arg-meta arg-meta
-                       :arg-resolvers (keys arg-resolvers)})))))
+                       :parameter parameter
+                       :parameter-meta parameter-meta
+                       :arg-resolvers (keys fn-resolvers)})))))
 
 (defn ^:private build-pedestal-route
   [endpoint options]
-  (let [{:keys [arg-resolvers interceptors contraints prefix]} options
+  (let [{:keys [arg-resolvers interceptors constraints prefix]} options
         {:keys [arglists]
          fn-arg-resolvers :arg-resolvers
          fn-interceptors :interceptors
@@ -134,13 +142,13 @@
         arg-resolvers' (merge arg-resolvers fn-arg-resolvers)
         interceptors' (into interceptors fn-interceptors)
         path' (str prefix path)
-        constraints' (merge contraints fn-constraints)
+        constraints' (merge constraints fn-constraints)
         fn-arg-resolvers (mapv #(arg->resolver % arg-resolvers' endpoint) (first arglists))
         fn-interceptor (fn-as-interceptor endpoint fn-arg-resolvers)]
     ;; TODO: Add an optional :route-name
     (cond->
       [path' verb (conj interceptors' fn-interceptor)]
-      constraints' (conj :constraints constraints'))))
+      (seq constraints') (conj :constraints constraints'))))
 
 (defn ^:private routes-in-namespace
   [namespace options]
@@ -163,7 +171,7 @@
                       nested-ns-map :nested} ns-definition']
                  (try
                    (let [current-ns (find-namespace ns-symbol)
-                         current-ns-meta (-> current-ns meta (select-keys [:argument-resolvers :interceptors :constraints]))
+                         current-ns-meta (-> current-ns meta (select-keys [:arg-resolvers :interceptors :constraints]))
                          nested-options (-> options
                                             (deep-merge current-ns-meta)
                                             (update :prefix str path))]
