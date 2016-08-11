@@ -6,11 +6,23 @@
             [io.pedestal.http.route.definition.table :as table])
   (:import [clojure.lang ExceptionInfo]))
 
+(defn ^:private stringify-map-values
+  [v]
+  (cond->> v
+    (map? v)
+    (reduce-kv (fn [m k v]
+                 (assoc m k (str v)))
+               {})))
+
 (defn normalize
   "Normalizes the routes so that they can be compared; the interceptors are replaced
-  with their names."
+  with their names, and regular expressions are replaced with string representation
+   (because identical REs compare as false)."
   [routes]
-  (mapv #(update % 2 (partial map :name))
+  (mapv (fn [route]
+          (as-> route %
+                (update % 2 (partial mapv :name))
+                (mapv stringify-map-values %)))
         routes))
 
 (defn ^Throwable bottom
@@ -79,8 +91,13 @@
                                    :nested {"/:hotel-id/rooms" 'sample.rooms}}}
                        nil))
 
+    (it "generates the expected table"
+        (should= [["/hotels/:hotel-id" :get [:sample.hotels/view-hotel] :constraints {:hotel-id "\\d{6}"}]
+                  ["/hotels/:hotel-id/rooms" :get [:sample.rooms/rooms-index] :constraints {:hotel-id "\\d{6}"}]]
+                 (normalize @routes)))
+
     (it "can access endpoints in outer namespace"
-        ;; This also demonstrates getting constraints from the namespace metadata
+        ;; This also demonstrates getting constraints from the namespace metadata9
         ;; Also, we exercise the :path-param arg resolver.
         (should= {:hotel-id "123456"
                   :handler :sample.hotels/view-hotel}

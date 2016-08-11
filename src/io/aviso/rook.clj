@@ -88,20 +88,20 @@
         ;; We're allergic to ambiguity, so we build a map of all the arg-resolvers, triggered
         ;; by the metadata. We hope to get exactly one match.
         fn-resolvers (reduce-kv (fn [m k v]
-                                  (if (get parameter-meta k)
-                                     (assoc m k
-                                            (try
-                                              (v parameter)
-                                              (catch Throwable t
-                                                (throw (ex-info (format "Exception invoking argument resolver generator %s: %s"
-                                                                        k
-                                                                        (to-message t))
-                                                                {:endpoint endpoint
-                                                                 :parameter parameter
-                                                                 :parameter-meta parameter-meta
-                                                                 :arg-resolver k}
-                                                                t)))))
-                                     m))
+                                  (cond-> m
+                                    (get parameter-meta k)
+                                    (assoc  k
+                                           (try
+                                             (v parameter)
+                                             (catch Throwable t
+                                               (throw (ex-info (format "Exception invoking argument resolver generator %s: %s"
+                                                                       k
+                                                                       (to-message t))
+                                                               {:endpoint endpoint
+                                                                :parameter parameter
+                                                                :parameter-meta parameter-meta
+                                                                :arg-resolver k}
+                                                               t)))))))
                                 {}
                                 arg-resolvers)]
     (case (count fn-resolvers)
@@ -204,15 +204,19 @@
    namespace.
 
   :arg-resolvers
-  : Map from keyword to argument resolver generator.  This map, if present, is merged into the containing
-   namespaces's map of argument resolvers.
+  : Map from keyword to argument resolver generator.
+    This map, if present, is merged into the containing
+    namespaces's map of argument resolvers.
+
+    An argument resolver generator is passed a symbol (the parameter) and returns a function
+    that provides the parameter's value. The function is passed the Pedestal context.
 
   :constraints
   : Map from keyword to regular expression. This map will be inherted and extended by nested namespaces.
 
   :interceptors
   : Vector of Pedestal interceptors for the namespace. These interceptors will apply to all routes.
-   Individual routes may define additional interceptors.
+    Individual routes may define additional interceptors.
 
   Each namespace may define metadata for :arg-resolvers, :constraints, and :interceptors.
   The supplied values are merged, or concatenated, to define defaults for any mapped functions
@@ -220,8 +224,12 @@
 
   Alternately, a namespace definition may just be a symbol, used to identify the namespace.
 
-  Mapped functions will have a :rook-route metadata value.
+  Mapped functions will have a :rook-route metadata value.  This consists of a method
+  (:get, :post, etc.), a path string, and optionally, a map of constraints.
 
-  "
+  Mapped functions should have a single arity.
+
+  Each parameter of the function must have metadata identifying how the argument value
+  is to be generated; these are defined by the effective arg-resolvers for the function."
   [namespace-map options]
   (gen-routes namespace-map (deep-merge default-options options)))
