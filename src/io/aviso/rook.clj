@@ -88,7 +88,7 @@
   [v]
   (satisfies? ReadPort v))
 
-(defn ^:private wrap-for-async
+(defn ^:private wrap-to-assoc-response
   "Invokes the function yielding the response.  Returns either the context with the :response
   key set, or a channel that will convey the context when ready (if the endpoint function returns
   a channel)."
@@ -101,10 +101,10 @@
 
 (defn ^:private fn-as-interceptor
   "Converts a function with a list of argument resolvers into a Pedestal interceptor."
-  [endpoint arg-resolvers]
+  [endpoint resolvers]
   (let [f (-> endpoint :var deref)
-        supplier (when (seq arg-resolvers)
-                   (let [applier (apply juxt arg-resolvers)]
+        supplier (when (seq resolvers)
+                   (let [applier (apply juxt resolvers)]
                      (fn [context]
                        (try
                          (applier context)
@@ -117,13 +117,13 @@
         generate-response (if supplier
                             (fn [context]
                             (apply f (supplier context)))
-                            ;; Keep things simple in the rare case that there are no arguments.
+                            ;; Keep things simple in the occasional case that there are no arguments.
                             (fn [_]
                               (f)))]
     (interceptor {:name endpoint-kw
-                  :enter (wrap-for-async generate-response)})))
+                  :enter (wrap-to-assoc-response generate-response)})))
 
-(defn ^:private arg->resolver
+(defn ^:private parameter->resolver
   [parameter arg-resolvers]
   (let [parameter-meta (meta parameter)
         ;; We're allergic to ambiguity, so we build a map of all the arg-resolvers, triggered
@@ -208,8 +208,8 @@
                               (into interceptors fn-interceptors))
           path' (str prefix path)
           constraints' (merge constraints fn-constraints)
-          fn-arg-resolvers (mapv #(arg->resolver % arg-resolvers') (first arglists))
-          fn-interceptor (fn-as-interceptor endpoint fn-arg-resolvers)]
+          resolvers (mapv #(parameter->resolver % arg-resolvers') (first arglists))
+          fn-interceptor (fn-as-interceptor endpoint resolvers)]
       ;; TODO: Add an optional :route-name
       (cond->
         [path' verb (conj interceptors' fn-interceptor)]
