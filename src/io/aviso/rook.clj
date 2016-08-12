@@ -2,6 +2,8 @@
   "Rook is used to map the functions of a namespace as web request endpoints, based largely
   on metadata on the functions."
   (:require [io.aviso.rook.internals :refer [deep-merge to-message into+]]
+            [clojure.core.async :refer [go <!]]
+            [clojure.core.async.impl.protocols :refer [ReadPort]]
             [io.pedestal.interceptor :refer [interceptor]]))
 
 ;; Remember that a parameter is the symbol defined by a function, and an argument
@@ -59,10 +61,12 @@
   "Default options when generating the routing table.
 
    Defines a base set of argument resolvers ([[default-arg-resolvers]]),
-   an empty map of constraints, and an empty list of interceptors."
+   an empty map of constraints, an empty list of interceptors, and
+   an empty map of interceptor definitions."
   {:arg-resolvers default-arg-resolvers
    :constraints {}
-   :interceptors []})
+   :interceptors []
+   :interceptor-defs {}})
 
 (defn ^:private find-namespace
   [sym]
@@ -80,6 +84,21 @@
                               "/"
                               (-> metadata :name name))})))
 
+(defn ^:private read-port?
+  [v]
+  (satisfies? ReadPort v))
+
+(defn ^:private wrap-for-async
+  "Invokes the function yielding the response.  Returns either the context with the :response
+  key set, or a channel that will convey the context when ready (if the endpoint function returns
+  a channel)."
+  [f]
+  (fn [context]
+    (let [v (f context)]
+      (if (read-port? v)
+        (go (assoc context :response (<! v)))
+        (assoc context :response v)))))
+
 (defn ^:private fn-as-interceptor
   "Converts a function with a list of argument resolvers into a Pedestal interceptor."
   [endpoint arg-resolvers]
@@ -95,17 +114,17 @@
                                            t)))))))
         endpoint-kw (keyword (-> endpoint :meta :ns ns-name name)
                              (-> endpoint :meta :name name))
-        ;; TODO: Handle the case where the returned value is a core.async channel.
-        enter-fn (if supplier
-                   (fn [context]
-                     (assoc context :response (apply f (supplier context))))
-                   (fn [context]
-                     (assoc context :response (f))))]
+        generate-response (if supplier
+                            (fn [context]
+                            (apply f (supplier context)))
+                            ;; Keep things simple in the rare case that there are no arguments.
+                            (fn [_]
+                              (f)))]
     (interceptor {:name endpoint-kw
-                  :enter enter-fn})))
+                  :enter (wrap-for-async generate-response)})))
 
 (defn ^:private arg->resolver
-  [parameter arg-resolvers endpoint]
+  [parameter arg-resolvers]
   (let [parameter-meta (meta parameter)
         ;; We're allergic to ambiguity, so we build a map of all the arg-resolvers, triggered
         ;; by the metadata. We hope to get exactly one match.
@@ -119,8 +138,7 @@
                                                (throw (ex-info (format "Exception invoking argument resolver generator %s: %s"
                                                                        k
                                                                        (to-message t))
-                                                               {:endpoint endpoint
-                                                                :parameter parameter
+                                                               {:parameter parameter
                                                                 :parameter-meta parameter-meta
                                                                 :arg-resolver k}
                                                                t)))))))
@@ -130,8 +148,7 @@
 
       0
       (throw (ex-info (format "No argument resolver found for parameter %s." parameter)
-                      {:endpoint endpoint
-                       :parameter parameter
+                      {:parameter parameter
                        :parameter-meta parameter-meta
                        :arg-resolvers (keys fn-resolvers)}))
 
@@ -140,38 +157,67 @@
 
       ;; Otherwise
       (throw (ex-info (format "Multiple argument resolvers apply to parameter %s." parameter)
-                      {:endpoint endpoint
-                       :parameter parameter
+                      {:parameter parameter
                        :parameter-meta parameter-meta
                        :arg-resolvers (keys fn-resolvers)})))))
 
+(defn ^:private resolve-interceptor
+  [interceptor-defs endpoint interceptor]
+  (cond
+    (keyword? interceptor)
+    (let [interceptor-def (get interceptor-defs interceptor)]
+      (cond
+
+        (nil? interceptor-defs)
+        (throw (ex-info "Unknown interceptor definition."
+                        {:interceptor interceptor
+                         :intereceptor-defs (keys interceptor-defs)}))
+
+        ;; This is our special case, :endpoint-interceptor-fn indicates that
+        ;; it is a function that generates an interceptor custom for the endpoint.
+        (-> interceptor-def meta :endpoint-interceptor-fn)
+        (interceptor-def endpoint)
+
+        ;; Otherwise, a preconfigured interceptor, or any of the other things
+        ;; that are acceptible in a Pedestal routing table.
+
+        :else
+        interceptor-def))
+
+    :else
+    interceptor))
+
 (defn ^:private build-pedestal-route
   [endpoint options]
-  (let [{:keys [arg-resolvers interceptors constraints prefix]} options
-        {:keys [arglists]
-         fn-arg-resolvers :arg-resolvers
-         fn-interceptors :interceptors
-         [verb path fn-constraints] :rook-route} (:meta endpoint)
-        arg-resolvers' (do
-                         (when-not (= 1 (count arglists))
-                           (throw (ex-info "Endpoint function must have exactly one arity."
-                                           endpoint)))
+  (try
+    (let [{:keys [arg-resolvers interceptors interceptor-defs constraints prefix]} options
+          {:keys [arglists]
+           fn-arg-resolvers :arg-resolvers
+           fn-interceptors :interceptors
+           [verb path fn-constraints] :rook-route} (:meta endpoint)
+          arg-resolvers' (do
+                           (when-not (= 1 (count arglists))
+                             (throw (IllegalArgumentException. "Endpoint function must have exactly one arity.")))
 
-                         (when-not (and (keyword? verb)
-                                        (string? path))
-                           (throw (ex-info "Route for endpoint function is not valid."
-                                           endpoint)))
+                           (when-not (and (keyword? verb)
+                                          (string? path))
+                             (throw (IllegalArgumentException. "Route for endpoint function is not valid.")))
 
-                         (merge arg-resolvers fn-arg-resolvers))
-        interceptors' (into interceptors fn-interceptors)
-        path' (str prefix path)
-        constraints' (merge constraints fn-constraints)
-        fn-arg-resolvers (mapv #(arg->resolver % arg-resolvers' endpoint) (first arglists))
-        fn-interceptor (fn-as-interceptor endpoint fn-arg-resolvers)]
-    ;; TODO: Add an optional :route-name
-    (cond->
-      [path' verb (conj interceptors' fn-interceptor)]
-      (seq constraints') (conj :constraints constraints'))))
+                           (merge arg-resolvers fn-arg-resolvers))
+          interceptors' (mapv #(resolve-interceptor interceptor-defs endpoint %)
+                              (into interceptors fn-interceptors))
+          path' (str prefix path)
+          constraints' (merge constraints fn-constraints)
+          fn-arg-resolvers (mapv #(arg->resolver % arg-resolvers') (first arglists))
+          fn-interceptor (fn-as-interceptor endpoint fn-arg-resolvers)]
+      ;; TODO: Add an optional :route-name
+      (cond->
+        [path' verb (conj interceptors' fn-interceptor)]
+        (seq constraints') (conj :constraints constraints')))
+    (catch Throwable t
+      (throw (ex-info (format "Exception building route for %s." (:endpoint-name endpoint))
+                      endpoint
+                      t)))))
 
 (defn ^:private routes-in-namespace
   [namespace options]
@@ -184,6 +230,8 @@
        (sort-by #(-> % :endpoint :endpoint-name))
        (mapv #(build-pedestal-route % options))))
 
+(def ^:private inherited-options [:arg-resolvers :interceptors :constraints])
+
 (defn ^:private gen-routes
   [namespace-map options]
   (reduce-kv (fn [routes path ns-definition]
@@ -194,9 +242,9 @@
                       nested-ns-map :nested} ns-definition']
                  (try
                    (let [current-ns (find-namespace ns-symbol)
-                         current-ns-meta (-> current-ns meta (select-keys [:arg-resolvers :interceptors :constraints]))
                          nested-options (-> options
-                                            (deep-merge current-ns-meta)
+                                            (deep-merge (select-keys ns-definition' inherited-options)
+                                                        (-> current-ns meta (select-keys inherited-options)))
                                             (update :prefix str path))]
                      (into+ routes
                             (routes-in-namespace current-ns nested-options)
@@ -244,6 +292,9 @@
     These interceptors will apply to all routes.
     Individual routes may define additional interceptors.
 
+  :interceptor-defs
+  : Map of keyword to interceptor, or interceptor generator.
+
   Each namespace may define metadata for :arg-resolvers, :constraints, and :interceptors.
   The supplied values are merged, or concatenated, to define defaults for any mapped functions
   in the namespace, and for any nested namespaces.
@@ -257,6 +308,16 @@
 
   Each parameter of the function must have metadata identifying how the argument value
   is to be generated; these are defined by the effective arg-resolvers for the function.
+
+  The :interceptor-defs option provides extra levels of indirection between an endpoint
+  and the interceptors it requires.
+  It allows for interceptors to be specified as a keyword.
+  The corresponding value in the interceptor-defs map may either be a previously
+  instantiated interceptor, or can by a function with the ^:endpoint-interceptor-fn
+  meta data.
+
+  In the latter case, a map definining the endpoint is passed to the generator function,
+  which returns an interceptor.
 
   The options map provides overrides of [[default-options]].
   Supplied options are deep merged into the defaults."

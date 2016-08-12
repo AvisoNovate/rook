@@ -4,12 +4,13 @@
   :license {:name "Apache Sofware License 2.0"
             :url "http://www.apache.org/licenses/LICENSE-2.0.html"}
   :profiles {:dev {:dependencies [[speclj "3.3.2"]
-                             [io.aviso/logging "0.1.0"]
-                             [clj-http "3.1.0"]]}}
-  ;; List "resolved" dependencies first, which occur when there are conflicts.
-  ;; We pin down the version we want, then exclude anyone who disagrees.
+                                  [io.aviso/logging "0.1.0"]
+                                  [io.pedestal/pedestal.jetty "0.5.0"]
+                                  [clj-http "3.1.0"]]}}
+  ;; 1.8 or above is important; the way 1.7 does namespace metadata is a problem.
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [io.pedestal/pedestal.service "0.5.0"]]
+                 [io.pedestal/pedestal.service "0.5.0"]
+                 [clj-http "2.0.0"]]
   :plugins [[speclj "3.3.2"]
             [walmartlabs/vizdeps "0.1.1"]
             [lein-codox "0.9.5"]]
