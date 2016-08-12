@@ -1,11 +1,11 @@
-## Rook - Even easier Pedestal service routing
+## Rook - Even easier Pedestal request routing
 
 image:http://clojars.org/io.aviso/rook/latest-version.svg[Clojars Project, link="http://clojars.org/io.aviso/rook"]
 
 image:https://drone.io/github.com/AvisoNovate/rook/status.png[Build Status, link="https://drone.io/github.com/AvisoNovate/rook"]
 
-Rook is easy service routing for link:https://github.com/pedestal/pedestal[Pedestal], it makes it
-easy to map namespaces of functions as Pedestal handlers.
+Rook is easy request routing for link:https://github.com/pedestal/pedestal[Pedestal].
+Rook makes it easy to map namespaces of functions as Pedestal handlers.
 
 Rook leverages metadata at the namespace and function level to streamline and remove boilerplate from your code.
 

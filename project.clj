@@ -1,5 +1,5 @@
 (defproject io.aviso/rook "0.2.0-SNAPSHOT"
-  :description "Sane, smart, fast, Clojure web services"
+  :description "Smart namespace-driven routing for Pedestal"
   :url "https://github.com/AvisoNovate/rook"
   :license {:name "Apache Sofware License 2.0"
             :url "http://www.apache.org/licenses/LICENSE-2.0.html"}
