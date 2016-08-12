@@ -1,8 +1,11 @@
 (ns io.aviso.rook
-  "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
+  "Rook is used to map the functions of a namespace as web request endpoints, based largely
+  on metadata on the functions."
   (:require [io.aviso.rook.internals :refer [deep-merge to-message into+]]
             [io.pedestal.interceptor :refer [interceptor]]))
 
+;; Remember that a parameter is the symbol defined by a function, and an argument
+;; is the actual value passed to the function.
 
 (defn ^:private standard-arg-resolver
   [sym ks]
@@ -34,10 +37,29 @@
   (standard-arg-resolver sym [:request :path-params (from-meta sym :path-param)]))
 
 (def default-arg-resolvers
+  "Defines the following argument resolvers:
+
+  :request
+  : The argument resolves to a key in the :request map.
+
+  :path-param
+  : The argument resolves to a path parameter.
+
+  For these resolvers, the following rules apply:
+
+  * If the meta data value is exactly the value true (e.g., just using ^:request), then
+    the effective value is a keyword generated from the parameter symbol.
+
+  * At resolution time (that is, as the endpoint function is being invoked),
+    the argument value must be non-nil, or an exception is thrown."
   {:request request-resolver
    :path-param path-param-resolver})
 
 (def default-options
+  "Default options when generating the routing table.
+
+   Defines a base set of argument resolvers ([[default-arg-resolvers]]),
+   an empty map of constraints, and an empty list of interceptors."
   {:arg-resolvers default-arg-resolvers
    :constraints {}
    :interceptors []})
@@ -130,16 +152,17 @@
          fn-arg-resolvers :arg-resolvers
          fn-interceptors :interceptors
          [verb path fn-constraints] :rook-route} (:meta endpoint)
-        _ (do
-            (when-not (= 1 (count arglists))
-              (throw (ex-info "Endpoint function must have exactly one arity."
-                              endpoint)))
+        arg-resolvers' (do
+                         (when-not (= 1 (count arglists))
+                           (throw (ex-info "Endpoint function must have exactly one arity."
+                                           endpoint)))
 
-            (when-not (and (keyword? verb)
-                           (string? path))
-              (throw (ex-info "Route for endpoint function is not valid."
-                              endpoint))))
-        arg-resolvers' (merge arg-resolvers fn-arg-resolvers)
+                         (when-not (and (keyword? verb)
+                                        (string? path))
+                           (throw (ex-info "Route for endpoint function is not valid."
+                                           endpoint)))
+
+                         (merge arg-resolvers fn-arg-resolvers))
         interceptors' (into interceptors fn-interceptors)
         path' (str prefix path)
         constraints' (merge constraints fn-constraints)
@@ -208,14 +231,17 @@
     This map, if present, is merged into the containing
     namespaces's map of argument resolvers.
 
-    An argument resolver generator is passed a symbol (the parameter) and returns a function
-    that provides the parameter's value. The function is passed the Pedestal context.
+  : An argument resolver generator is passed a symbol (the parameter) and returns a resolver function.
+    The resolver function is invoked every time the endpoint function is invoked: it is passed
+    the Pedestal context, and returns the value for the parameter.
 
   :constraints
-  : Map from keyword to regular expression. This map will be inherted and extended by nested namespaces.
+  : Map from keyword to regular expression.
+    This map will be inherted and extended by nested namespaces.
 
   :interceptors
-  : Vector of Pedestal interceptors for the namespace. These interceptors will apply to all routes.
+  : Vector of Pedestal interceptors for the namespace.
+    These interceptors will apply to all routes.
     Individual routes may define additional interceptors.
 
   Each namespace may define metadata for :arg-resolvers, :constraints, and :interceptors.
@@ -230,6 +256,9 @@
   Mapped functions should have a single arity.
 
   Each parameter of the function must have metadata identifying how the argument value
-  is to be generated; these are defined by the effective arg-resolvers for the function."
+  is to be generated; these are defined by the effective arg-resolvers for the function.
+
+  The options map provides overrides of [[default-options]].
+  Supplied options are deep merged into the defaults."
   [namespace-map options]
   (gen-routes namespace-map (deep-merge default-options options)))
