@@ -23,7 +23,7 @@
 (defn normalize
   "Normalizes the routes so that they can be compared; the interceptors are replaced
   with their names, and regular expressions are replaced with string representation
-   (because identical REs compare as false)."
+  (because identical REs compare as false)."
   [routes]
   (mapv (fn [route]
           (as-> route %
@@ -195,7 +195,6 @@
       (with-all port (let [socket (ServerSocket. 0)
                            port (.getLocalPort socket)]
                        (.close socket)
-                       (prn :port port)
                        port))
 
       (with-all server
