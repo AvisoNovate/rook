@@ -1,7 +1,8 @@
-(ns sample.rooms)
+(ns sample.rooms
+  (:require [ring.util.response :refer [response]]))
 
 (defn rooms-index
   {:rook-route [:get ""]}
   [ ^:path-param hotel-id]
-  {:hotel-id hotel-id
-   :handler ::rooms-index})
+  (response {:hotel-id hotel-id
+             :handler ::rooms-index}))

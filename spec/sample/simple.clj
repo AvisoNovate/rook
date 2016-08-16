@@ -1,9 +1,10 @@
-(ns sample.simple)
+(ns sample.simple
+  (:require [ring.util.response :refer [response]]))
 
 (defn all-items
   {:rook-route [:get ""]}
   []
-  :get-item-response)
+  (response "all-items"))
 
 (defn ignored-method
   [])

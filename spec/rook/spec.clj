@@ -2,15 +2,14 @@
   (:require [speclj.core :refer [describe context it run-specs should= with-all should-throw should
                                  before-all after-all pending]]
             [io.aviso.rook :refer [gen-table-routes]]
-            [io.pedestal.http.route :as route]
-            [io.pedestal.interceptor.chain :as chain]
             [io.pedestal.http.route.definition.table :as table]
-            [io.pedestal.http :as server]
-            [clj-http.client :as http]
+            [io.pedestal.http :as http]
+            [io.pedestal.test :refer [response-for]]
+            [clojure.edn :as edn]
+            [clj-http.client :as client]
             [sample.static-interceptors :refer [add-elapsed-time]]
             [sample.dynamic-interceptors :refer [endpoint-labeler]])
-  (:import [clojure.lang ExceptionInfo]
-           [java.net ServerSocket]))
+  (:import [java.net ServerSocket]))
 
 (defn ^:private stringify-map-values
   [v]
@@ -37,22 +36,15 @@
     (bottom nested)
     e))
 
-(defn execute-request
-  [routes path request]
-  (let [interceptors (-> routes
-                         (table/table-routes)
-                         (route/router :prefix-tree))]
-    (-> {:request (merge {:request-method :get
-                          :path-info path}
-                         request)}
-        (chain/enqueue [interceptors])
-        chain/execute)))
-
 (defn get-response
-  ([routes path]
-   (get-response routes path nil))
-  ([routes path request]
-   (:response (execute-request routes path request))))
+  [routes path]
+  (let [table-routes (table/table-routes routes)
+        service-fn (-> {::http/routes table-routes
+                        ::http/type :jetty
+                        ::http/port 8080}
+                       http/create-servlet
+                       ::http/service-fn)]
+    (response-for service-fn :get (str "http://localhost:8080" path))))
 
 (describe "io.aviso.rook"
 
@@ -64,9 +56,10 @@
                  (normalize @routes)))
 
     (it "can invoke an endpoint"
-        (should= :get-item-response
+        (should= {:status 200 :body "all-items"}
                  (-> @routes
-                     (get-response "/items")))))
+                     (get-response "/items")
+                     (select-keys [:status :body])))))
 
   (it "can allow a namespace definition to be just a symbol for the namespace"
       (should= [["/items" :get [:sample.simple/all-items]]]
@@ -76,22 +69,23 @@
     (with-all routes (gen-table-routes {"/widgets" 'sample.request-injection} nil))
 
     (it "defaults the key name to match the parameter symbol"
-        (should= {:arg-value :get}
-                 (get-response @routes "/widgets")))
+        (should= {:status 200 :body "get"}
+                 (-> @routes
+                     (get-response "/widgets")
+                     (select-keys [:status :body]))))
 
     (it "will use an explicit key if provided"
-        (should= {:arg-value "/widgets/specific-key"}
-                 (get-response @routes "/widgets/specific-key")))
+        (should= "/widgets/specific-key"
+                 (-> @routes
+                     (get-response "/widgets/specific-key")
+                     :body)))
 
     (it "requires a non-nil value"
-        (let [e (try
-                  (get-response @routes "/widgets/failure")
-                  (catch Throwable t t))]
-          (should (instance? ExceptionInfo e))
-          (should= "Resolved argument value was nil." (-> e bottom .getMessage))
-          (should= {:parameter 'does-not-exist
-                    :context-key-path [:request :does-not-exist]}
-                   (-> e bottom ex-data)))))
+        (should= {:status 500
+                  :body "Internal server error: exception"}
+                 (-> @routes
+                     (get-response "/widgets/failure")
+                     (select-keys [:status :body])))))
 
   (context "nested namespaces"
     (with-all routes (gen-table-routes
@@ -109,20 +103,30 @@
         ;; Also, we exercise the :path-param arg resolver.
         (should= {:hotel-id "123456"
                   :handler :sample.hotels/view-hotel}
-                 (get-response @routes "/hotels/123456")))
+                 (-> @routes
+                     (get-response "/hotels/123456")
+                     :body
+                     edn/read-string)))
 
     (it "can access endpoints in the nested namespace"
         ;; This also demonstrates how nested namespaces inherit constraints from container
         (should= {:hotel-id "111999"
                   :handler :sample.rooms/rooms-index}
-                 (get-response @routes "/hotels/111999/rooms")))
+                 (-> @routes
+                     (get-response "/hotels/111999/rooms")
+                     :body
+                     edn/read-string)))
 
     (it "ignores routes where path variables violate constraints"
-        (should= nil
-                 (get-response @routes "/hotels/no-match"))
+        (should= 404
+                 (-> @routes
+                     (get-response "/hotels/no-match")
+                     :status))
 
-        (should= nil
-                 (get-response @routes "/hotels/no-match/rooms"))))
+        (should= 404
+                 (-> @routes
+                     (get-response "/hotels/no-match/rooms")
+                     :status))))
 
   (context "interceptors"
 
@@ -140,7 +144,10 @@
           (should= {:status 200
                     :headers {"Elapsed-Time" "35"}
                     :body [:one :two :three]}
-                   (get-response @routes "/widgets"))))
+                   (-> @routes
+                       (get-response "/widgets")
+                       (update :headers select-keys ["Elapsed-Time"])
+                       (update :body edn/read-string)))))
 
     (context "static interceptor definitions"
       (with-all routes (gen-table-routes
@@ -152,14 +159,21 @@
       (it "only apply when added"
           (should= {:handler :sample.hotels/view-hotel
                     :hotel-id "123456"}
-                   (get-response @routes "/hotels/123456")))
+                   (-> @routes
+                       (get-response "/hotels/123456")
+                       :body
+                       edn/read-string)))
 
       (it "affects routes to which it is added"
           ;; This also demonstrates that interceptors in a namespace def apply.
-          (should= {:hotel-id "123456"
-                    :handler :sample.rooms/rooms-index
+          (should= {:status 200
+                    :body {:hotel-id "123456"
+                           :handler :sample.rooms/rooms-index}
                     :headers {"Elapsed-Time" "35"}}
-                   (get-response @routes "/hotels/123456/rooms"))))
+                   (-> @routes
+                       (get-response "/hotels/123456/rooms")
+                       (update :body edn/read-string)
+                       (update :headers select-keys ["Elapsed-Time"])))))
 
     (context "generated interceptor definitions"
       (with-all routes (gen-table-routes
@@ -178,17 +192,30 @@
                    (normalize @routes)))
 
       (it "is invoked for each endpoint"
-          (should= {:hotel-id "123456"
-                    :handler :sample.rooms/rooms-index
+          (should= {:status 200
+                    :body {:hotel-id "123456"
+                           :handler :sample.rooms/rooms-index}
                     :headers {"Elapsed-Time" "35"
                               "Endpoint" "sample.rooms/rooms-index"}}
-                   (get-response @routes "/hotels/123456/rooms")))))
+                   (-> @routes
+                       (get-response "/hotels/123456/rooms")
+                       (update :headers select-keys ["Elapsed-Time" "Endpoint"])
+                       (update :body edn/read-string))))))
 
   (context "core.async"
     (with-all routes (gen-table-routes
                        {"/async/widgets" 'sample.async-widgets
                         "/widgets" 'sample.static-interceptors}
                        {:interceptor-defs {:elapsed-time add-elapsed-time}}))
+
+    (it "will get the response into the context asynchronously"
+
+        (should= {:status 200
+                  :body {:id "666333"}}
+                 (-> @routes
+                     (get-response "/async/widgets/666333")
+                     (select-keys [:status :body])
+                     (update :body edn/read-string))))
 
     (context "end-to-end testing w/ Jetty"
 
@@ -198,38 +225,32 @@
                        port))
 
       (with-all server
-                (server/create-server {:env :prod
-                                       ::server/routes (table/table-routes @routes)
-                                       ::server/type :jetty
-                                       ::server/port @port
-                                       ::server/join? false}))
+                (http/create-server {::http/routes (table/table-routes @routes)
+                                     ::http/type :jetty
+                                     ::http/port @port
+                                     ::http/join? false}))
 
-      (before-all (server/start @server))
+      (before-all (http/start @server))
 
-      (after-all (server/stop @server))
+      (after-all (http/stop @server))
 
       (it "can invoke async endpoint"
-          (let [response (http/get (str "http://localhost:" @port "/async/widgets/124c41"))]
-            (should= {:status 200
-                      :body "{:id \"124c41\"}"}
-                     (select-keys response [:status :body]))
-            (should= {"Elapsed-Time" "35"
-                      "Content-Type" "application/edn"}
-                     (-> response :headers (select-keys ["Elapsed-Time" "Content-Type"])))))
+          (should= {:status 200
+                    :headers {"Elapsed-Time" "35"
+                              "Content-Type" "application/edn"}
+                    :body {:id "124c41"}}
+                   (-> (client/get (str "http://localhost:" @port "/async/widgets/124c41")
+                                   {:throw-exceptions false})
+                       (select-keys [:headers :body :status])
+                       (update :headers select-keys ["Elapsed-Time" "Content-Type"])
+                       (update :body edn/read-string))))
 
       (it "can invoke sync endpoint"
           (should= {:status 200
-                    :body "[:one :two :three]"}
-                   (-> (http/get (str "http://localhost:" @port "/widgets"))
-                       (select-keys [:status :body])))))
-
-    (it "will get the response into the context asynchronously"
-
-        (pending "currently tested using end-to-end")
-
-        (should= {:status 200
-                    :headers {}
-                    :body {:id "async"}}
-                   (get-response @routes "/widgets/async")))))
+                    :body [:one :two :three]}
+                   (-> (client/get (str "http://localhost:" @port "/widgets")
+                                   {:throw-exceptions false})
+                       (select-keys [:status :body])
+                       (update :body edn/read-string)))))))
 
 (run-specs)
