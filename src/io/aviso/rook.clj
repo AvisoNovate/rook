@@ -38,24 +38,32 @@
   [sym]
   (standard-arg-resolver sym [:request :path-params (from-meta sym :path-param)]))
 
+(defn ^:private query-param-resolver
+  [sym]
+  (let [ks [:request :query-params (from-meta sym :query-param)]]
+    #(get-in % ks)))
+
 (def default-arg-resolvers
   "Defines the following argument resolvers:
 
   :request
   : The argument resolves to a key in the :request map.
+  : An exception is thrown if the resolved value is nil.
 
   :path-param
   : The argument resolves to a path parameter.
+  : An exception is thrown if the resolved value is nil.
 
-  For these resolvers, the following rules apply:
+  :query-param
+  : The argument resolves to a query parameter, as applied by the
+    default io.pedestal.http.route/query-params interceptor.
 
-  * If the meta data value is exactly the value true (e.g., just using ^:request), then
-    the effective value is a keyword generated from the parameter symbol.
-
-  * At resolution time (that is, as the endpoint function is being invoked),
-    the argument value must be non-nil, or an exception is thrown."
+  For these resolvers if the meta data value is exactly the value true
+  (e.g., just using ^:request),
+  then the effective value is a keyword generated from the parameter symbol."
   {:request request-resolver
-   :path-param path-param-resolver})
+   :path-param path-param-resolver
+   :query-param query-param-resolver})
 
 (def default-options
   "Default options when generating the routing table.

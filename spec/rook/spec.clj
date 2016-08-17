@@ -128,6 +128,29 @@
                      (get-response "/hotels/no-match/rooms")
                      :status))))
 
+  (context "query-params argument resolver"
+    (with-all routes (gen-table-routes
+                       {"/products" 'sample.products}
+                       nil))
+
+    (it "allows query parameter to be omitted (or nil)"
+        (should= {:products [1200 1000 1100]
+                  :sort-order nil}
+                 (-> @routes
+                     (get-response "/products")
+                     :body
+                     edn/read-string
+                     (update :products #(map :id %)))))
+
+    (it "provides the query parameter value as the argument"
+        (should= {:sort-order "name"
+                  :products [1100 1000 1200]}
+                 (-> @routes
+                     (get-response "/products?order-by=name")
+                     :body
+                     edn/read-string
+                     (update :products #(map :id %))))))
+
   (context "interceptors"
 
     (context "static interceptor instances"

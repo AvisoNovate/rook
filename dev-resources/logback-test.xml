@@ -6,14 +6,25 @@
         </encoder>
     </appender>
 
+    <appender name="PEDESTAL" class="ch.qos.logback.core.FileAppender">
+        <file>target/pedestal.log</file>
+        <encoder>
+            <pattern>%-5level %logger - %msg%n</pattern>
+        </encoder>
+    </appender>
+
     <root level="debug">
         <appender-ref ref="STDOUT"/>
     </root>
 
-    <logger name="io.aviso.rook" level="off"/>
-    <logger name="io.pedestal" level="off"/>
-    <logger name="rook.client-spec" level="off"/>
     <logger name="org.apache.http" level="error"/>
     <logger name="org.eclipse.jetty" level="warn"/>
+
+    <!-- Log all of io.pedestal, but only to the file, not to the console. -->
+
+    <logger name="io.pedestal" level="debug" additivity="false">
+        <appender-ref ref="PEDESTAL"/>
+    </logger>
+
 
 </configuration>
