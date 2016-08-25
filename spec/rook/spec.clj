@@ -5,6 +5,7 @@
             [io.pedestal.http.route.definition.table :as table]
             [io.pedestal.http :as http]
             [io.pedestal.test :refer [response-for]]
+            [ring.util.codec :refer [form-encode]]
             [clojure.edn :as edn]
             [clj-http.client :as client]
             [sample.static-interceptors :refer [add-elapsed-time]]
@@ -36,15 +37,20 @@
     (bottom nested)
     e))
 
+(defn routes->service-fn
+  [routes]
+  (-> {::http/routes (table/table-routes routes)
+       ::http/type :jetty
+       ::http/port 8080}
+      http/create-servlet
+      ::http/service-fn)
+  )
+
 (defn get-response
   [routes path]
-  (let [table-routes (table/table-routes routes)
-        service-fn (-> {::http/routes table-routes
-                        ::http/type :jetty
-                        ::http/port 8080}
-                       http/create-servlet
-                       ::http/service-fn)]
-    (response-for service-fn :get (str "http://localhost:8080" path))))
+  (response-for (routes->service-fn routes)
+                :get
+                (str "http://localhost:8080" path)))
 
 (describe "io.aviso.rook"
 
@@ -197,6 +203,28 @@
                        (get-response "/hotels/123456/rooms")
                        (update :body edn/read-string)
                        (update :headers select-keys ["Elapsed-Time"])))))
+
+    (context "HTTP forms"
+      (with-all routes (gen-table-routes {"/widgets" 'sample.form-endpoints}
+                                         {:interceptors [add-elapsed-time]}))
+
+      ;; Just a handy place for a related test
+      (it "suffixes function metadata interceptors"
+          (should= [["/widgets" :post [:sample.static-interceptors/add-elapsed-time
+                                       :io.aviso.rook.interceptors/keywordized-form
+                                       :sample.form-endpoints/post-new-widget]]]
+                   (normalize @routes)))
+
+      (it "should parse and provide form parameters"
+          (should= {:status 200
+                    :body {:widget-name "core memory sphere"
+                           :supplier-id "a113"}}
+                   (-> (response-for (routes->service-fn @routes) :post "http://localhost:8080/widgets"
+                                     :headers {"Content-Type" "application/x-www-form-urlencoded"}
+                                     :body (form-encode {:widget-name "core memory sphere"
+                                                         :supplier-id "a113"}))
+                       (select-keys [:status :body])
+                       (update :body edn/read-string)))))
 
     (context "generated interceptor definitions"
       (with-all routes (gen-table-routes

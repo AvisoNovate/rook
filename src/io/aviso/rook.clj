@@ -9,7 +9,7 @@
 ;; Remember that a parameter is the symbol defined by a function, and an argument
 ;; is the actual value passed to the function.
 
-(defn ^:private standard-arg-resolver
+(defn ^:private non-nil-arg-resolver
   [sym ks]
   (fn [context]
     (let [v (get-in context ks)]
@@ -19,6 +19,12 @@
                         {:parameter sym
                          :context-key-path ks}))))))
 
+(defn ^:private standard-arg-resolver
+  [ks]
+  (fn [context]
+    (get-in context ks)))
+
+
 (defn ^:private from-meta
   [sym meta-key]
   (let [meta-value (-> sym meta (get meta-key))]
@@ -27,21 +33,24 @@
     ;; convert the symbol name to an unqualified keyword.
     (if (true? meta-value)
       (-> sym name keyword)
-
       meta-value)))
 
 (defn ^:private request-resolver
   [sym]
-  (standard-arg-resolver sym [:request (from-meta sym :request)]))
+  (non-nil-arg-resolver sym [:request (from-meta sym :request)]))
 
 (defn ^:private path-param-resolver
   [sym]
-  (standard-arg-resolver sym [:request :path-params (from-meta sym :path-param)]))
+  (non-nil-arg-resolver sym [:request :path-params (from-meta sym :path-param)]))
 
 (defn ^:private query-param-resolver
   [sym]
-  (let [ks [:request :query-params (from-meta sym :query-param)]]
-    #(get-in % ks)))
+  (standard-arg-resolver
+    [:request :query-params (from-meta sym :query-param)]))
+
+(defn ^:private form-param-resolver
+  [sym]
+  (standard-arg-resolver [:request :form-params (from-meta sym :form-param)]))
 
 (def default-arg-resolvers
   "Defines the following argument resolvers:
@@ -58,12 +67,18 @@
   : The argument resolves to a query parameter, as applied by the
     default io.pedestal.http.route/query-params interceptor.
 
+  :form-param
+  : As :query-param, but for the encoded form parameters.
+    Assumes the necessary middleware to process the body into form parameters
+    and keywordize the keys is present.
+
   For these resolvers if the meta data value is exactly the value true
   (e.g., just using ^:request),
   then the effective value is a keyword generated from the parameter symbol."
   {:request request-resolver
    :path-param path-param-resolver
-   :query-param query-param-resolver})
+   :query-param query-param-resolver
+   :form-param form-param-resolver})
 
 (def default-options
   "Default options when generating the routing table.
