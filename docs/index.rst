@@ -53,7 +53,7 @@ Rook supports many more options:
 
 - Leveraging metadata at the namespace and function level
 
-- Defining constraints for path variables
+- Defining constraints for path parameters
 
 License
 -------
