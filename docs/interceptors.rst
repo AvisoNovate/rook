@@ -56,6 +56,12 @@ For example, an interceptor that did some special validation, or authentication,
 the endpoint function to determine what validations and authentications are necessary for that particular
 endpoint.
 
+For example, part of Rook's test suite, uses this Interceptor generator:
+
+.. literalinclude:: ../spec/sample/dynamic_interceptors.clj
+   :language: clojure
+
+
 Applying Interceptors
 ---------------------
 
