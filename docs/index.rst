@@ -23,7 +23,7 @@ Rook is also designed to work well the `Component <https://github.com/stuartsier
 Component is not a requirement.
 
 
-Rook generates a table route that can be used by the io.pedestal.http/create-server bootstrapping function.
+Rook generates a set of table routes that can then be used by the io.pedestal.http/create-server bootstrapping function.
 
 .. code-block:: clojure
 
@@ -32,9 +32,9 @@ Rook generates a table route that can be used by the io.pedestal.http/create-ser
 
     (def service-map
       {:env :prod
-       ::http/routes (rook/gen-routes {"/widgets" 'org.example.widgets
-                                       "/gizmos"  'org.example.gizmos}
-                                       nil}
+       ::http/routes (rook/gen-table-routes {"/widgets" 'org.example.widgets
+                                             "/gizmos"  'org.example.gizmos}
+                                            nil}
        ::http/resource-path "/public"
        ::http/type :jetty
        ::http/port 8080})
@@ -63,6 +63,9 @@ Rook is released under the terms of the `Apache Software License 2.0 <http://www
 .. toctree::
    :hidden:
 
+   endpoints
+   nested
+   async
 
    API <http://avisonovate.github.io/docs/rook>
    GitHub Project <https://github.com/AvisoNovate/rook>
