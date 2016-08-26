@@ -43,8 +43,7 @@
        ::http/type :jetty
        ::http/port 8080}
       http/create-servlet
-      ::http/service-fn)
-  )
+      ::http/service-fn))
 
 (defn get-response
   [routes path]
@@ -232,7 +231,6 @@
                                      :interceptors [:elapsed-time]
                                      :nested {"/:hotel-id/rooms" {:ns 'sample.rooms
                                                                   :interceptors [:labeler]}}}}
-
                          {:interceptor-defs {:elapsed-time add-elapsed-time
                                              :labeler endpoint-labeler}}))
 
