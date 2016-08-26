@@ -79,14 +79,20 @@ particular endpoint to handle the request.
 
     digraph {
         incoming [label="Incoming Request"];
+        definterceptors [label="Default Interceptors"];
         routing [label="Pedestal Routing"];
         endpoint [label="Endpoint Selected"];
         interceptors [label="Endpoint's Interceptors"];
         fn [label="Endpoint Function"];
 
-        incoming -> routing -> endpoint -> interceptors -> fn;
+        incoming -> definterceptors -> routing -> endpoint -> interceptors -> fn;
 
     }
 
 
+The default interceptors are usually provided by io.pedestal.http/create-server.
+These cover a number of cases such as handling requests for unmapped URIs,
+logging, preventing cross-site scripting forgery, and so forth.
 
+The :interceptor metadata in namespaces and elsewhere simply builds up the Endpoint's Interceptors
+stage.
