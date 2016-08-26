@@ -321,7 +321,6 @@
   : Map from keyword to argument resolver generator.
     This map, if present, is merged into the containing
     namespaces's map of argument resolvers.
-
   : An argument resolver generator is passed a symbol (the parameter) and returns a resolver function.
     The resolver function is invoked every time the endpoint function is invoked: it is passed
     the Pedestal context, and returns the value for the parameter.
@@ -334,9 +333,6 @@
   : Vector of Pedestal interceptors for the namespace.
     These interceptors will apply to all routes.
     Individual routes may define additional interceptors.
-
-  :interceptor-defs
-  : Map of keyword to interceptor, or interceptor generator.
 
   Each namespace may define metadata for :arg-resolvers, :constraints, and :interceptors.
   The supplied values are merged, or concatenated, to define defaults for any mapped functions
@@ -352,6 +348,9 @@
   Each parameter of the function must have metadata identifying how the argument value
   is to be generated; these are defined by the effective arg-resolvers for the function.
 
+  The options map provides overrides of [[default-options]].
+  Supplied options are deep merged into the defaults.
+
   The :interceptor-defs option provides extra levels of indirection between an endpoint
   and the interceptors it requires.
   It allows for interceptors to be specified as a keyword.
@@ -360,9 +359,6 @@
   meta data.
 
   In the latter case, a map definining the endpoint is passed to the generator function,
-  which returns an interceptor.
-
-  The options map provides overrides of [[default-options]].
-  Supplied options are deep merged into the defaults."
+  which returns an interceptor."
   [namespace-map options]
   (gen-routes namespace-map (deep-merge default-options options)))
