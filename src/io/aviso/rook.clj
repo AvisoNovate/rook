@@ -25,7 +25,7 @@
       (if (some? v)
         v
         (throw (ex-info "Resolved argument value was nil."
-                        {:type ::argument-nil
+                        {:type ::nil-argument-value
                          :parameter sym
                          :context-key-path ks}))))))
 
@@ -159,7 +159,7 @@
                              (-> endpoint :meta :name name))
         generate-response (if supplier
                             (fn [context]
-                            (apply f (supplier context)))
+                              (apply f (supplier context)))
                             ;; Keep things simple in the occasional case that there are no arguments.
                             (fn [_]
                               (f)))]
