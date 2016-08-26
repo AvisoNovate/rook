@@ -1,6 +1,5 @@
 (ns sample.dynamic-interceptors
-  (:require [io.pedestal.interceptor :refer [interceptor]]
-            [ring.util.response :refer [response]]))
+  (:require [io.pedestal.interceptor :refer [interceptor]]))
 
 (def endpoint-labeler
   ;; Note the distinction: this puts the meta data on the function itself, not the Var referencing the

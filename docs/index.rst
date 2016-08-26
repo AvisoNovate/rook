@@ -65,7 +65,9 @@ Rook is released under the terms of the `Apache Software License 2.0 <http://www
 
    endpoints
    nested
+   interceptors
    async
+   arg-resolvers
 
    API <http://avisonovate.github.io/docs/rook>
    GitHub Project <https://github.com/AvisoNovate/rook>
