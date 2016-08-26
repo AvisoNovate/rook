@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.2.0-SNAPSHOT"
+(defproject io.aviso/rook "0.2.0"
   :description "Smart namespace-driven routing for Pedestal"
   :url "https://github.com/AvisoNovate/rook"
   :license {:name "Apache Sofware License 2.0"

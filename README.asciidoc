@@ -15,4 +15,4 @@ Rook 0.2.x is a from-scratch rewrite meant to be used as a part of Pedestal.
 
 Rook is available under the terms of the Apache Software License 2.0.
 
-link:https://portal.aviso.io/#/document/open-source/rook/Current[Full Documentation]
+link:http://rook.readthedocs.io/en/latest/index.html[Full Documentation]
