@@ -1,188 +1,368 @@
 (ns io.aviso.rook
-  "Rook is a simple package used to map the functions of a namespace as web resources, following a naming pattern or explicit meta-data."
-  (:require [io.aviso.rook
-             [dispatcher :as dispatcher]
-             [swagger :as swagger]]
-            [io.aviso.toolchest.macros :refer [consume]]
-            [io.aviso.toolchest.collections :refer [pretty-print]]
-            [ring.middleware params format keyword-params]
-            [medley.core :as medley]
-            [potemkin :as p]
-            [io.aviso.tracker :as t]))
+  "Rook is used to map the functions of a namespace as web request endpoints, based largely
+  on metadata on the functions."
+  (:require [io.aviso.rook.internals :refer [deep-merge to-message into+]]
+            [clojure.core.async :refer [go <!]]
+            [clojure.core.async.impl.protocols :refer [ReadPort]]
+            [io.pedestal.interceptor :refer [interceptor]]))
 
-(p/import-vars
-  [io.aviso.rook.internals get-injection compose-middleware])
+;; Remember that a parameter is the symbol defined by a function, and an argument
+;; is the actual value passed to the function.
 
-(defn find-injection
-  "Retrieves an optional injected value from the request, returning nil if the value does not exist."
-  {:added "0.1.11"}
-  [request injection-key]
-  (get-in request [::injections injection-key]))
+(defn non-nil-arg-resolver
+  "Returns an arg resolver that extracts a value nested in the context.
 
-(defn inject*
-  "Merges the provided map of injectable argument values into the request. Keys should be keywords
-  (that will match against function argument symbols, converted to keywords)."
-  {:added "0.1.10"}
-  [request injection-map]
-  (update-in request [::injections] merge injection-map))
+  The value must be non-nil, or an exception is thrown.
 
-(defn inject
-  "Merges a single keyword key and value into the map of injectable argument values store in the request.
-  This is associated with the :injection argument metadata."
-  {:added "0.1.10"}
-  [request key value]
-  (inject* request {key value}))
+  sym
+  : The symbol for which the argument resolver was created; identified in the exception.
 
-(defn wrap-with-injection
-  "Wraps a request handler with an injection of the key and value."
-  {:added "0.1.10"}
-  [handler key value]
-  (fn [request]
-    (-> request
-        (inject key value)
-        handler)))
+  ks
+  : a sequence of keys."
+  [sym ks]
+  (fn [context]
+    (let [v (get-in context ks)]
+      (if (some? v)
+        v
+        (throw (ex-info "Resolved argument value was nil."
+                        {:type ::argument-nil
+                         :parameter sym
+                         :context-key-path ks}))))))
 
-(defn wrap-with-injections
-  "Wraps a request handler with injections by merging in a map."
-  {:added "0.1.11"}
-  [handler injections]
-  (fn [request]
-    (-> request
-        (inject* injections)
-        handler)))
+(defn standard-arg-resolver
+  "Returns an arg resolver that extracts a value nested in the context.
 
-(defn wrap-with-standard-middleware
-  "The standard middleware that Rook expects to be present before it is passed the Ring request."
-  [handler]
-  (-> handler
-      (ring.middleware.format/wrap-restful-format :formats [:json-kw :edn])
-      ring.middleware.keyword-params/wrap-keyword-params
-      ring.middleware.params/wrap-params))
+  ks
+  : A sequence of keys."
+  [ks]
+  (fn [context]
+    (get-in context ks)))
 
-(defn namespace-handler
-  "Examines the given namespaces and produces either a Ring handler or
-  an asynchronous Ring handler.
 
-  Options can be provided as a leading map (which is optional).
+(defn meta-value-for-parameter
+  "Given a parameter symbol and a metadata key, returns the value for that metadata key.
 
-  The individual namespaces are specified as vectors of the following
-  shape:
+  It is presumed that the value is a keyword, though no check is made.
 
-      [context? ns-sym argument-resolvers? middleware? nested...?]
+  When the metadata value is explicitly true, the symbol is converted into a simple (not namespaced)
+  keyword."
+  [sym meta-key]
+  (let [meta-value (-> sym meta (get meta-key))]
+    ;; This catches the typical default cause where the meta value is true,
+    ;; typically meaning the ^:my-resolver format was used. In that situation,
+    ;; convert the symbol name to an unqualified keyword.
+    (if (true? meta-value)
+      (-> sym name keyword)
+      meta-value)))
 
-  The optional fragments are interpreted as below:
+(defn ^:private request-resolver
+  [sym]
+  (non-nil-arg-resolver sym [:request (meta-value-for-parameter sym :request)]))
 
-  context?
-  : A context (a string, or a vector of strings and/or keywords) to be prepended to paths for all entries
-  emitted for this namespace.
+(defn ^:private path-param-resolver
+  [sym]
+  (non-nil-arg-resolver sym [:request :path-params (meta-value-for-parameter sym :path-param)]))
 
-  ns-sym
-  : The symbol for the namespace that is to be mapped.
-  : This is the only required value in the namespace specification.
+(defn ^:private query-param-resolver
+  [sym]
+  (standard-arg-resolver
+    [:request :query-params (meta-value-for-parameter sym :query-param)]))
 
-  argument-resolvers?
-  : A map of argument resolvers that apply to the namespace, and to any child namespaces.
+(defn ^:private form-param-resolver
+  [sym]
+  (standard-arg-resolver [:request :form-params (meta-value-for-parameter sym :form-param)]))
 
-  middleware?
-  : Middleware to be applied to terminal handlers found in this
-  namespace.
+(def default-arg-resolvers
+  "Defines the following argument resolvers:
 
-  nested...?
-  : Defines child namespaces, each its own recursive namespace specification.
-  Child namespaces inherit the context, argument resolvers, and middleware
-  of the containing namespace.
+  :request
+  : The argument resolves to a key in the :request map.
+  : An exception is thrown if the resolved value is nil.
 
-  Supported options and their default values:
+  :path-param
+  : The argument resolves to a path parameter.
+  : An exception is thrown if the resolved value is nil.
+
+  :query-param
+  : The argument resolves to a query parameter, as applied by the
+    default io.pedestal.http.route/query-params interceptor.
+
+  :form-param
+  : As :query-param, but for the encoded form parameters.
+    Assumes the necessary middleware to process the body into form parameters
+    and keywordize the keys is present.
+
+  For these resolvers if the meta data value is exactly the value true
+  (e.g., just using ^:request),
+  then the effective value is a keyword generated from the parameter symbol."
+  {:request request-resolver
+   :path-param path-param-resolver
+   :query-param query-param-resolver
+   :form-param form-param-resolver})
+
+(def default-options
+  "Default options when generating the routing table.
+
+   Defines a base set of argument resolvers ([[default-arg-resolvers]]),
+   an empty map of constraints, an empty list of interceptors, and
+   an empty map of interceptor definitions."
+  {:arg-resolvers default-arg-resolvers
+   :constraints {}
+   :interceptors []
+   :interceptor-defs {}})
+
+(defn ^:private find-namespace
+  [sym]
+  (require sym)
+  (the-ns sym))
+
+(defn ^:private endpoint-function
+  "If a var has :rook-route metadata, then wrap it up in a map used elsewhere."
+  [var]
+  (when-let [metadata (meta var)]
+    (and (:rook-route metadata)
+         {:var var
+          :meta metadata
+          :endpoint-name (str (-> metadata :ns ns-name name)
+                              "/"
+                              (-> metadata :name name))})))
+
+(defn ^:private read-port?
+  [v]
+  (satisfies? ReadPort v))
+
+(defn ^:private wrap-to-assoc-response
+  "Invokes the function yielding the response.  Returns either the context with the :response
+  key set, or a channel that will convey the context when ready (if the endpoint function returns
+  a channel)."
+  [f]
+  (fn [context]
+    (let [v (f context)]
+      (if (read-port? v)
+        (go (assoc context :response (<! v)))
+        (assoc context :response v)))))
+
+(defn ^:private fn-as-interceptor
+  "Converts a function with a list of argument resolvers into a Pedestal interceptor."
+  [endpoint resolvers]
+  (let [f (-> endpoint :var deref)
+        supplier (when (seq resolvers)
+                   (let [applier (apply juxt resolvers)]
+                     (fn [context]
+                       (try
+                         (applier context)
+                         (catch Throwable t
+                           (throw (ex-info "Exception resolving endpoint function arguments."
+                                           endpoint
+                                           t)))))))
+        endpoint-kw (keyword (-> endpoint :meta :ns ns-name name)
+                             (-> endpoint :meta :name name))
+        generate-response (if supplier
+                            (fn [context]
+                            (apply f (supplier context)))
+                            ;; Keep things simple in the occasional case that there are no arguments.
+                            (fn [_]
+                              (f)))]
+    (interceptor {:name endpoint-kw
+                  :enter (wrap-to-assoc-response generate-response)})))
+
+(defn ^:private parameter->resolver
+  [parameter arg-resolvers]
+  (let [parameter-meta (meta parameter)
+        ;; We're allergic to ambiguity, so we build a map of all the arg-resolvers, triggered
+        ;; by the metadata. We hope to get exactly one match.
+        fn-resolvers (reduce-kv (fn [m k v]
+                                  (cond-> m
+                                    (get parameter-meta k)
+                                    (assoc  k
+                                           (try
+                                             (v parameter)
+                                             (catch Throwable t
+                                               (throw (ex-info (format "Exception invoking argument resolver generator %s: %s"
+                                                                       k
+                                                                       (to-message t))
+                                                               {:parameter parameter
+                                                                :parameter-meta parameter-meta
+                                                                :arg-resolver k}
+                                                               t)))))))
+                                {}
+                                arg-resolvers)]
+    (case (count fn-resolvers)
+
+      0
+      (throw (ex-info (format "No argument resolver found for parameter %s." parameter)
+                      {:parameter parameter
+                       :parameter-meta parameter-meta
+                       :arg-resolvers (keys fn-resolvers)}))
+
+      1
+      (-> fn-resolvers vals first)
+
+      ;; Otherwise
+      (throw (ex-info (format "Multiple argument resolvers apply to parameter %s." parameter)
+                      {:parameter parameter
+                       :parameter-meta parameter-meta
+                       :arg-resolvers (keys fn-resolvers)})))))
+
+(defn ^:private resolve-interceptor
+  [interceptor-defs endpoint interceptor]
+  (cond
+    (keyword? interceptor)
+    (let [interceptor-def (get interceptor-defs interceptor)]
+      (cond
+
+        (nil? interceptor-defs)
+        (throw (ex-info "Unknown interceptor definition."
+                        {:interceptor interceptor
+                         :intereceptor-defs (keys interceptor-defs)}))
+
+        ;; This is our special case, :endpoint-interceptor-fn indicates that
+        ;; it is a function that generates an interceptor custom for the endpoint.
+        (-> interceptor-def meta :endpoint-interceptor-fn)
+        (interceptor-def endpoint)
+
+        ;; Otherwise, a preconfigured interceptor, or any of the other things
+        ;; that are acceptible in a Pedestal routing table.
+
+        :else
+        interceptor-def))
+
+    :else
+    interceptor))
+
+(defn ^:private build-pedestal-route
+  [endpoint options]
+  (try
+    (let [{:keys [arg-resolvers interceptors interceptor-defs constraints prefix]} options
+          {:keys [arglists]
+           fn-arg-resolvers :arg-resolvers
+           fn-interceptors :interceptors
+           [verb path fn-constraints] :rook-route} (:meta endpoint)
+          arg-resolvers' (do
+                           (when-not (= 1 (count arglists))
+                             (throw (IllegalArgumentException. "Endpoint function must have exactly one arity.")))
+
+                           (when-not (and (keyword? verb)
+                                          (string? path))
+                             (throw (IllegalArgumentException. "Route for endpoint function is not valid.")))
+
+                           (merge arg-resolvers fn-arg-resolvers))
+          interceptors' (mapv #(resolve-interceptor interceptor-defs endpoint %)
+                              (into interceptors fn-interceptors))
+          path' (str prefix path)
+          constraints' (merge constraints fn-constraints)
+          resolvers (mapv #(parameter->resolver % arg-resolvers') (first arglists))
+          fn-interceptor (fn-as-interceptor endpoint resolvers)]
+      ;; TODO: Add an optional :route-name
+      (cond->
+        [path' verb (conj interceptors' fn-interceptor)]
+        (seq constraints') (conj :constraints constraints')))
+    (catch Throwable t
+      (throw (ex-info (format "Exception building route for %s." (:endpoint-name endpoint))
+                      endpoint
+                      t)))))
+
+(defn ^:private routes-in-namespace
+  [namespace options]
+  (->> namespace
+       ns-publics
+       vals
+       (keep endpoint-function)
+       ;; Sorting shouldn't be necessary, but helps make some tests more predictable;
+       ;; otherwise, subject to hash map ordering, which is not predictable.
+       (sort-by #(-> % :endpoint :endpoint-name))
+       (mapv #(build-pedestal-route % options))))
+
+(def ^:private inherited-options [:arg-resolvers :interceptors :constraints])
+
+(defn ^:private gen-routes
+  [namespace-map options]
+  (reduce-kv (fn [routes path ns-definition]
+               (let [ns-definition' (if (symbol? ns-definition)
+                                      {:ns ns-definition}
+                                      ns-definition)
+                     {ns-symbol :ns
+                      nested-ns-map :nested} ns-definition']
+                 (try
+                   (let [current-ns (find-namespace ns-symbol)
+                         nested-options (-> options
+                                            (deep-merge (select-keys ns-definition' inherited-options)
+                                                        (-> current-ns meta (select-keys inherited-options)))
+                                            (update :prefix str path))]
+                     (into+ routes
+                            (routes-in-namespace current-ns nested-options)
+                            (when nested-ns-map
+                              (gen-routes nested-ns-map nested-options))))
+                   (catch Throwable t
+                     (throw (ex-info (format "Exception mapping routes for %s."
+                                             (name ns-symbol))
+                                     ns-definition'
+                                     t))))))
+             []
+             namespace-map))
+
+(defn gen-table-routes
+  "Generates a vector of Pedestal table routes for some number of namespaces.
+
+  The namespace-map is a map from URL prefix (e.g., \"/users\") to a Rook namespace definition.
+
+  The Rook namespace definition is a map with keys that define how Rook will map functions in the
+  namespace as routes and handlers in the returned table.
+
+  :ns
+  : A symbol identifying the namespace.  Rook will require the namespace and scan it for functions to
+   create routes for.
+
+  :nested
+  : A namespace map of nested namespaces; these inherit the prefix and other attributes of the containing
+   namespace.
 
   :arg-resolvers
-  : Map of symbol to (keyword or function of request) or keyword
-    to (function of symbol returning function of request). Entries of
-    the former provide argument resolvers to be used when resolving
-    arguments named by the given symbol; in the keyword case, a known
-    resolver factory will be used.
-  : Normally, the provided map is merged into the map inherited from
-    the containing namespace (or elsewhere), but this can be controlled
-    using metadata on the map.
-  : Tag with {:replace true} to
-    exclude inherited resolvers and resolver factories; tag with
-    {:replace-resolvers true} or {:replace-factories true} to leave
-    out default resolvers or resolver factories, respectively.
+  : Map from keyword to argument resolver generator.
+    This map, if present, is merged into the containing
+    namespaces's map of argument resolvers.
 
-  :context
-  : _Default: []_
-  : A root context that all namespaces are placed under, for example [\"api\"].
+  : An argument resolver generator is passed a symbol (the parameter) and returns a resolver function.
+    The resolver function is invoked every time the endpoint function is invoked: it is passed
+    the Pedestal context, and returns the value for the parameter.
 
-  :default-middleware
-  : _Default: [[default-namespace-middleware]]_
-  : Default endpoint middleware applied to the basic handler for
-    each endpoint function (the basic handler resolver arguments and passes
-    them to the endpoint function).
-    The default leaves the basic handler unchanged.
+  :constraints
+  : Map from keyword to regular expression.
+    This map will be inherted and extended by nested namespaces.
 
-  :swagger-options
-  : Options to be passed to [[construct-swagger-object]], that control how the Swagger description is composed and
-    customized.
-    Swagger support is only enabled when :swagger-options is non-nil.
+  :interceptors
+  : Vector of Pedestal interceptors for the namespace.
+    These interceptors will apply to all routes.
+    Individual routes may define additional interceptors.
 
-  Example call:
+  :interceptor-defs
+  : Map of keyword to interceptor, or interceptor generator.
 
-       (namespace-handler
-         {:context            [\"api\"]
-          :swagger-options    swagger/default-swagger-options
-          :default-middleware custom-middleware
-          :arg-resolvers      {'if-unmodified-since :header
-                               'if-modified-since   :header}}
-         ;; foo & bar use custom-middleware:
-         [\"hotels\" 'org.example.resources.hotels
-           [[:hotel-id \"rooms\"] 'org.example.resources.rooms]]
-         [\"bars\" 'org.example.resources.bars]
-         ;; taxis has special requirements:
-         [\"taxis\" 'org.example.resources.taxis
-           {:dispatcher dispatcher-resolver-factory}
-           taxi-middleware])."
-  {:arglists '([options & ns-specs]
-                [& ns-specs])}
-  [& &ns-specs]
-  (t/track
-    "Constructing Rook namespace handler."
-    (consume &ns-specs
-             [{:keys [swagger-options] :as options} map? :?
-              ns-specs :&]
-             (let [swagger-enabled        (some? swagger-options)
-                   swagger-object-promise (promise)
-                   ;; The challenge here is to isolate this as much as possible from the rest of the
-                   ;; API and whatever kinds of middleware is in play.
-                   swagger-spec           [(:path swagger-options) 'io.aviso.rook.resources.swagger
-                                           {'swagger-object (fn [_] @swagger-object-promise)}
-                                           dispatcher/default-namespace-middleware]
-                   ns-specs'              (if swagger-enabled
-                                            (cons swagger-spec ns-specs)
-                                            ns-specs)
-                   [handler routing-table] (dispatcher/construct-namespace-handler options ns-specs')]
-               (if swagger-enabled
-                 (deliver swagger-object-promise (swagger/construct-swagger-object swagger-options routing-table)))
-               handler))))
+  Each namespace may define metadata for :arg-resolvers, :constraints, and :interceptors.
+  The supplied values are merged, or concatenated, to define defaults for any mapped functions
+  in the namespace, and for any nested namespaces.
 
+  Alternately, a namespace definition may just be a symbol, used to identify the namespace.
 
-(defn resolve-argument-value
-  "Resolves an argument, as if it were an argument to an endpoint function.
+  Mapped functions will have a :rook-route metadata value.  This consists of a method
+  (:get, :post, etc.), a path string, and optionally, a map of constraints.
 
-  request
-  : The Ring request map, as passed through middleware and to the endpoint.
+  Mapped functions should have a single arity.
 
-  argument-meta
-  : A map of metadata about the symbol, or a single keyword. A keyword is converted
-    to a map (of the keyword, to true).
+  Each parameter of the function must have metadata identifying how the argument value
+  is to be generated; these are defined by the effective arg-resolvers for the function.
 
-  argument-symbol
-  : A symbol identifying the name of the parameter. This is sometimes needed to construct
-    the argument resolver function.
+  The :interceptor-defs option provides extra levels of indirection between an endpoint
+  and the interceptors it requires.
+  It allows for interceptors to be specified as a keyword.
+  The corresponding value in the interceptor-defs map may either be a previously
+  instantiated interceptor, or can by a function with the ^:endpoint-interceptor-fn
+  meta data.
 
-  Throws an exception if no (single) argument resolver can be identified."
-  {:added "0.1.35"}
-  [request argument-meta argument-symbol]
-  (dispatcher/resolve-argument-value request
-                               (if (keyword? argument-meta)
-                                 {argument-meta true}
-                                 argument-meta)
-                               argument-symbol))
+  In the latter case, a map definining the endpoint is passed to the generator function,
+  which returns an interceptor.
+
+  The options map provides overrides of [[default-options]].
+  Supplied options are deep merged into the defaults."
+  [namespace-map options]
+  (gen-routes namespace-map (deep-merge default-options options)))

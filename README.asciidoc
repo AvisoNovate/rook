@@ -1,17 +1,17 @@
-## Rook - Sane, smart, fast, Clojure web services
+## Rook - Even easier Pedestal request routing
 
 image:http://clojars.org/io.aviso/rook/latest-version.svg[Clojars Project, link="http://clojars.org/io.aviso/rook"]
 
 image:https://drone.io/github.com/AvisoNovate/rook/status.png[Build Status, link="https://drone.io/github.com/AvisoNovate/rook"]
 
-Rook is a set of middleware and handlers to enable metadata-based routing for https://github.com/ring-clojure/ring[Ring] web applications.
+Rook is easy request routing for link:https://github.com/pedestal/pedestal[Pedestal].
+Rook makes it easy to map namespaces of functions as Pedestal handlers.
 
-The intention is to expose a Clojure _namespace_ as a web service _resource_; there's a default mapping of HTTP verbs
-and paths to function names; these can be extended or overridden by metadata on the functions in the namespace.
+Rook leverages metadata at the namespace and function level to streamline and remove boilerplate from your code.
 
-The end result is that a compliant web service resource can be created in very little code.
+Rook 0.1.x was an alternative to Pedestal and link:http://clojure-liberator.github.io/liberator/[Liberator].
 
-Rook also supports Swagger 2.0: a detailed JSON description of your web service is generated directly from the functions and metadata.
+Rook 0.2.x is a from-scratch rewrite meant to be used as a part of Pedestal.
 
 Rook is available under the terms of the Apache Software License 2.0.
 

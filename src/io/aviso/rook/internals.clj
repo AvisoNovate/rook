@@ -1,44 +1,33 @@
 (ns io.aviso.rook.internals
-  "Unsupported internal functions used in the implementation."
+  "Internal utilities subject to change at any time and not for reuse."
   {:no-doc true})
 
-(defn get-injection
-  "Retrieves an injected value stored in the request. Throws an exception if the value is falsey."
-  [request injection-key]
-  {:pre [(some? request)
-         (keyword? injection-key)]}
-  (or
-    (get-in request [:io.aviso.rook/injections injection-key])
-    (throw (ex-info (format "Unable to retrieve injected value for key `%s'." injection-key)
-                    {:injection-key injection-key
-                     :request       request}))))
+(declare deep-merge)
 
-(defn- convert-middleware-form
-  [handler-sym metadata-sym form]
-  `(or
-     ~(if (list? form)
-        (list* (first form) handler-sym metadata-sym (rest form))
-        (list form handler-sym metadata-sym))
-     ~handler-sym))
+(defn ^:private merge-values [left right]
+  (cond
+    (map? left)
+    (deep-merge left right)
 
-(defmacro compose-middleware
-  "Assembles multiple endpoint middleware forms into a single endpoint middleware. Each middleware form
-  is either a list or a single form, that will be wrapped as a list.
+    (vector? left)
+    (into left right)
 
-  The list is modified so that the first two values passed in are the previous handler and the metadata (associated
-  with the endpoint function).
+    (seq? left)
+    (concat left right)
 
-  The form should evaluate to a new handler, or the old handler. As a convienience, the form may
-  evaluate to nil, which will keep the original handler passed in.
+    :else
+    right))
 
-  Returns a function that accepts a handler and middleware and invokes each middleware form in turn, returning
-  a final handler function.
+(defn deep-merge
+  "Merges two or more maps, recursively."
+  [left right & more-maps]
+  (apply merge-with merge-values left right more-maps))
 
-  This is patterned on Clojure's -> threading macro, with some significant differences."
-  [& middlewares]
-  (let [handler-sym (gensym "handler")
-        metadata-sym (gensym "metadata")]
-    `(fn [~handler-sym ~metadata-sym]
-       (let [~@(interleave (repeat handler-sym)
-                           (map (partial convert-middleware-form handler-sym metadata-sym) middlewares))]
-         ~handler-sym))))
+(defn to-message
+  [^Throwable t]
+  (or (.getMessage t)
+      (-> t .getClass .getName)))
+
+(defn into+
+  [coll & other-colls]
+  (reduce into coll other-colls))
