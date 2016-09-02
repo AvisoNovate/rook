@@ -9,7 +9,7 @@
                                   [clj-http "3.1.0"]]}}
   ;; 1.8 or above is important; the way 1.7 does namespace metadata is a problem.
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [io.pedestal/pedestal.service "0.5.0"]
+                 [io.pedestal/pedestal.service "0.5.1"]
                  [clj-http "2.0.0"]]
   :plugins [[speclj "3.3.2"]
             [walmartlabs/vizdeps "0.1.1"]
