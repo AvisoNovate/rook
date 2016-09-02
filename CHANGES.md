@@ -1,4 +1,10 @@
-## 0.2.1 - UNRELEASED
+## 0.2.1 - 2 Sep 2016
+
+Updated dependencies to Pedestal 0.5.1.
+
+Added support for :route-name metadata.
+
+Improvements to documentation.
 
 ## 0.2.0  - 26 Aug 2016
 

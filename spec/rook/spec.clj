@@ -70,6 +70,11 @@
       (should= [["/items" :get [:sample.simple/all-items]]]
                (normalize (gen-table-routes {"/items" 'sample.simple} nil))))
 
+  (context "route names"
+    (it "should recognize :route-name metadata on the endpoint"
+        (should= [["/gizmos" :get [:sample.gizmos/list-all] :route-name :sample.gizmos/index]]
+                 (normalize (gen-table-routes {"/gizmos" 'sample.gizmos} nil)))))
+
   (context "request argument resolver"
     (with-all routes (gen-table-routes {"/widgets" 'sample.request-injection} nil))
 
@@ -264,42 +269,47 @@
                  (-> @routes
                      (get-response "/async/widgets/666333")
                      (select-keys [:status :body])
+                     (update :body edn/read-string)))))
+
+  (context "end-to-end testing w/ Jetty"
+
+    (with-all routes (gen-table-routes
+                       {"/async/widgets" 'sample.async-widgets
+                        "/widgets" 'sample.static-interceptors}
+                       {:interceptor-defs {:elapsed-time add-elapsed-time}}))
+
+    (with-all port (let [socket (ServerSocket. 0)
+                         port (.getLocalPort socket)]
+                     (.close socket)
+                     port))
+
+    (with-all server
+      (http/create-server {::http/routes (table/table-routes @routes)
+                           ::http/type :jetty
+                           ::http/port @port
+                           ::http/join? false}))
+
+    (before-all (http/start @server))
+
+    (after-all (http/stop @server))
+
+    (it "can invoke async endpoint"
+        (should= {:status 200
+                  :headers {"Elapsed-Time" "35"
+                            "Content-Type" "application/edn"}
+                  :body {:id "124c41"}}
+                 (-> (client/get (str "http://localhost:" @port "/async/widgets/124c41")
+                                 {:throw-exceptions false})
+                     (select-keys [:headers :body :status])
+                     (update :headers select-keys ["Elapsed-Time" "Content-Type"])
                      (update :body edn/read-string))))
 
-    (context "end-to-end testing w/ Jetty"
-
-      (with-all port (let [socket (ServerSocket. 0)
-                           port (.getLocalPort socket)]
-                       (.close socket)
-                       port))
-
-      (with-all server
-                (http/create-server {::http/routes (table/table-routes @routes)
-                                     ::http/type :jetty
-                                     ::http/port @port
-                                     ::http/join? false}))
-
-      (before-all (http/start @server))
-
-      (after-all (http/stop @server))
-
-      (it "can invoke async endpoint"
-          (should= {:status 200
-                    :headers {"Elapsed-Time" "35"
-                              "Content-Type" "application/edn"}
-                    :body {:id "124c41"}}
-                   (-> (client/get (str "http://localhost:" @port "/async/widgets/124c41")
-                                   {:throw-exceptions false})
-                       (select-keys [:headers :body :status])
-                       (update :headers select-keys ["Elapsed-Time" "Content-Type"])
-                       (update :body edn/read-string))))
-
-      (it "can invoke sync endpoint"
-          (should= {:status 200
-                    :body [:one :two :three]}
-                   (-> (client/get (str "http://localhost:" @port "/widgets")
-                                   {:throw-exceptions false})
-                       (select-keys [:status :body])
-                       (update :body edn/read-string)))))))
+    (it "can invoke sync endpoint"
+        (should= {:status 200
+                  :body [:one :two :three]}
+                 (-> (client/get (str "http://localhost:" @port "/widgets")
+                                 {:throw-exceptions false})
+                     (select-keys [:status :body])
+                     (update :body edn/read-string))))))
 
 (run-specs)

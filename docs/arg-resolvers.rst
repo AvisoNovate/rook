@@ -44,7 +44,8 @@ Predefined Argument Resolvers
 
 :form-param
 
-    A form parameter.
+    A form parameter.  Endpoints using this should include the
+    io.aviso.rook.interceptors/keywordized-form interceptor.
 
 Defining New Argument Resolvers
 -------------------------------

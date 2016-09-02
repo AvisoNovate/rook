@@ -233,8 +233,11 @@
 (defn ^:private build-pedestal-route
   [endpoint options]
   (try
+    (when-not (-> endpoint :meta :rook-route vector?)
+      (throw (IllegalArgumentException. ":root-route metadata must be a vector")))
+
     (let [{:keys [arg-resolvers interceptors interceptor-defs constraints prefix]} options
-          {:keys [arglists]
+          {:keys [arglists route-name]
            fn-arg-resolvers :arg-resolvers
            fn-interceptors :interceptors
            [verb path fn-constraints] :rook-route} (:meta endpoint)
@@ -253,9 +256,9 @@
           constraints' (merge constraints fn-constraints)
           resolvers (mapv #(parameter->resolver % arg-resolvers') (first arglists))
           fn-interceptor (fn-as-interceptor endpoint resolvers)]
-      ;; TODO: Add an optional :route-name
       (cond->
         [path' verb (conj interceptors' fn-interceptor)]
+        route-name (conj :route-name route-name)
         (seq constraints') (conj :constraints constraints')))
     (catch Throwable t
       (throw (ex-info (format "Exception building route for %s." (:endpoint-name endpoint))

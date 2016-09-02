@@ -113,5 +113,16 @@ Here, each endpoint inherits the ``:id`` constraint from the namespace.
   It is not necessary to define a constraint for every path parameter, but it
   can be beneficial.
 
+Route Names
+-----------
+
+When Rook creates an interceptor, it provides a name for the interceptor;
+this is the keyword version of the fully qualified endpoint name.
+
+The interceptor name is the default route name, used by Pedestal when it
+create URLs.
+
+You can override the route name using the :route-name metadata on the endpoint
+function.
 
 
