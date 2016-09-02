@@ -11,10 +11,10 @@ The :arg-resolvers option is a map from keyword to argument resolver `generator`
 
 When a parameter of an endpoint function has metadata with the matching key, the generator is invoked.
 
-The generator is passed the parameter symbol, and returns the arg resolver function; this function
-is passed the Pedestal context and returns the argument value.
+The generator is passed the parameter symbol, and returns the argument resolver function; this function
+is used during request processing: it is passed the Pedestal context and returns the argument value.
 
-By convention, when the metadata value is `true`, the symbol is converted to a keyword.
+By convention, when the metadata value is the literal value ``true``, the symbol is converted to a keyword.
 
 So, if an endpoint function has a parameter ``^:request body``, the :request argument resolver
 will return a function equivalent to:
@@ -26,6 +26,61 @@ will return a function equivalent to:
         (if (some? v)
           v
           (throw (ex-info ...)))))
+
+Predefined Argument Resolvers
+-----------------------------
+
+:request
+
+    Key in the Ring request map (:request). Value may not be nil.
+
+:path-param
+
+    A path parameter, value may not be nil.
+
+:query-param
+
+    A query parameter, as an HTTP decoded string.
+
+:form-param
+
+    A form parameter.
+
+Defining New Argument Resolvers
+-------------------------------
+
+It is completely reasonable to provide your own :arg-resolvers (as the :arg-resolvers key in the options
+passed to io.aviso.rook/gen-table-routes).
+
+.. code-block:: clojure
+
+    (require '[io.aviso.rook :as rook])
+
+    (defn inject-arg-resolver [injections]
+      (fn [sym]
+        (let [k (rook/meta-value-for-parameter sym :inject)
+              injection (get injections k)]
+            (fn [_] injection))))
+
+    ...
+
+        (rook/gen-table-routes {...}
+                               {:arg-resolvers {:inject (inject-arg-resolver dependencies)}})
+
+
+In the above example code, when the table routes are created, the ``dependencies`` symbol contains values
+that an endpoint function might need; for example, a database connection or the like.
+
+When :inject is seen on a parameter symbol, the symbol is converted to a keyword via the
+function meta-value-for-parameter.
+This is then used to find the value; finally, an argument resolver is returned that ignores the
+provided context and supplies the value.
+
+Argument Resolver Errors
+------------------------
+
+Each endpoint parameter must apply to one and only one argument resolver.  If you applied more than one
+(say ``^:inject ^::request body``), you'll see an exception thrown from gen-table-routes.
 
 
 

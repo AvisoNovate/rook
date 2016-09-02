@@ -8,6 +8,8 @@ they are integral to how Pedestal applications are constructed and composed.
 Each endpoint function may define a set of interceptors specific to that function, using
 :interceptors metadata.
 
+Ultimately, Rook wraps endpoints functions so that they are Pedestal interceptors.
+
 Interceptors may be :doc:`inherited <nested>` from the namespace and elsewhere.
 
 Interceptor Values
@@ -48,7 +50,7 @@ The endpoint description has the following keys:
     The metadata map for the endpoint function.
 
 :endpoint-name
-    A string version of the fully qualified name of the var
+    A string version of the fully qualified name of the endpoint function
 
 In this way, the interceptor can use the details of the particular endpoint to generate a custom interceptor.
 
@@ -56,7 +58,7 @@ For example, an interceptor that did some special validation, or authentication,
 the endpoint function to determine what validations and authentications are necessary for that particular
 endpoint.
 
-For example, part of Rook's test suite, uses this Interceptor generator:
+Here's a more concrete example, part of Rook's test suite:
 
 .. literalinclude:: ../spec/sample/dynamic_interceptors.clj
    :language: clojure
