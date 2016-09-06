@@ -34,7 +34,7 @@ Rook generates a set of table routes that can then be used by the io.pedestal.ht
       {:env :prod
        ::http/routes (rook/gen-table-routes {"/widgets" 'org.example.widgets
                                              "/gizmos"  'org.example.gizmos}
-                                            nil}
+                                            nil})
        ::http/resource-path "/public"
        ::http/type :jetty
        ::http/port 8080})
