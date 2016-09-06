@@ -3,7 +3,7 @@ Nested Namespaces
 
 Defining nested (that is, hierarchical) namespaces requires a smidgen of extra work.
 In the non-nested case, it is usually sufficient to just specify the namespace (as a symbol),
-but with nested namespaces, a map is used; this is a namespace definition.
+but with nested namespaces, a map is used; this is the full namespace definition.
 
 .. code-block:: clojure
 
@@ -40,7 +40,7 @@ These options flow as follows:
         nsmeta [label="outer namespace metadata"];
         nesteddef [label="nested namespace definition"];
         nestedmeta [label="nested namespace metadata"];
-        nestedfns [label="nested endpoint functions"];
+        nestedfns [label="nested endpoint function metadata"];
 
         fmeta [label="endpoint function metadata"];
 

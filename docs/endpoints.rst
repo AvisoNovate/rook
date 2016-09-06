@@ -5,7 +5,7 @@ The io.aviso.rook/gen-table-routes function is provided with namespaces; the act
 endpoints are functions within those namespaces.
 
 Rook identifies functions with the metadata :rook-route.
-Functions with this metadata will be added as to the routing table.
+Functions with this metadata will be added to the generated routing table.
 
 Here's an example namespace with just a single endpoint:
 
@@ -17,6 +17,7 @@ Here's an example namespace with just a single endpoint:
     (defn list-widgets
       {:rook-route [:get ""]}
       []
+      ;; Placeholder:
       (r/response {:widgets []})
 
 Endpoint functions take some number of parameters (more on this shortly) and return
@@ -49,11 +50,13 @@ For example, we might define some additional endpoints to flesh out a typical re
     (defn get-widget
       {:rook-route [:get "/:id" {:id #"\d{6}"}]}
       [^:path-param id]
+      ;; Placeholder:
       (r/not-found "WIDGET NOT FOUND"))
 
     (defn update-widget
       {:rook-route [:post "/:id" {:id #"\d{6}"}]}
       [^:path-param id ^:request body]
+      ;; Placeholder:
       (r/response "OK"))
 
 The URI for the ``get-widget`` endpoint is ``/widgets/:id``, where the ``:id`` path parameter
@@ -80,12 +83,15 @@ Rook defines additional parameter metadata, and they are extensible.
 Namespace Metadata
 ------------------
 
-That repetition about the ``:id`` path parameter constraint is bothersome.
+That repetition about the ``:id`` path parameter constraint is bothersome, having it multiple
+places just makes it more likely to have conflicts.
+
 Fortunately, Rook merges metadata from the namespace with metadata from the endpoint, allowing
 such things to be just defined once:
 
 
 .. code-block:: clojure
+   :emphasize-lines: 2
 
     (ns org.example.widgets
       {:constraints {:id #"\d{6}"}}
@@ -94,16 +100,19 @@ such things to be just defined once:
     (defn list-widgets
       {:rook-route [:get ""]}
       []
+      ;; Placeholder:
       (r/response {:widgets []})
 
     (defn get-widget
       {:rook-route [:get "/:id"]}
       [^:path-param id]
+      ;; Placeholder:
       (r/not-found "WIDGET NOT FOUND"))
 
     (defn update-widget
       {:rook-route [:post "/:id"]}
       [^:path-param id ^:request body]
+      ;; Placeholder:
       (r/response "OK"))
 
 Here, each endpoint inherits the ``:id`` constraint from the namespace.

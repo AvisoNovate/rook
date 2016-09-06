@@ -62,7 +62,11 @@ Here's a more concrete example, part of Rook's test suite:
 
 .. literalinclude:: ../spec/sample/dynamic_interceptors.clj
    :language: clojure
+   :emphasize-lines: 7
 
+As the comment indicates, this uses ``def`` not ``defn`` so that the :endpoint-interceptor-fn
+metadata can be attached to the actual function instance, rather than the Var containing
+the function instance.
 
 Applying Interceptors
 ---------------------
@@ -70,7 +74,14 @@ Applying Interceptors
 When a namespace provides :interceptor metadata, that's a list of interceptors to add to every endpoint
 in the namespace, and in any nested namespaces.
 
-This can cast a wider net than is desirable.
+
+.. tip::
+
+   This can cast a wider net than is desirable; for example, including the
+   io.aviso.rook.interceptors/keywordized-form interceptor
+   at the namespace level will add it to `all` endpoints in the namespace,
+   even those that do not include a POSTed form.
+
 
 However, each individual endpoint will ultimately end up with its own individual interceptor list.
 
