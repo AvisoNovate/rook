@@ -255,13 +255,14 @@
 
   Alternately, a namespace definition may just be a symbol, used to identify the namespace.
 
-  Mapped functions will have a :rook-route metadata value.  This consists of a method
+  Endpoint functions within a namespace have a :rook-route metadata value.  This is a two or
+  three element vector, consisting of a method
   (:get, :post, etc.), a path string, and optionally, a map of constraints.
 
-  Mapped functions should have a single arity.
+  Endpoint functions should have a single arity.
 
-  Each parameter of the function must have metadata identifying how the argument value
-  is to be generated; these are defined by the effective arg-resolvers for the function.
+  Each parameter of the endpoint function must have metadata identifying how the argument value
+  is to be generated; these are defined by the arg-resolvers in effect for the function.
 
   The options map provides overrides of [[default-options]].
   Supplied options are deep merged into the defaults.
@@ -270,10 +271,9 @@
   and the interceptors it requires.
   It allows for interceptors to be specified as a keyword.
   The corresponding value in the interceptor-defs map may either be a previously
-  instantiated interceptor, or can by a function with the ^:endpoint-interceptor-fn
-  meta data.
+  instantiated interceptor, or can be an interceptor generator function.
 
   In the latter case, a map definining the endpoint is passed to the generator function,
-  which returns an interceptor."
+  which returns an interceptor, customized for the specific endpoint."
   [namespace-map options]
   (gen-routes namespace-map (deep-merge default-options options)))
