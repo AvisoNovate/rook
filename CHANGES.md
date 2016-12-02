@@ -1,3 +1,9 @@
+## 0.2.2 - UNRELEASED
+
+Refactored the argument resolvers out to their own namespace.
+
+Added an injection argument provider
+
 ## 0.2.1 - 2 Sep 2016
 
 Updated dependencies to Pedestal 0.5.1.

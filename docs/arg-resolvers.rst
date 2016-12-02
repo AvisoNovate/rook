@@ -58,7 +58,7 @@ Predefined Argument Resolvers
     A form parameter.  Endpoints using this should include the
     io.aviso.rook.interceptors/keywordized-form interceptor.
 
-Further details about these are in the API documentation.
+Further details about these are in the `API documentation <http://avisonovate.github.io/docs/rook/io.aviso.rook.arg-resolvers.html#var-default-arg-resolvers>`_.
 
 Defining New Argument Resolvers
 -------------------------------

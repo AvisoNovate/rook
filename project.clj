@@ -1,4 +1,4 @@
-(defproject io.aviso/rook "0.2.1"
+(defproject io.aviso/rook "0.2.2"
   :description "Smart namespace-driven routing for Pedestal"
   :url "https://github.com/AvisoNovate/rook"
   :license {:name "Apache Sofware License 2.0"
@@ -13,7 +13,7 @@
                  [clj-http "2.0.0"]]
   :plugins [[speclj "3.3.2"]
             [walmartlabs/vizdeps "0.1.1"]
-            [lein-codox "0.9.5"]]
+            [lein-codox "0.10.2"]]
   :jvm-opts ["-Xmx1g"]
   :aliases {"release" ["do"
                        "clean,"
