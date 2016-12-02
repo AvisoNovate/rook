@@ -121,14 +121,16 @@
     (let [interceptor-def (get interceptor-defs interceptor)]
       (cond
 
-        (nil? interceptor-defs)
+        (nil? interceptor-def)
         (throw (ex-info "Unknown interceptor definition."
                         {:interceptor interceptor
                          :intereceptor-defs (keys interceptor-defs)}))
 
-        ;; This is our special case, :endpoint-interceptor-fn indicates that
-        ;; it is a function that generates an interceptor custom for the endpoint.
-        (-> interceptor-def meta :endpoint-interceptor-fn)
+        ;; This is our special case, a function indicates an interceptor
+        ;; generator, which is passed the endpoint and returns a real interceptor.
+        ;; Normally, an interceptor that's a function is interpretted as
+        ;; a Ring handler that can only occur at the end of an interceptor pipeline.
+        (fn? interceptor-def)
         (interceptor-def endpoint)
 
         ;; Otherwise, a preconfigured interceptor, or any of the other things

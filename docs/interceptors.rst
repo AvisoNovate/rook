@@ -31,7 +31,16 @@ A matching value must exist (otherwise, an exception is thrown).
 
 The value is typically a configured interceptor value.
 
-Alternately, the value might be an interceptor generator: a function with metadata :endpoint-interceptor-fn.
+.. sidebar:: Pedestal Conflict?
+
+   Normally, a function in the intererceptor chain is
+   `interpreted as a Ring handler <http://pedestal.io/reference/interceptors#_handlers>`_.
+   However, those are *only* allowed in the final position of an interceptor chain.
+   That's never the case with Rook, because a Rook endpoint function is at the end
+   of the interceptor chain.
+
+Alternately, the value might be a function, which acts as an interceptor generator.
+
 
 Interceptor Generators
 ----------------------
@@ -62,11 +71,11 @@ Here's a more concrete example, part of Rook's test suite:
 
 .. literalinclude:: ../spec/sample/dynamic_interceptors.clj
    :language: clojure
-   :emphasize-lines: 7
 
-As the comment indicates, this uses ``def`` not ``defn`` so that the :endpoint-interceptor-fn
-metadata can be attached to the actual function instance, rather than the Var containing
-the function instance.
+This generator returns an interceptor that operates during the leave phase, when there's a response map.
+It adds the ``Endpoint`` header to the response.
+This same interceptor generator could be added to any number of endpoints; a unique interceptor
+instance will be generated for each endpoint.
 
 Applying Interceptors
 ---------------------
