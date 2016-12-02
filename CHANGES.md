@@ -1,4 +1,4 @@
-## 0.2.2 - UNRELEASED
+## 0.2.2 - 2 Dec 2016
 
 Refactored the argument resolvers out to their own namespace.
 
